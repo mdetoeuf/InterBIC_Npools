@@ -16,79 +16,9 @@ toc: true
 -   upstream steps = import "real" table (the code below creates a fictional plate to get started)
 -   export + downstream steps (different options based on analysis)
 
-# Algorithm in natural language
+# Intro
 
--   Plate info list:
-
-    -   plate number - element \<chr\>
-
-    -   column(s) with std curve(s) - vector \<chr\>
-
-    -   standard identity & unit - vector \<chr\> (element1 = name, element2 = unit)
-
-    -   range of std concentration - vector \<num\>
-
-    -   column(s) with blanc - vector \<chr\>
-
-    -   blanc identity & unit of concentration - vector \<chr\> (element1 = name, element2 = unit)
-
-    -   concentration of blanc - element \<num\>
-
-    -   timestamp - date-time format (?)
-
-    -   wavelength in nm - element \<int\>
-
--   vectorization of absorbance data, vectors are:
-
-    -   plate number
-
-    -   row
-
-    -   column
-
-    -   raw absorbance
-
-    -   legend (or ID)
-
--   Correct absorbances for blanc
-
-    -   Return a warning message
-
-        -   when absorbances are below 0.05 or above 1.5
-
-        -   give the number of wells concerned,
-
-        -   give the max and min value of those wells
-
-    -   case when row concerns std curve: correct std absorbances for std blanc
-
-        -   find rows where concentration is zero (slice.min?)
-
-        -   take average of absorbance from those rows
-
-        -   substract to all absorbances of the std the average "zero" value and store it in a new column = "corrected_abs"
-
-    -   case when row concerns samples: Correct sample absorbances for blanc
-
-        -   find rows with blanc
-
-        -   compute variation coefficient
-
-            -   return a warning message when var.coeff \> 30%?
-
-            -   exclude wells based on this? Or human decision?
-
-        -   compute average of blancs
-
-        -   substract that value to all non-standard rows and store it in column "corrected_abs"
-
--   Compute standard curve
-
-    -   Operation per plate
-
-    -   in plate df, filter rows corresponding to the std
-
-    -   
+For an explanation of the pipeline in English, see last section "Algorithm in natural language". It is not 100% up to date, but it shows the main steps of the pipeline
 
 # Code
 
@@ -459,3 +389,75 @@ p_val_slope # and possible p_val_lm if we get satisfied about this
 std_curve
 
 ```
+
+# Algorithm in natural language {#algo_natural}
+
+-   Plate info list:
+
+    -   plate number - element \<chr\>
+
+    -   column(s) with std curve(s) - vector \<chr\>
+
+    -   standard identity & unit - vector \<chr\> (element1 = name, element2 = unit)
+
+    -   range of std concentration - vector \<num\>
+
+    -   column(s) with blanc - vector \<chr\>
+
+    -   blanc identity & unit of concentration - vector \<chr\> (element1 = name, element2 = unit)
+
+    -   concentration of blanc - element \<num\>
+
+    -   timestamp - date-time format (?)
+
+    -   wavelength in nm - element \<int\>
+
+-   vectorization of absorbance data, vectors are:
+
+    -   plate number
+
+    -   row
+
+    -   column
+
+    -   raw absorbance
+
+    -   legend (or ID)
+
+-   Correct absorbances for blanc
+
+    -   Return a warning message
+
+        -   when absorbances are below 0.05 or above 1.5
+
+        -   give the number of wells concerned,
+
+        -   give the max and min value of those wells
+
+    -   case when row concerns std curve: correct std absorbances for std blanc
+
+        -   find rows where concentration is zero (slice.min?)
+
+        -   take average of absorbance from those rows
+
+        -   substract to all absorbances of the std the average "zero" value and store it in a new column = "corrected_abs"
+
+    -   case when row concerns samples: Correct sample absorbances for blanc
+
+        -   find rows with blanc
+
+        -   compute variation coefficient
+
+            -   return a warning message when var.coeff \> 30%?
+
+            -   exclude wells based on this? Or human decision?
+
+        -   compute average of blancs
+
+        -   substract that value to all non-standard rows and store it in column "corrected_abs"
+
+-   Compute standard curve
+
+    -   Operation per plate
+
+    -   in plate df, filter rows corresponding to the std
