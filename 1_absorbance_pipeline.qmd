@@ -92,13 +92,69 @@ bibliography: references.bib
 
 # Code
 
-## 1 - test import data
+## 1 - Set up
 
-This is a test to get into data that is outside of the github repo.
-
-It works - this can be done until we are ready to publish data sets –\> data private as long as possible
+Loading packages
 
 ```{r}
 library(tidyverse)
-read_csv("../raw_data/2024_raw.csv")
+```
+
+Prep template data: fake tables for the sake of building the next steps of the code. Once that code is working, then we can figure out how to extract real plate data instead of this fake model one.
+
+```{r}
+# create an empty table with NAs
+matrix <- matrix(NA, nrow = 8, ncol = 12)
+# give it names 1 to 12
+colnames(matrix) <- as.character(c(1:12))
+
+# turn it into a tibble and add column with letters
+plate_empty <- as_tibble(matrix) |> 
+  mutate(row = LETTERS[1:8], .before = 1)
+
+# use this template to create a plate with random numbers
+plate_abs <- plate_empty
+for (col in 2:13) {
+  plate_abs[col] = sample(0:100, 8)
+}
+
+# same but create random id's for the plate map (whole columns, who cares...)
+plate_map <- plate_empty
+for (col in 2:13) {
+  plate_map[col] = rep(str_flatten(sample(letters, 3)), 8)
+}
+
+# create fake plate information, this info could be extracted from real data set, for ex each variable here becomes a column name, and we record one row per plate
+plate_id <- "plate_id"
+std_column <- c("1", "12")
+std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
+std_conc <- c(1,2,3,4,5,6,7,8) # we need numerics
+blanc_column <- "7"
+blanc_id <- c("K2SO4", "M") # extractant, unit
+blanc_conc <- 0.5 # we need numeric
+timestamp <- timestamp() # see if the format of this is important
+wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
+delay_min <- 30 # also just to store info, it is the incubation time of the manip (plate left under the hood before measurement). Called delay to not confuse with incubation times of PMN and PNR 
+```
+
+## 2 - Vectorize plate data
+
+We use pivot longer
+
+```{r}
+# vectorize absorbance data
+abs_longer <- plate_abs |> 
+  pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "abs") 
+
+# vectorize well ids
+map_longer <- plate_map |> 
+  pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "well_id")
+
+# join both according to info stored in "row" and in "column"
+abs_data <- 
+  left_join(abs_longer, map_longer, by = c("column", "row")) |> 
+  # add info on plate id
+  mutate(plate_id = rep(plate_id)) |> 
+  # sort according to column
+  arrange(column)
 ```
