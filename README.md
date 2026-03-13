@@ -8,3 +8,13 @@ This is the repository containing all files necessary to run the analysis of Npo
 
 
 ## Describe scripts here
+
+Absorbance pipeline
+
+- goes from raw absorbance data:
+  - the values of absorbance in the shape of a table
+  - the plate map, also in the same shape of a table
+  - plate information such as plate id, where to find the extractant, the standard curve, etc
+- to corrected absorbance data:
+  - blanc-corrected values computed for samples and for the standard curve
+- and the computation of regression equation for the standard curve using a linear model fitted to include the origin (intercept = 0)
