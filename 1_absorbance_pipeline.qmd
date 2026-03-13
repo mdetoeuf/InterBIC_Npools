@@ -115,7 +115,7 @@ plate_empty <- as_tibble(matrix) |>
 # use this template to create a plate with random numbers
 plate_abs <- plate_empty
 for (col in 2:13) {
-  plate_abs[col] = sample(0:100, 8)
+  plate_abs[col] = sample(1:100, 8) / 100
 }
 
 # same but create random id's for the plate map (whole columns, who cares...)
@@ -148,13 +148,77 @@ abs_longer <- plate_abs |>
 
 # vectorize well ids
 map_longer <- plate_map |> 
-  pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "well_id")
+  pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "well_content")
 
 # join both according to info stored in "row" and in "column"
 abs_data <- 
   left_join(abs_longer, map_longer, by = c("column", "row")) |> 
-  # add info on plate id
-  mutate(plate_id = rep(plate_id)) |> 
+  # add info on plate id and well id
+  mutate(
+    plate_id = rep(plate_id),
+    well_id = paste0(row, column),
+    .before = 1) |> 
   # sort according to column
   arrange(column)
 ```
+
+## 3 - Correct absorbance values
+
+### 3.1 - QC - warning if absorbances not in \[0.05,1.5\]
+
+The ideal range for absorbance readings (Beer-lambert in linear range of relationship between concentration and absorbance) is between 0.1 and 1. But these are not super strict borders. I don't want to send out a warning message too soon, so we take higher values.
+
+This chunk filters out only rows where absorbance is out of range, and returns either a warning (when there are out-of-range values) or a happy message (when there are none). In case of a warning, it also shares the table with suspicious wells, so that the user can take an informed decision.
+
+[**To be thought through:**]{.underline}
+
+-   What are options then? Remove suspicious wells (replace by NAs?) –\> deal with it if we are confronted with it
+
+-   another option could be, instead of returning a table, to return only the min and max values of absorbance and/or the number of wells that are out of range
+
+-   We could also visualize a histogram of absorbance with threshold values marked on the graph
+
+```{r}
+#** Make sure empty wells contain NA, otherwise, lots of warning messages? To be tested *
+#*
+
+# initiate data frame that will contain suspicious well ids
+suspicious_wells <- c()
+for (i in 1:nrow(abs_data)) {
+  if (abs_data$abs[i] < 0.05 || abs_data$abs[i] > 1.5) {
+    suspicious_wells <- append(suspicious_wells, abs_data$well_id[i])
+    }
+}
+
+# Send a warning message
+if (!is.null(suspicious_wells)) {
+  warning("Some wells are out of range for absorbance, i.e., not in [0.05,1.5] \nSee table hereabove to identify suspicious wells")
+  abs_data |> filter(well_id %in% suspicious_wells)
+} else {
+  message("°^° !! YAY !! °^° All wells are in range for absorbance")
+}
+```
+
+### 3.2 - Correct std curves for blanc
+
+-   case when row concerns std curve: correct std absorbances for std blanc
+
+    -   find rows where concentration is zero (slice.min?)
+
+    -   take average of absorbance from those rows
+
+    -   substract to all absorbances of the std the average "zero" value and store it in a new column = "corrected_abs"
+
+-   case when row concerns samples: Correct sample absorbances for blanc
+
+    -   find rows with blanc
+
+    -   compute variation coefficient
+
+        -   return a warning message when var.coeff \> 30%?
+
+        -   exclude wells based on this? Or human decision?
+
+    -   compute average of blancs
+
+    -   substract that value to all non-standard rows and store it in column "corrected_abs"
