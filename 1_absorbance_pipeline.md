@@ -19,10 +19,15 @@
   °<sup>°°°</sup>](#-milestone--corrected-data-ready-for-downstream-analysis-)
   - [5 - Computing regression equation btw absorbance and
     concentration](#5---computing-regression-equation-btw-absorbance-and-concentration)
+- [°<sup>°°°</sup> Milestone : all data ready for downstream analysis
+  °<sup>°°°</sup>](#-milestone--all-data-ready-for-downstream-analysis-)
+  - [6 - Exporting data](#6---exporting-data)
 
 # To Do
 
-- bla
+- upstream steps = import “real” table (the code below creates a
+  fictional plate to get started)
+- export + downstream steps (different options based on analysis)
 
 # Algorithm in natural language
 
@@ -144,6 +149,24 @@ of the code. Once that code is working, then we can figure out how to
 extract real plate data instead of this fake model one.
 
 ``` r
+# create fake plate information, this info could be extracted from real data set, for ex each variable here becomes a column name, and we record one row per plate
+plate_id <- "plate_id"
+std_column <- c("1", "12")
+std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
+std_conc <- c(0,1,2,4,8,16, 24, 32) # we need numerics
+extractant_column <- "7"
+extractant_id <- c("K2SO4", "M") # extractant, unit
+extractant_conc <- 0.5 # we need numeric
+timestamp <- timestamp() # see if the format of this is important
+```
+
+    ##------ Fri Mar 13 16:19:44 2026 ------##
+
+``` r
+wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
+delay_min <- 30 # also just to store info, it is the incubation time of the manip (plate left under the hood before measurement). Called delay to not confuse with incubation times of PMN and PNR 
+
+
 # create an empty table with NAs
 matrix <- matrix(NA, nrow = 8, ncol = 12)
 # give it names 1 to 12
@@ -159,28 +182,19 @@ for (col in 2:13) {
   plate_abs[col] = sample(1:100, 8) / 100
 }
 
+# optional step, just to test std curves: replace columns 1 and 12 by non-random numbers
+plate_abs <- plate_abs |> 
+  mutate(
+    `1` = std_conc*5 + (sample(0:10, 8, replace = TRUE)/100)
+    ,
+    `12`= std_conc*5 + (sample(0:10, 8, replace = TRUE)/100)
+  )
+
 # same but create random id's for the plate map (whole columns, who cares...)
 plate_map <- plate_empty
 for (col in 2:13) {
   plate_map[col] = rep(str_flatten(sample(letters, 3)), 8)
 }
-
-# create fake plate information, this info could be extracted from real data set, for ex each variable here becomes a column name, and we record one row per plate
-plate_id <- "plate_id"
-std_column <- c("1", "12")
-std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
-std_conc <- c(1,2,3,4,5,6,7,8) # we need numerics
-extractant_column <- "7"
-extractant_id <- c("K2SO4", "M") # extractant, unit
-extractant_conc <- 0.5 # we need numeric
-timestamp <- timestamp() # see if the format of this is important
-```
-
-    ##------ Fri Mar 13 14:16:58 2026 ------##
-
-``` r
-wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
-delay_min <- 30 # also just to store info, it is the incubation time of the manip (plate left under the hood before measurement). Called delay to not confuse with incubation times of PMN and PNR 
 ```
 
 ## 2 - Vectorize plate data
@@ -194,8 +208,8 @@ abs_longer <- plate_abs |>
 
 # vectorize well ids
 map_longer <- plate_map |> 
-  pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "well_content")
-
+  pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "well_content") 
+ 
 # join both according to info stored in "row" and in "column"
 abs_data <- 
   left_join(abs_longer, map_longer, by = c("column", "row")) |> 
@@ -205,7 +219,7 @@ abs_data <-
     well_id = paste0(row, column),
     .before = 1) |> 
   # sort according to column
-  arrange(column)
+  arrange(column) 
 ```
 
 ## 3 - QC - warning if absorbances not in \[0.05,1.5\]
@@ -238,7 +252,7 @@ decision.
 #*
 
 # initiate data frame that will contain suspicious well ids
-suspicious_wells <- c()
+suspicious_wells <- c() 
 for (i in 1:nrow(abs_data)) {
   if (abs_data$abs[i] < 0.05 || abs_data$abs[i] > 1.5) {
     suspicious_wells <- append(suspicious_wells, abs_data$well_id[i])
@@ -257,14 +271,25 @@ if (!is.null(suspicious_wells)) {
     Warning: Some wells are out of range for absorbance, i.e., not in [0.05,1.5] 
     See table hereabove to identify suspicious wells
 
-    # A tibble: 5 × 6
-      plate_id well_id row   column   abs well_content
-      <chr>    <chr>   <chr> <chr>  <dbl> <chr>       
-    1 plate_id B3      B     3       0.01 uwp         
-    2 plate_id G4      G     4       0.02 pei         
-    3 plate_id E6      E     6       0.04 fph         
-    4 plate_id B7      B     7       0.02 dbl         
-    5 plate_id F8      F     8       0.02 rzq         
+    # A tibble: 16 × 6
+       plate_id well_id row   column    abs well_content
+       <chr>    <chr>   <chr> <chr>   <dbl> <chr>       
+     1 plate_id B1      B     1        5.07 yuo         
+     2 plate_id C1      C     1       10.1  yuo         
+     3 plate_id D1      D     1       20.1  yuo         
+     4 plate_id E1      E     1       40    yuo         
+     5 plate_id F1      F     1       80.1  yuo         
+     6 plate_id G1      G     1      120.   yuo         
+     7 plate_id H1      H     1      160.   yuo         
+     8 plate_id B12     B     12       5.01 vji         
+     9 plate_id C12     C     12      10.0  vji         
+    10 plate_id D12     D     12      20.0  vji         
+    11 plate_id E12     E     12      40.1  vji         
+    12 plate_id F12     F     12      80.0  vji         
+    13 plate_id G12     G     12     120.   vji         
+    14 plate_id H12     H     12     160.   vji         
+    15 plate_id E5      E     5        0.03 tya         
+    16 plate_id G9      G     9        0.02 hld         
 
 ## 4 - Correct absorbance values
 
@@ -298,7 +323,7 @@ standard curves)
 ``` r
 #** !! Adapt threshold parameter *
 
-threshold <- 10 # max coeff_var that we accept [%]
+threshold <- 10 # max coeff_var that we accept [%] 
 
 
 # Compute blanc value (as average in case of several values)
@@ -342,8 +367,8 @@ if (length(std_column) != 1) {
     # A tibble: 2 × 6
       plate_id well_id row   column   abs well_content
       <chr>    <chr>   <chr> <chr>  <dbl> <chr>       
-    1 plate_id H12     H     12      0.06 lnd         
-    2 plate_id E12     E     12      0.09 lnd         
+    1 plate_id A12     A     12      0.07 vji         
+    2 plate_id A1      A     1       0.1  yuo         
 
 ``` r
 std_blanc <- std_blanc_avg$blanc_abs
@@ -354,7 +379,7 @@ Now we can correct the absorbance values for the standard curves.
 ``` r
 std_corrected <- std_data |> 
   filter(well_id %ni% std_blanc_all$well_id) |> 
-  mutate(abs_corrected = abs - std_blanc)
+  mutate(abs_corrected = abs - std_blanc) 
 
 # just to check if it works... Yay :-)
 #left_join(abs_data, std_corrected) |> view()
@@ -376,12 +401,12 @@ value of the extractant
 extractant_data <- abs_data |> 
   # take only relevant plate-columns
   filter(
-    column %in% extractant_column) 
+    column %in% extractant_column)  
 
 extractant_avg <-  extractant_data |> 
   summarise(blanc_abs = mean(abs), std_dev = sd(abs)) |> 
   mutate(
-    coeff_var_percent = 100 * std_dev / blanc_abs)
+    coeff_var_percent = 100 * std_dev / blanc_abs) 
 
 # Warning if values are too divergent (decide what "threshold" is for the coefficient of variation ?)
 
@@ -430,3 +455,195 @@ At this point, we could export the data table for downstream analysis
 needed: computing regression equation
 
 ## 5 - Computing regression equation btw absorbance and concentration
+
+First, visualize the relationship
+
+<u>**To be thought through:**</u>
+
+- Now, to make sure that there is no inversion of the standard curve
+  (e.g., we write from smallest to biggest, but we pipette the biggest
+  in row A), I sort both vectors (concentration ans absorbances). But in
+  the case of a pipetting mistake where one value of the curve would be
+  off, we may not realize the issue if it means that the order of wells
+  is reshuffled
+
+- Propose something more elegant
+
+- **Maybe best to not reorganize anything. If the correlation is
+  negative, we will spot it in the graph!**
+
+- Don’t have an optimal way (or I am not yet convinced that it is
+  correct) to access the p-value of the model / the slope. The problem
+  is: the number that comes out is not the same as displayed in the
+  summary. But it would be quite long to check summaries of each
+  individual plate…
+
+``` r
+# create data frame
+
+# first, reorder std curve absorbance as follows
+# first per plate-column, then in increasing fashion
+#***
+
+regression_data <- tibble(
+  # sort concentration in increasing values, repeat it as many times as there are columns with std curve
+  conc = rep(std_conc[2:8], length(std_column)),
+  abs = std_data$abs[c(2:8, 10:16)]
+  #abs = std_corrected$abs_corrected
+  )
+
+# Compute linear model. The "0 + " forces lm to be fitted to pass through the origin
+lm_data <- lm(regression_data$abs ~ 0 +regression_data$conc) |> summary()
+
+lm_coeff <- lm_data$coefficients |> 
+  as.data.frame() |> 
+ # rownames_to_column() |> # not needed when fitted to go through origin
+  as_tibble()
+
+names(lm_coeff) <- c(
+  #"rowname", # not needed when fitted to go through origin
+  "Estimate", "std_error", "t_value", "p_value_slope")
+
+slope <- lm_coeff$Estimate |> signif(digits = 3)
+p_val_slope <- lm_coeff$p_value_slope |> signif(digits = 3)
+r_squared <- lm_data$r.squared |> signif(digits = 3)
+
+# Unsure of this value. But as long as it's low... who cares?  
+p_val_lm <- pf(lm_data$fstatistic[1], 
+   df1 = lm_data$fstatistic[2],
+   df2 = lm_data$fstatistic[3],
+  lower.tail = FALSE) |> glimpse()
+```
+
+     Named num 3.41e-43
+     - attr(*, "names")= chr "value"
+
+``` r
+color_p_val <- case_when(
+  p_val_slope > 0.05 ~ "red",
+  .default = "black"
+)
+
+size_p_val <- case_when(
+  p_val_slope > 0.05 ~ 5,
+  .default = 3.5
+)
+
+# Plot it
+std_curve <-  regression_data |> 
+  ggplot(aes(x = abs, y = conc)) + 
+  theme_minimal() +
+  geom_smooth(method = "lm", color = "grey30") +
+  geom_jitter(alpha = 0.5) +
+  labs(
+    title = plate_id,
+    subtitle = paste("slope = ", slope, "\nMultiple R-squared = ", r_squared),
+    caption = paste0("extracted in ", extractant_id[1])) +
+  ylab(paste0("Concentration of ", std_id[1], "\n[", std_id[2], "]")) +
+  xlab("Absorbance") +
+  annotate(
+    geom = "text", 
+    x = median(regression_data$abs),
+    y = max(regression_data$conc),
+    label = paste0("p-value of slope = ", p_val_slope),
+    color = color_p_val,
+    fontface = "bold",
+    size = size_p_val)
+#std_curve
+```
+
+# °<sup>°°°</sup> Milestone : all data ready for downstream analysis °<sup>°°°</sup>
+
+At this point, each plate needs to be evaluated. This could go in
+another script. In the case where there is a standard curve (anything
+but MicroResp), we could store everything above in one or more function,
+then code an iterative process to go through each plate with those
+functions while
+
+- storing the corrected absorbance data and append it to a central data
+  table per manip for downstrem computation
+
+- storing the slope, R-squared and p-values of the models in the
+  original “plate-id” data frame
+
+  - this could be added to the corrected dataframe, but it adds about 72
+    times as much data, so better to have just one line per plate as
+    this is per plate information
+
+  - We could consider adding other information like suspicious wells and
+    so on
+
+- storing the graphs which probably is the quickest way for a quick
+  assessment
+
+  - the plots are made so that p-values higher than 0.05 should be
+    spotted directly bc the annotation will appear bigger and in red
+
+Then, after this iterative process, we have everything that we need for
+the computation of the concentrations and other downstrem calculations
+
+<u>**To be thought through:**</u>
+
+- I haven’t really considered in great depths how the downstream
+  pipeline would look like for the MicroResp experiment. To be defined.
+  For my data analysis, it is meant for later, so I’ll get back to it,
+  but not super soon *a priori*
+
+- We could consider computing the concentration already at this step,
+  but I like to have a cut here where we first assess all the things to
+  look at (suspicious wells, suspicious standard curves, etc.), before
+  we move on. This is kind of a failsafe to avoid blindly going through
+  the analysis without considering potential issues
+
+## 6 - Exporting data
+
+Until I go through upstream steps (extracting “real” data from original
+files) and consider the downstream steps more concretely, it is hard to
+be sure about how / in which format, etc, to export the data. Still,
+here is a list of items that need to be exported one way or another
+
+``` r
+abs_corrected
+```
+
+    # A tibble: 72 × 6
+       plate_id well_id row   column well_content abs_corrected
+       <chr>    <chr>   <chr> <chr>  <chr>                <dbl>
+     1 plate_id A10     A     10     wem                 0.254 
+     2 plate_id B10     B     10     wem                -0.336 
+     3 plate_id C10     C     10     wem                -0.0963
+     4 plate_id D10     D     10     wem                -0.186 
+     5 plate_id E10     E     10     wem                -0.0363
+     6 plate_id F10     F     10     wem                -0.266 
+     7 plate_id G10     G     10     wem                 0.104 
+     8 plate_id H10     H     10     wem                -0.0863
+     9 plate_id A11     A     11     wmr                -0.376 
+    10 plate_id B11     B     11     wmr                -0.406 
+    # ℹ 62 more rows
+
+``` r
+slope
+```
+
+    [1] 5
+
+``` r
+r_squared
+```
+
+    [1] 1
+
+``` r
+p_val_slope # and possible p_val_lm if we get satisfied about this
+```
+
+    [1] 3.41e-43
+
+``` r
+# the last parameters, possibly in the form of an appended version of a table with all plate information (actually 1 line per plate, so I guess it can be seen as a vector)
+std_curve
+```
+
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](1_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-10-1.png)
