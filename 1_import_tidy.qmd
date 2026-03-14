@@ -35,6 +35,8 @@ Load packages
 
 ```{r}
 library(tidyverse)
+library(janitor) # for row_to_names()
+
 ```
 
 # 1 - Import spectro-like txt
@@ -53,7 +55,7 @@ all_files
 
 # I'll take the first one (for now there is only one, this might change...)
 plate_abs <- 
-  read_tsv(all_files[1], col_names = TRUE, skip = 5) |> 
+  read_tsv(all_files[1], col_names = TRUE, skip = 5, show_col_types = FALSE) |> 
   rename(row = `...1`)
 
 
@@ -65,7 +67,8 @@ From same txt file (from the spectro), we can extract some metadata. The rest wi
 
 ```{r}
 # 
-meta_data <- read_tsv(all_files[1], col_names = FALSE, n_max = 3)
+meta_data <- read_tsv(all_files[1], col_names = FALSE, n_max = 3, show_col_types = FALSE)
+#problems(meta_data)
 
 # !! The next line extracts something that looks like a N species, but it is just the spectro protocol, with only 2 possible values: no3 (for nitrate, nitrite, TDN) or nh4 (nh4+)
 protocol <- strsplit(meta_data$X2[1], split = " ")[[1]][1]
@@ -92,7 +95,30 @@ delay_min <- 30 #
 
 -   For the rest of the plate info, including a plate map, a file will have to be encoded!
 
-# 2 - Import TDN data (Sang style)
+# 2 - Import TDN data from csv (Sang style)
+
+Actually the original file is an xlsx file. But relevant sheets are saved as csv for easier manipulation.
+
+Everything comes from raw data csv that originates from an xlsx file : /Users/Admin/Nextcloud/PhD/2024_trial/Fab_Mo/1_Data/TDN_data.xlsx
+
+## 2.1 - Import plate absorbance data
+
+Now, working for first plate
+
+```{r}
+tdn_abs_raw <- read_csv("../raw_data/TDN_data.csv", col_names = FALSE)
+
+i = 1
+plate_id <- tdn_abs_raw$X1[i]
+
+plate_abs <- tdn_abs_raw[i:(i+8),] |> 
+  row_to_names(row_number = 1) |> 
+  rename(row = 1)
+
+
+```
+
+## 2.2 - import plate map
 
 From the sample list we can create plate maps. The next chunk does it for one plate. —\> make it a loop or a function or something...
 
@@ -130,3 +156,13 @@ colnames(plate_map) <- c("row", as.character(c(1:12)))
 plate_map
 
 ```
+
+## 2.3 - import plate metadat
+
+this is strictly speaking the import. Then we can set for each row i the individual parameters
+
+```{r}
+meta_data <- read_csv("../raw_data/TDN_metadata.csv")
+```
+
+# 3 - import student csv (from xlsx)

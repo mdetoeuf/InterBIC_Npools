@@ -9,7 +9,14 @@
     (plate_abs)](#11---import-absorbance-data-plate_abs)
   - [1.2 - import plate data (plate_map +
     infos)](#12---import-plate-data-plate_map--infos)
-- [2 - Import TDN data (Sang style)](#2---import-tdn-data-sang-style)
+- [2 - Import TDN data from csv (Sang
+  style)](#2---import-tdn-data-from-csv-sang-style)
+  - [2.1 - Import plate absorbance
+    data](#21---import-plate-absorbance-data)
+  - [2.2 - import plate map](#22---import-plate-map)
+  - [2.3 - import plate metadat](#23---import-plate-metadat)
+- [3 - import student csv (from
+  xlsx)](#3---import-student-csv-from-xlsx)
 
 # To Do
 
@@ -52,6 +59,17 @@ library(tidyverse)
     ✖ dplyr::lag()    masks stats::lag()
     ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
 
+``` r
+library(janitor) # for row_to_names()
+```
+
+
+    Attaching package: 'janitor'
+
+    The following objects are masked from 'package:stats':
+
+        chisq.test, fisher.test
+
 # 1 - Import spectro-like txt
 
 I will start with the files that are as delivered by the specrto when we
@@ -73,17 +91,11 @@ all_files
 ``` r
 # I'll take the first one (for now there is only one, this might change...)
 plate_abs <- 
-  read_tsv(all_files[1], col_names = TRUE, skip = 5) |> 
+  read_tsv(all_files[1], col_names = TRUE, skip = 5, show_col_types = FALSE) |> 
   rename(row = `...1`)
 ```
 
     New names:
-    Rows: 8 Columns: 13
-    ── Column specification
-    ──────────────────────────────────────────────────────── Delimiter: "\t" chr
-    (1): ...1 dbl (12): 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
-    ℹ Use `spec()` to retrieve the full column specification for this data. ℹ
-    Specify the column types or set `show_col_types = FALSE` to quiet this message.
     • `` -> `...1`
 
 ## 1.2 - import plate data (plate_map + infos)
@@ -95,7 +107,7 @@ it will depend on each pesron and experiment
 
 ``` r
 # 
-meta_data <- read_tsv(all_files[1], col_names = FALSE, n_max = 3)
+meta_data <- read_tsv(all_files[1], col_names = FALSE, n_max = 3, show_col_types = FALSE)
 ```
 
     Warning: One or more parsing issues, call `problems()` on your data frame for details,
@@ -103,15 +115,9 @@ meta_data <- read_tsv(all_files[1], col_names = FALSE, n_max = 3)
       dat <- vroom(...)
       problems(dat)
 
-    Rows: 3 Columns: 2
-    ── Column specification ────────────────────────────────────────────────────────
-    Delimiter: "\t"
-    chr (2): X1, X2
-
-    ℹ Use `spec()` to retrieve the full column specification for this data.
-    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
-
 ``` r
+#problems(meta_data)
+
 # !! The next line extracts something that looks like a N species, but it is just the spectro protocol, with only 2 possible values: no3 (for nitrate, nitrite, TDN) or nh4 (nh4+)
 protocol <- strsplit(meta_data$X2[1], split = " ")[[1]][1]
 date <- strsplit(meta_data$X2[1], split = " ")[[1]][2]
@@ -131,7 +137,7 @@ extractant_conc <- 0.5 # we need numeric
 timestamp <- timestamp() # see if the format of this is important
 ```
 
-    ##------ Sat Mar 14 00:11:28 2026 ------##
+    ##------ Sat Mar 14 22:11:36 2026 ------##
 
 ``` r
 wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
@@ -143,7 +149,41 @@ delay_min <- 30 #
 - For the rest of the plate info, including a plate map, a file will
   have to be encoded!
 
-# 2 - Import TDN data (Sang style)
+# 2 - Import TDN data from csv (Sang style)
+
+Actually the original file is an xlsx file. But relevant sheets are
+saved as csv for easier manipulation.
+
+Everything comes from raw data csv that originates from an xlsx file :
+/Users/Admin/Nextcloud/PhD/2024_trial/Fab_Mo/1_Data/TDN_data.xlsx
+
+## 2.1 - Import plate absorbance data
+
+Now, working for first plate
+
+``` r
+tdn_abs_raw <- read_csv("../raw_data/TDN_data.csv", col_names = FALSE)
+```
+
+    Rows: 342 Columns: 13
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr  (1): X1
+    dbl (12): X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
+i = 1
+plate_id <- tdn_abs_raw$X1[i]
+
+plate_abs <- tdn_abs_raw[i:(i+8),] |> 
+  row_to_names(row_number = 1) |> 
+  rename(row = 1)
+```
+
+## 2.2 - import plate map
 
 From the sample list we can create plate maps. The next chunk does it
 for one plate. —\> make it a loop or a function or something…
@@ -234,3 +274,24 @@ plate_map
     6 F     std   11_no… 12_n… 13_n… 14_n… 15_n… 16_n… extr… 17_n… 18_n… 19_n… 20_n…
     7 G     std   11_no… 12_n… 13_n… 14_n… 15_n… 16_n… extr… 17_n… 18_n… 19_n… 20_n…
     8 H     std   11_no… 12_n… 13_n… 14_n… 15_n… 16_n… extr… 17_n… 18_n… 19_n… 20_n…
+
+## 2.3 - import plate metadat
+
+this is strictly speaking the import. Then we can set for each row i the
+individual parameters
+
+``` r
+meta_data <- read_csv("../raw_data/TDN_metadata.csv")
+```
+
+    Rows: 38 Columns: 15
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (8): plate_id, date, std_sp, std_prep, sample_dilution, extractant_sp, e...
+    dbl (3): std_column, extractant_column, extractant_conc
+    lgl (4): time, std_unit, std_conc, wait_min
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+# 3 - import student csv (from xlsx)
