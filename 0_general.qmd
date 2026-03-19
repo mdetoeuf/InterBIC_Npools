@@ -1,0 +1,52 @@
+---
+title: "0 General"
+format: gfm
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+toc: true
+---
+
+# General To Do
+
+-   List all "raw" variables: PMN, PNR, TDN, NO3, NO2, NO4
+
+    -   list data sets / formats
+
+    -   deduce import steps from this: one per type
+
+-   Write down equations to get to derived variables
+
+-   Write M&M
+
+    -   bullet points for lab
+
+    -   complete field & greenhouse
+
+    -   run after Morgan
+
+-   Finish DMP first draft
+
+    -   send to Fabienne.
+
+    -   When feedback –\> Morgan & co?
+
+# Detailed To Do
+
+## 1. mineral N pools
+
+! 2 different types: t1 and t2: txt files from spectro. t3: xlsx file.
+
+-   encode plate maps and plate metadata
+
+-   gather raw files & rename when needed
+
+-   adapt import pipeline, including loop
+
+-   export data table with raw data
+
+## 2. PMN
