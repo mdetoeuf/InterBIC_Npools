@@ -13,6 +13,8 @@ toc: true
 
 # General To Do
 
+[**!! IN VERTICALIZATION: OPTION FOR EMPTY COLUMNS !!**]{.underline}
+
 -   List all "raw" variables: PMN, PNR, TDN, NO3, NO2, NO4
 
     -   list data sets / formats

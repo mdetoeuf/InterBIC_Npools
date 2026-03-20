@@ -1,22 +1,29 @@
 #** Import absorbance data from txt file *
 
 #> Author      : Morgane de Toeuf
-#> Version     : 2026-03-19
+#> Version     : 2026-03-20
 #> Purpose     : any data analysis involving data acquired from 96-well plates
-#> 
+#> Returns     : a list with 2 objects: 
+#>               - 1 dataframe = metadata off all plates (what is in .txt file)
+#>               - 1 list where 1 element = absorbance data from 1 plate
+#>               
 #** !! As is, will only extract data from files with the extension ".TXT" *
 
 
 #** TO DO ! *
-# add an export step --> create rds or something, 
+# for now: returns a list. Add an export step? --> create rds or something? 
 # or lengthen the function to go to the next step, 
 # --> adding this extracted metadata to manually imported table of plate info
 # --> computing verticalization to have not a list but a table with absorbance data
 # --> including info from plate map (to be imported as well)
 
+filepath <- "raw_data/Nmin/"
+
 import_abs_txt <- function(
     filepath
     ) {
+  
+  library(tidyverse)
   
   # obtain list of files in the filepath 
   all_files <- list.files(
@@ -41,7 +48,7 @@ import_abs_txt <- function(
     file <- paste0(filepath, all_files[i])
     
     # store plate id in a variable
-    plate_id <- str_extract(all_files[i], pattern = "(\\w*)(\\.TXT)", group = 1)
+    plate_id <- str_extract(all_files[i], pattern = "(\\w*)(.)(\\TXT)", group = 1)
     
     # extract only absorbance data from file to exploit as a tibble
     plate_abs <- 
@@ -49,6 +56,7 @@ import_abs_txt <- function(
       rename(row = `...1`)
     # add it as element i of the list
     abs_data[[i]] <- plate_abs
+    names(abs_data)[i] <- plate_id
 
         
     # extract metadata from file
@@ -66,9 +74,9 @@ import_abs_txt <- function(
     plate_metadata <- bind_rows(
       plate_metadata, new_row)
     
- 
   }
   
+  return(list(plate_metadata, abs_data))
 }
 
-#import_abs_txt(filepath = "raw_data/Nmin/")
+#Nmin_t1t2 <- import_abs_txt(filepath = "raw_data/Nmin/")
