@@ -3,19 +3,16 @@
 #> Author      : Morgane de Toeuf
 #> Version     : 2026-03-20
 #> Purpose     : any data analysis involving data acquired from 96-well plates
-#> Returns     : a list with 2 objects: 
+#> Returns     : a list with 3 objects: 
 #>               - 1 dataframe = metadata off all plates (what is in .txt file)
 #>               - 1 list where 1 element = absorbance data from 1 plate
+#>               - the same info in a data frame: 1 column per plate, one row per well
 #>               
 #** !! As is, will only extract data from files with the extension ".TXT" *
 
 
 #** TO DO ! *
-# for now: returns a list. Add an export step? --> create rds or something? 
-# or lengthen the function to go to the next step, 
-# --> adding this extracted metadata to manually imported table of plate info
-# --> computing verticalization to have not a list but a table with absorbance data
-# --> including info from plate map (to be imported as well)
+# If relevant: maybe pivot-longer the data frame of absorbances
 
 filepath <- "raw_data/Nmin/"
 
@@ -31,7 +28,8 @@ import_abs_txt <- function(
     pattern = ".TXT", 
     full.names = FALSE)
   # have a look at it
-  all_files |> glimpse()
+  
+  #all_files |> glimpse()
   
   # initiate empty something (df or list?)
   abs_data <- list()
@@ -42,6 +40,23 @@ import_abs_txt <- function(
     time = date(),
     wavelength = character()
   )
+  
+  # initiate an empty plate
+  # create an empty table with NAs
+  matrix <- matrix(NA, nrow = 8, ncol = 12)
+  # give it names 1 to 12
+  colnames(matrix) <- as.character(c(1:12))
+  
+  # turn it into a tibble and add column with letters
+  plate_empty <- as_tibble(matrix) |> 
+    mutate(row = LETTERS[1:8], .before = 1)
+  
+  # verticalize and store in a dataframe
+  abs_longer <- plate_empty |> 
+    pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "abs") |> 
+    # then remove the empty values (column "abs")
+    select(!abs)
+  
   #i = 1
   for (i in 1:length(all_files)) {
     # get name of file nb i
@@ -74,9 +89,20 @@ import_abs_txt <- function(
     plate_metadata <- bind_rows(
       plate_metadata, new_row)
     
+    # verticalize the absorbance data and append it to the dataframe in construction
+    abs_longer <- abs_longer |> 
+      mutate(
+        plate_abs |> 
+          pivot_longer(cols = `1`:`12`, names_to = "column", values_to = plate_id) |> 
+          select(any_of(plate_id))
+      )
+      
   }
   
-  return(list(plate_metadata, abs_data))
+  result <- list(plate_metadata, abs_data, abs_longer)
+  names(result) <- c("plate_metadata", "abs_data_list", "abs_data_df")
+  
+  return(result)
 }
 
-#Nmin_t1t2 <- import_abs_txt(filepath = "raw_data/Nmin/")
+Nmin_t1t2 <- import_abs_txt(filepath = "raw_data/Nmin/")
