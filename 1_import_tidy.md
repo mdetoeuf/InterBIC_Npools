@@ -80,6 +80,7 @@ library(janitor) # for row_to_names()
 # load functions
 source("functions/import_abs_txt.R")
 source("functions/import_abs_csv.R")
+source("functions/join_maps_abs.R")
 ```
 
 # 1 - Import Nmin data (t1, t2, t3)
@@ -320,7 +321,7 @@ extractant_conc <- 0.5 # we need numeric
 timestamp <- timestamp() # see if the format of this is important
 ```
 
-    ##------ Mon Mar 23 14:24:05 2026 ------##
+    ##------ Mon Mar 23 14:36:30 2026 ------##
 
 ``` r
 #wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
@@ -334,37 +335,30 @@ data in a single column, before we can join the data in a single data
 frame. The target structure for the data frame would be to have the
 following columns: “row” (from the plate), “column” (from the plate),
 “well_id” (= concatenation of row and column), plate_map (sample name or
-extractant or std curve), absorbance
+extractant or std curve), absorbance.
+
+The steps for this are recorded into a function `join_maps_abs()`, so we
+can easily repeat it
 
 ``` r
-# pivot absorbance data
-Nmin_abs_longer <- Nmin_all_abs |> 
-  pivot_longer(
-    cols = starts_with("N", ignore.case = FALSE),
-    values_to = "absorbance",
-    names_to = "plate_id"
-    ) |> 
-  mutate(column = as.numeric(column))
-
-# pivot maps data
-Nmin_maps_longer <- Nmin_all_maps |> 
-  pivot_longer(
-    cols = starts_with("N", ignore.case = FALSE),
-    values_to = "plate_map",
-    names_to = "plate_id"
-    ) |> 
-  mutate(column = as.numeric(column))
-
-# join both
-Nmin_data <- left_join(
-  Nmin_maps_longer, Nmin_abs_longer, 
-  by = join_by(row, column, plate_id)
-  ) |> 
-  # add well_id column
-  mutate(well_id = paste0(row, column), .after = 2) |> 
-  # sort it per plate then per "column" (from plates)
-  arrange(plate_id,column)
+Nmin_data <- join_maps_abs(maps_df = Nmin_all_maps, abs_df = Nmin_all_abs)
+Nmin_data
 ```
+
+    # A tibble: 11,232 × 6
+       row   column well_id plate_id plate_map absorbance
+       <chr>  <dbl> <chr>   <chr>    <chr>          <dbl>
+     1 A          1 A1      NH4_1F1  Std            0.039
+     2 B          1 B1      NH4_1F1  Std            0.043
+     3 C          1 C1      NH4_1F1  Std            0.047
+     4 D          1 D1      NH4_1F1  Std            0.053
+     5 E          1 E1      NH4_1F1  Std            0.059
+     6 F          1 F1      NH4_1F1  Std            0.067
+     7 G          1 G1      NH4_1F1  Std            0.096
+     8 H          1 H1      NH4_1F1  Std            0.126
+     9 A          2 A2      NH4_1F1  81_t1_z2       0.046
+    10 B          2 B2      NH4_1F1  81_t1_z2       0.046
+    # ℹ 11,222 more rows
 
 Now that we have our final raw data frame, we can export it to save it
 as a document to use for downstream analysis

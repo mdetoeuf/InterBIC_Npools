@@ -44,6 +44,7 @@ library(janitor) # for row_to_names()
 # load functions
 source("functions/import_abs_txt.R")
 source("functions/import_abs_csv.R")
+source("functions/join_maps_abs.R")
 
 ```
 
@@ -122,36 +123,15 @@ delay_min <- 30 #
 
 # 2 - Join absorbance and map data
 
-First we need to use `pivot_longer()` to get absorbance data / plate map data in a single column, before we can join the data in a single data frame. The target structure for the data frame would be to have the following columns: "row" (from the plate), "column" (from the plate), "well_id" (= concatenation of row and column), plate_map (sample name or extractant or std curve), absorbance
+First we need to use `pivot_longer()` to get absorbance data / plate map data in a single column, before we can join the data in a single data frame. The target structure for the data frame would be to have the following columns: "row" (from the plate), "column" (from the plate), "well_id" (= concatenation of row and column), plate_map (sample name or extractant or std curve), absorbance.
+
+The steps for this are recorded into a function `join_maps_abs()`, so we can easily repeat it
 
 ```{r}
-# pivot absorbance data
-Nmin_abs_longer <- Nmin_all_abs |> 
-  pivot_longer(
-    cols = starts_with("N", ignore.case = FALSE),
-    values_to = "absorbance",
-    names_to = "plate_id"
-    ) |> 
-  mutate(column = as.numeric(column))
 
-# pivot maps data
-Nmin_maps_longer <- Nmin_all_maps |> 
-  pivot_longer(
-    cols = starts_with("N", ignore.case = FALSE),
-    values_to = "plate_map",
-    names_to = "plate_id"
-    ) |> 
-  mutate(column = as.numeric(column))
+Nmin_data <- join_maps_abs(maps_df = Nmin_all_maps, abs_df = Nmin_all_abs)
+Nmin_data
 
-# join both
-Nmin_data <- left_join(
-  Nmin_maps_longer, Nmin_abs_longer, 
-  by = join_by(row, column, plate_id)
-  ) |> 
-  # add well_id column
-  mutate(well_id = paste0(row, column), .after = 2) |> 
-  # sort it per plate then per "column" (from plates)
-  arrange(plate_id,column)
 ```
 
 Now that we have our final raw data frame, we can export it to save it as a document to use for downstream analysis

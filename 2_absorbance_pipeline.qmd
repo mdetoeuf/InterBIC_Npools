@@ -35,47 +35,6 @@ Prep template data: fake tables for the sake of building the next steps of the c
 
 ```{r}
 
-# create fake plate information, this info could be extracted from real data set, for ex each variable here becomes a column name, and we record one row per plate
-plate_id <- "plate_id"
-std_column <- c("1", "12")
-std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
-std_conc <- c(0,1,2,4,8,16, 24, 32) # we need numerics
-extractant_column <- "7"
-extractant_id <- c("K2SO4", "M") # extractant, unit
-extractant_conc <- 0.5 # we need numeric
-timestamp <- timestamp() # see if the format of this is important
-wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
-delay_min <- 30 # also just to store info, it is the incubation time of the manip (plate left under the hood before measurement). Called delay to not confuse with incubation times of PMN and PNR 
-
-
-# create an empty table with NAs
-matrix <- matrix(NA, nrow = 8, ncol = 12)
-# give it names 1 to 12
-colnames(matrix) <- as.character(c(1:12))
-
-# turn it into a tibble and add column with letters
-plate_empty <- as_tibble(matrix) |> 
-  mutate(row = LETTERS[1:8], .before = 1)
-
-# use this template to create a plate with random numbers
-plate_abs <- plate_empty
-for (col in 2:13) {
-  plate_abs[col] = sample(1:100, 8) / 100
-}
-
-# optional step, just to test std curves: replace columns 1 and 12 by non-random numbers
-plate_abs <- plate_abs |> 
-  mutate(
-    `1` = std_conc*5 + (sample(0:10, 8, replace = TRUE)/100)
-    ,
-    `12`= std_conc*5 + (sample(0:10, 8, replace = TRUE)/100)
-  )
-
-# same but create random id's for the plate map (whole columns, who cares...)
-plate_map <- plate_empty
-for (col in 2:13) {
-  plate_map[col] = rep(str_flatten(sample(letters, 3)), 8)
-}
 
 
 ```
