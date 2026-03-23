@@ -16,10 +16,19 @@
 #**       so that a new plate starts every 9 rows and the data set is 13 columns wide *
 #** All these conditions can easily be enlarged, but it would require additional *
 #** data manipulation steps, and I do not see that it is needed at the moment *
+#**
+#** TROUBLESHOOTING *
+#*
+#** If plate ids contain special characters other than _ it can be that names of *
+#** elements in the list and variables in the data frame will be given surrounded *
+#** by tick marks (ex: `NO3_R1-R2`), so it might be relevant to make sure such characters *
+#** are not included in plate ids *
 
 
 #** TO DO ! *
 # If relevant: maybe pivot-longer the data frame of absorbances
+
+#file <- read_csv("raw_data/Nmin_t3/Nmint3_maps.csv", col_names = FALSE)
 
 import_abs_csv <- function(file) {
   
@@ -55,11 +64,11 @@ import_abs_csv <- function(file) {
     select(!abs)
   
   
-  #i = 1
+  #i = 5
   for (i in 1:nrow(plates)) {
   # store plate id
   plate_id <- plates$plate_id[i]
-  
+
   # extract line corresponding to plate_id
    line <- which(file$X1 == plate_id)
    
@@ -72,7 +81,7 @@ import_abs_csv <- function(file) {
    
    abs_data[[i]] <- plate_abs
    names(abs_data)[i] <- plate_id
-   
+
    # verticalize the absorbance data and append it to the dataframe in construction
    abs_longer <- abs_longer |> 
      mutate(
@@ -80,7 +89,8 @@ import_abs_csv <- function(file) {
          pivot_longer(cols = `1`:`12`, names_to = "column", values_to = plate_id) |> 
          select(any_of(plate_id))
      )
-   
+   #print(i)
+   #i = i+1
   } # end of for-loop
    
   result <- list(abs_data, abs_longer)

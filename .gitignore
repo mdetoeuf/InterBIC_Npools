@@ -1,9 +1,12 @@
 .Rproj.user
 InterBIC_Npools.Rproj
 .Rhistory
+0_ToDo.R
 raw_data/Missing_samples_redo/
 raw_data/Nmin/
 raw_data/Nmin_t3/
 raw_data/PMN/
 raw_data/PNR/
 raw_data/TDN/
+output/
+

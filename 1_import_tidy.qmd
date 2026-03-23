@@ -19,10 +19,6 @@ toc: true
 
     -   Then add it to plate info of Nmin
 
--   Nmin t1 and t2: duplicate & rename files to be divided in 2
-
--   
-
 -   For raw "spectro-like" txt files:
 
     -   Harmonize file names, containing plate nb and N sp
@@ -47,26 +43,66 @@ library(janitor) # for row_to_names()
 
 # load functions
 source("functions/import_abs_txt.R")
+source("functions/import_abs_csv.R")
 
 ```
 
-# 1 - Import Nmin data (t1, t2)
+# 1 - Import Nmin data (t1, t2, t3)
 
 The Nmin absorbance data is in the "raw" format of a txt file as it comes directly from the spectrophotometer
 
-## 1.1 - Absorbance data
+Here we use the import functions to get txt-based data and csv-based data stored in variables. Because the data set is partly in txt (t1, t2, absorbance data), and partly in csv format (t1, t2 maps + t3 absorbance data and maps), we need to go through import steps separately.
 
 ```{r}
 #| warning: false
 
 #** !! Now turned off warnings --> but should check why it gives such a message and if can really be ignored... !! *
 
+# set file path for data in .TXT format (t1, t2)
 filepath <- "raw_data/Nmin/"
+# import csv for data in csv format (t3)
+csv_file <- read_csv("raw_data/Nmin_t3/Nmint3_data.csv", col_names = FALSE)
+
+# import & shape data
+# from .txt format
 Nmin_t1t2_abs <- import_abs_txt(filepath)
 
+# from .csv format
+Nmin_t3_abs <- import_abs_csv(csv_file)
+
+# look at structure of both data frames
+Nmin_t1t2_abs$abs_data_df 
+Nmin_t3_abs$abs_data_df
 ```
 
-## 1.3 - Plate metadata
+Now that all data is in the same format, we can regroup data in two general data frames: one for the absorbance data, one for the "maps" data.
+
+```{r}
+# join both data frames
+Nmin_all_abs <- left_join(Nmin_t1t2_abs$abs_data_df, Nmin_t3_abs$abs_data_df)
+Nmin_all_abs
+
+# look at plate maps
+# for Nmin t3
+maps_t3_file <- read_csv("raw_data/Nmin_t3/Nmint3_maps.csv", col_names = FALSE)
+Nmin_t3_maps <- import_abs_csv(maps_t3_file)
+Nmin_t3_maps$abs_data_df 
+
+# For Nmin t1 and t2
+maps_t1t1_file <- read_csv("raw_data/Nmin/Nmin_maps.csv", col_names = FALSE)
+Nmin_t1t1_maps <- import_abs_csv(maps_t1t1_file)
+Nmin_t1t1_maps$abs_data_df
+
+# join both data frames
+Nmin_all_maps <- left_join(Nmin_t1t1_maps$abs_data_df, Nmin_t3_maps$abs_data_df)
+Nmin_all_maps
+```
+
+So now we have those 2 data frames that have strictly the same structure, with `r nrow(Nmin_all_maps)` rows and `r ncol(Nmin_all_maps)` columns, with 2 columns attributed to the well identifier ("row" and "column"), and the remaining `r ncol(Nmin_all_maps) - 2` columns representing the 96-well plates.
+
+## 1.1 - Plate metadata
+
+This section need to be improved, based on files to import. (now it is manual encoding...)
 
 ```{r}
 
@@ -84,30 +120,49 @@ timestamp <- timestamp() # see if the format of this is important
 delay_min <- 30 # 
 ```
 
-# 1 - Import spectro-like txt
+# 2 - Join absorbance and map data
 
-I will start with the files that are as delivered by the specrto when we work with a USB key (so we only get absorbance data, no plate map or plate info).
-
-## 1.2 - import plate data (plate_map + infos)
-
-From same txt file (from the spectro), we can extract some metadata. The rest will have to be supplied by extra table to be imported. Also, We could get some info from the file name, but that is not a general code, it will depend on each pesron and experiment
+First we need to use `pivot_longer()` to get absorbance data / plate map data in a single column, before we can join the data in a single data frame. The target structure for the data frame would be to have the following columns: "row" (from the plate), "column" (from the plate), "well_id" (= concatenation of row and column), plate_map (sample name or extractant or std curve), absorbance
 
 ```{r}
+# pivot absorbance data
+Nmin_abs_longer <- Nmin_all_abs |> 
+  pivot_longer(
+    cols = starts_with("N", ignore.case = FALSE),
+    values_to = "absorbance",
+    names_to = "plate_id"
+    ) |> 
+  mutate(column = as.numeric(column))
 
+# pivot maps data
+Nmin_maps_longer <- Nmin_all_maps |> 
+  pivot_longer(
+    cols = starts_with("N", ignore.case = FALSE),
+    values_to = "plate_map",
+    names_to = "plate_id"
+    ) |> 
+  mutate(column = as.numeric(column))
 
-# Just as a failsafe, here is everything that we wanted to collect ...
-std_column <- c("1", "12")
-std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
-std_conc <- c(0,1,2,4,8,16, 24, 32) # we need numerics
-extractant_column <- "7"
-extractant_id <- c("K2SO4", "M") # extractant, unit
-extractant_conc <- 0.5 # we need numeric
-timestamp <- timestamp() # see if the format of this is important
-wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
-delay_min <- 30 # 
+# join both
+Nmin_data <- left_join(
+  Nmin_maps_longer, Nmin_abs_longer, 
+  by = join_by(row, column, plate_id)
+  ) |> 
+  # add well_id column
+  mutate(well_id = paste0(row, column), .after = 2) |> 
+  # sort it per plate then per "column" (from plates)
+  arrange(plate_id,column)
 ```
 
-# 2 - Import TDN data from csv (Sang style)
+Now that we have our final raw data frame, we can export it to save it as a document to use for downstream analysis
+
+```{r}
+write_csv(Nmin_data, file = "output/data/Nmin_tidy.rds")
+```
+
+# °°° — Below this, draft, to be picked up — °°°
+
+# 3 - Import TDN data from csv (Sang style)
 
 Actually the original file is an xlsx file. But relevant sheets are saved as csv for easier manipulation.
 

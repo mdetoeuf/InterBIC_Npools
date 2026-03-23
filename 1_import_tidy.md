@@ -4,14 +4,13 @@
 - [To Do](#to-do)
 - [Intro](#intro)
 - [Set up](#set-up)
-- [1 - Import Nmin data (t1, t2)](#1---import-nmin-data-t1-t2)
-  - [1.1 - Absorbance data](#11---absorbance-data)
-  - [1.3 - Plate metadata](#13---plate-metadata)
-- [1 - Import spectro-like txt](#1---import-spectro-like-txt)
-  - [1.2 - import plate data (plate_map +
-    infos)](#12---import-plate-data-plate_map--infos)
-- [2 - Import TDN data from csv (Sang
-  style)](#2---import-tdn-data-from-csv-sang-style)
+- [1 - Import Nmin data (t1, t2, t3)](#1---import-nmin-data-t1-t2-t3)
+  - [1.1 - Plate metadata](#11---plate-metadata)
+- [2 - Join absorbance and map data](#2---join-absorbance-and-map-data)
+- [°°° — Below this, draft, to be picked up —
+  °°°](#--below-this-draft-to-be-picked-up--)
+- [3 - Import TDN data from csv (Sang
+  style)](#3---import-tdn-data-from-csv-sang-style)
   - [2.1 - Import plate absorbance
     data](#21---import-plate-absorbance-data)
   - [2.2 - import plate map](#22---import-plate-map)
@@ -28,10 +27,6 @@
 - TDN:
 
   - Then add it to plate info of Nmin
-
-- Nmin t1 and t2: duplicate & rename files to be divided in 2
-
-- 
 
 - For raw “spectro-like” txt files:
 
@@ -84,25 +79,234 @@ library(janitor) # for row_to_names()
 ``` r
 # load functions
 source("functions/import_abs_txt.R")
+source("functions/import_abs_csv.R")
 ```
 
-# 1 - Import Nmin data (t1, t2)
+# 1 - Import Nmin data (t1, t2, t3)
 
 The Nmin absorbance data is in the “raw” format of a txt file as it
 comes directly from the spectrophotometer
 
-## 1.1 - Absorbance data
+Here we use the import functions to get txt-based data and csv-based
+data stored in variables. Because the data set is partly in txt (t1, t2,
+absorbance data), and partly in csv format (t1, t2 maps + t3 absorbance
+data and maps), we need to go through import steps separately.
 
 ``` r
 #** !! Now turned off warnings --> but should check why it gives such a message and if can really be ignored... !! *
 
+# set file path for data in .TXT format (t1, t2)
 filepath <- "raw_data/Nmin/"
+# import csv for data in csv format (t3)
+csv_file <- read_csv("raw_data/Nmin_t3/Nmint3_data.csv", col_names = FALSE)
+
+# import & shape data
+# from .txt format
 Nmin_t1t2_abs <- import_abs_txt(filepath)
+
+# from .csv format
+Nmin_t3_abs <- import_abs_csv(csv_file)
+
+# look at structure of both data frames
+Nmin_t1t2_abs$abs_data_df 
 ```
 
-     chr [1:99] "NH4_1F1.TXT" "NH4_1F2_1.TXT" "NH4_1F2_2.TXT" "NH4_1F3.TXT" ...
+    # A tibble: 96 × 101
+       row   column NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5 NH4_1G1
+       <chr> <chr>    <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>   <dbl>
+     1 A     1        0.039     0.039     0.039   0.038   0.039   0.039   0.039
+     2 A     2        0.046     0.042     0.042   0.042   0.046   0.062   0.04 
+     3 A     3        0.049     0.041     0.041   0.042   0.041   0.042   0.039
+     4 A     4        0.042     0.041     0.041   0.042   0.042   0.04    0.039
+     5 A     5        0.042     0.042     0.042   0.043   0.042   0.041   0.04 
+     6 A     6        0.041     0.041     0.041   0.043   0.042   0.043   0.041
+     7 A     7        0.042     0.041     0.041   0.044   0.041   0.043   0.04 
+     8 A     8        0.039     0.038     0.038   0.039   0.039   0.039   0.039
+     9 A     9        0.043     0.042     0.042   0.042   0.043   0.041   0.039
+    10 A     10       0.042     0.041     0.041   0.042   0.042   0.046   0.04 
+    # ℹ 86 more rows
+    # ℹ 92 more variables: NH4_1G2 <dbl>, NH4_1G3 <dbl>, NH4_1G4 <dbl>,
+    #   NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>, NH4_2F2_1 <dbl>,
+    #   NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>, NH4_2F4_1 <dbl>,
+    #   NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>, NH4_2F6_1 <dbl>,
+    #   NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>, NH4_2P3 <dbl>,
+    #   NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, NH4_2P6_2 <dbl>, …
 
-## 1.3 - Plate metadata
+``` r
+Nmin_t3_abs$abs_data_df
+```
+
+    # A tibble: 96 × 20
+       row   column NO3_R1R2 NO3_R2R3 NO3_R4R5 NO3_R5R6 NO3_R6R7 NO3_R7R8 NO2_R1R2
+       <chr> <chr>     <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>
+     1 A     1         0.094    0.134    0.09     0.088    0.088    0.086    0.039
+     2 A     2         0.085    0.089    0.08     0.08     0.08     0.081    0.04 
+     3 A     3         0.277    0.151    0.084    0.081    0.081    0.079    0.048
+     4 A     4         0.152    0.147    0.146    0.209    0.17     0.179    0.04 
+     5 A     5         0.186    0.182    0.134    0.148    0.173    0.36     0.048
+     6 A     6         0.149    0.304    0.159    0.143    0.228    0.195    0.055
+     7 A     7         0.187    0.205    0.163    0.201    0.353    0.193    0.041
+     8 A     8         0.135    0.22     0.205    0.166    0.192    0.195    0.041
+     9 A     9         0.136    0.227    0.162    0.356    0.154    0.145    0.041
+    10 A     10        0.176    0.086    0.158    0.087    0.088    0.089    0.04 
+    # ℹ 86 more rows
+    # ℹ 11 more variables: NO2_R2R3 <dbl>, NO2_R4R5 <dbl>, NO2_R5R6 <dbl>,
+    #   NO2_R6R7 <dbl>, NO2_R7R8 <dbl>, NH4_R1R2 <dbl>, NH4_R2R3 <dbl>,
+    #   NH4_R4R5 <dbl>, NH4_R5R6 <dbl>, NH4_R6R7 <dbl>, NH4_R7R8 <dbl>
+
+Now that all data is in the same format, we can regroup data in two
+general data frames: one for the absorbance data, one for the “maps”
+data.
+
+``` r
+# join both data frames
+Nmin_all_abs <- left_join(Nmin_t1t2_abs$abs_data_df, Nmin_t3_abs$abs_data_df)
+```
+
+    Joining with `by = join_by(row, column)`
+
+``` r
+Nmin_all_abs
+```
+
+    # A tibble: 96 × 119
+       row   column NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5 NH4_1G1
+       <chr> <chr>    <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>   <dbl>
+     1 A     1        0.039     0.039     0.039   0.038   0.039   0.039   0.039
+     2 A     2        0.046     0.042     0.042   0.042   0.046   0.062   0.04 
+     3 A     3        0.049     0.041     0.041   0.042   0.041   0.042   0.039
+     4 A     4        0.042     0.041     0.041   0.042   0.042   0.04    0.039
+     5 A     5        0.042     0.042     0.042   0.043   0.042   0.041   0.04 
+     6 A     6        0.041     0.041     0.041   0.043   0.042   0.043   0.041
+     7 A     7        0.042     0.041     0.041   0.044   0.041   0.043   0.04 
+     8 A     8        0.039     0.038     0.038   0.039   0.039   0.039   0.039
+     9 A     9        0.043     0.042     0.042   0.042   0.043   0.041   0.039
+    10 A     10       0.042     0.041     0.041   0.042   0.042   0.046   0.04 
+    # ℹ 86 more rows
+    # ℹ 110 more variables: NH4_1G2 <dbl>, NH4_1G3 <dbl>, NH4_1G4 <dbl>,
+    #   NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>, NH4_2F2_1 <dbl>,
+    #   NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>, NH4_2F4_1 <dbl>,
+    #   NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>, NH4_2F6_1 <dbl>,
+    #   NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>, NH4_2P3 <dbl>,
+    #   NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, NH4_2P6_2 <dbl>, …
+
+``` r
+# look at plate maps
+# for Nmin t3
+maps_t3_file <- read_csv("raw_data/Nmin_t3/Nmint3_maps.csv", col_names = FALSE)
+```
+
+    Rows: 162 Columns: 13
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (13): X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
+Nmin_t3_maps <- import_abs_csv(maps_t3_file)
+Nmin_t3_maps$abs_data_df 
+```
+
+    # A tibble: 96 × 20
+       row   column NO3_R1R2 NO3_R2R3  NO3_R4R5  NO3_R5R6 NO3_R6R7 NO3_R7R8 NO2_R1R2
+       <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>    <chr>   
+     1 A     1      Std      Std       Std       Std      Std      Std      Std     
+     2 A     2      extr_1   extr_3    extr_4    extr_5   extr_6   extr_7   extr_1  
+     3 A     3      83_t3_z3 93_t3_z3  extr_5    extr_6   extr_7   extr_8   83_t3_z3
+     4 A     4      87_t3_z1 103_t3_z3 86_t3_z2  94_t3_z2 96_t3_z3 102_t3_… 87_t3_z1
+     5 A     5      88_t3_z1 104_t3_z1 91_t3_z2  95_t3_z1 99_t3_z1 std_R7_… 88_t3_z1
+     6 A     6      90_t3_z3 std_R2_t3 92_t3_z1  95_t3_z2 101_t3_… 83_t3_z1 90_t3_z3
+     7 A     7      91_t3_z3 81_t3_z1  93_t3_z1  96_t3_z2 std_R6_… 84_t3_z2 91_t3_z3
+     8 A     8      92_t3_z2 81_t3_z3  94_t3_z3  98_t3_z3 84_t3_z1 87_t3_z2 92_t3_z2
+     9 A     9      95_t3_z3 84_t3_z3  98_t3_z1  std_R5_… 86_t3_z3 97_t3_z3 95_t3_z3
+    10 A     10     97_t3_z1 extr_3    102_t3_z2 Std      Std      Std      97_t3_z1
+    # ℹ 86 more rows
+    # ℹ 11 more variables: NO2_R2R3 <chr>, NO2_R4R5 <chr>, NO2_R5R6 <chr>,
+    #   NO2_R6R7 <chr>, NO2_R7R8 <chr>, NH4_R1R2 <chr>, NH4_R2R3 <chr>,
+    #   NH4_R4R5 <chr>, NH4_R5R6 <chr>, NH4_R6R7 <chr>, NH4_R7R8 <chr>
+
+``` r
+# For Nmin t1 and t2
+maps_t1t1_file <- read_csv("raw_data/Nmin/Nmin_maps.csv", col_names = FALSE)
+```
+
+    Rows: 891 Columns: 13
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (13): X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
+Nmin_t1t1_maps <- import_abs_csv(maps_t1t1_file)
+Nmin_t1t1_maps$abs_data_df
+```
+
+    # A tibble: 96 × 101
+       row   column NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5   NH4_1G1
+       <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>     <chr>  
+     1 A     1      Std      Std       Std       Std      Std      Std       Std    
+     2 A     2      81_t1_z2 97_t1_z1  empty     89_t1_z3 81_t1_z1 Std_3_t1  1_t1   
+     3 A     3      82_t1_z2 98_t1_z1  empty     90_t1_z3 82_t1_z3 98_t1_z3  2_t1   
+     4 A     4      83_t1_z2 99_t1_z1  empty     91_t1_z1 83_t1_z3 99_t1_z3… 3_t1   
+     5 A     5      84_t1_z1 100_t1_z1 empty     92_t1_z2 84_t1_z2 100_t1_z2 4_t1   
+     6 A     6      85_t1_z1 101_t1_z3 empty     93_t1_z2 85_t1_z2 101_t1_z2 5_t1   
+     7 A     7      86_t1_z3 102_t1_z3 empty     94_t1_z3 86_t1_z1 102_t1_z1 6_t1   
+     8 A     8      extr     extr      empty     extr     extr     extr      extr   
+     9 A     9      87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_z3 empty  
+    10 A     10     88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_z3 8_t1   
+    # ℹ 86 more rows
+    # ℹ 92 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
+    #   NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>, NO2_1F2_2 <chr>,
+    #   NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>, NO2_1G1 <chr>, NO2_1G2 <chr>,
+    #   NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>, NO3_1F1 <chr>,
+    #   NO3_1F2_1 <chr>, NO3_1F2_2 <chr>, NO3_1F3 <chr>, NO3_1F4 <chr>,
+    #   NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, NO3_1G3 <chr>, …
+
+``` r
+# join both data frames
+Nmin_all_maps <- left_join(Nmin_t1t1_maps$abs_data_df, Nmin_t3_maps$abs_data_df)
+```
+
+    Joining with `by = join_by(row, column)`
+
+``` r
+Nmin_all_maps
+```
+
+    # A tibble: 96 × 119
+       row   column NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5   NH4_1G1
+       <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>     <chr>  
+     1 A     1      Std      Std       Std       Std      Std      Std       Std    
+     2 A     2      81_t1_z2 97_t1_z1  empty     89_t1_z3 81_t1_z1 Std_3_t1  1_t1   
+     3 A     3      82_t1_z2 98_t1_z1  empty     90_t1_z3 82_t1_z3 98_t1_z3  2_t1   
+     4 A     4      83_t1_z2 99_t1_z1  empty     91_t1_z1 83_t1_z3 99_t1_z3… 3_t1   
+     5 A     5      84_t1_z1 100_t1_z1 empty     92_t1_z2 84_t1_z2 100_t1_z2 4_t1   
+     6 A     6      85_t1_z1 101_t1_z3 empty     93_t1_z2 85_t1_z2 101_t1_z2 5_t1   
+     7 A     7      86_t1_z3 102_t1_z3 empty     94_t1_z3 86_t1_z1 102_t1_z1 6_t1   
+     8 A     8      extr     extr      empty     extr     extr     extr      extr   
+     9 A     9      87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_z3 empty  
+    10 A     10     88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_z3 8_t1   
+    # ℹ 86 more rows
+    # ℹ 110 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
+    #   NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>, NO2_1F2_2 <chr>,
+    #   NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>, NO2_1G1 <chr>, NO2_1G2 <chr>,
+    #   NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>, NO3_1F1 <chr>,
+    #   NO3_1F2_1 <chr>, NO3_1F2_2 <chr>, NO3_1F3 <chr>, NO3_1F4 <chr>,
+    #   NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, NO3_1G3 <chr>, …
+
+So now we have those 2 data frames that have strictly the same
+structure, with 96 rows and 119 columns, with 2 columns attributed to
+the well identifier (“row” and “column”), and the remaining 117 columns
+representing the 96-well plates.
+
+## 1.1 - Plate metadata
+
+This section need to be improved, based on files to import. (now it is
+manual encoding…)
 
 ``` r
 # Just as a failsafe, here is everything that we wanted to collect ...
@@ -116,45 +320,62 @@ extractant_conc <- 0.5 # we need numeric
 timestamp <- timestamp() # see if the format of this is important
 ```
 
-    ##------ Fri Mar 20 21:55:28 2026 ------##
+    ##------ Mon Mar 23 14:24:05 2026 ------##
 
 ``` r
 #wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
 delay_min <- 30 # 
 ```
 
-# 1 - Import spectro-like txt
+# 2 - Join absorbance and map data
 
-I will start with the files that are as delivered by the specrto when we
-work with a USB key (so we only get absorbance data, no plate map or
-plate info).
-
-## 1.2 - import plate data (plate_map + infos)
-
-From same txt file (from the spectro), we can extract some metadata. The
-rest will have to be supplied by extra table to be imported. Also, We
-could get some info from the file name, but that is not a general code,
-it will depend on each pesron and experiment
+First we need to use `pivot_longer()` to get absorbance data / plate map
+data in a single column, before we can join the data in a single data
+frame. The target structure for the data frame would be to have the
+following columns: “row” (from the plate), “column” (from the plate),
+“well_id” (= concatenation of row and column), plate_map (sample name or
+extractant or std curve), absorbance
 
 ``` r
-# Just as a failsafe, here is everything that we wanted to collect ...
-std_column <- c("1", "12")
-std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
-std_conc <- c(0,1,2,4,8,16, 24, 32) # we need numerics
-extractant_column <- "7"
-extractant_id <- c("K2SO4", "M") # extractant, unit
-extractant_conc <- 0.5 # we need numeric
-timestamp <- timestamp() # see if the format of this is important
+# pivot absorbance data
+Nmin_abs_longer <- Nmin_all_abs |> 
+  pivot_longer(
+    cols = starts_with("N", ignore.case = FALSE),
+    values_to = "absorbance",
+    names_to = "plate_id"
+    ) |> 
+  mutate(column = as.numeric(column))
+
+# pivot maps data
+Nmin_maps_longer <- Nmin_all_maps |> 
+  pivot_longer(
+    cols = starts_with("N", ignore.case = FALSE),
+    values_to = "plate_map",
+    names_to = "plate_id"
+    ) |> 
+  mutate(column = as.numeric(column))
+
+# join both
+Nmin_data <- left_join(
+  Nmin_maps_longer, Nmin_abs_longer, 
+  by = join_by(row, column, plate_id)
+  ) |> 
+  # add well_id column
+  mutate(well_id = paste0(row, column), .after = 2) |> 
+  # sort it per plate then per "column" (from plates)
+  arrange(plate_id,column)
 ```
 
-    ##------ Fri Mar 20 21:55:28 2026 ------##
+Now that we have our final raw data frame, we can export it to save it
+as a document to use for downstream analysis
 
 ``` r
-wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
-delay_min <- 30 # 
+write_csv(Nmin_data, file = "output/data/Nmin_tidy.rds")
 ```
 
-# 2 - Import TDN data from csv (Sang style)
+# °°° — Below this, draft, to be picked up — °°°
+
+# 3 - Import TDN data from csv (Sang style)
 
 Actually the original file is an xlsx file. But relevant sheets are
 saved as csv for easier manipulation.

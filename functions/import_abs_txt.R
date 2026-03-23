@@ -14,7 +14,7 @@
 #** TO DO ! *
 # If relevant: maybe pivot-longer the data frame of absorbances
 
-filepath <- "raw_data/Nmin/"
+#filepath <- "raw_data/Nmin/"
 
 import_abs_txt <- function(
     filepath
@@ -105,4 +105,4 @@ import_abs_txt <- function(
   return(result)
 }
 
-Nmin_t1t2 <- import_abs_txt(filepath = "raw_data/Nmin/")
+#Nmin_t1t2 <- import_abs_txt(filepath = "raw_data/Nmin/")
