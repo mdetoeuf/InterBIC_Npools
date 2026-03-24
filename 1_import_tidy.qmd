@@ -137,7 +137,7 @@ Nmin_data
 Now that we have our final raw data frame, we can export it to save it as a document to use for downstream analysis
 
 ```{r}
-write_csv(Nmin_data, file = "output/data/Nmin_tidy.rds")
+write_rds(Nmin_data, file = "output/data/Nmin_tidy.rds")
 ```
 
 # °°° — Below this, draft, to be picked up — °°°

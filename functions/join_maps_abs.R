@@ -11,8 +11,8 @@
 #** + a single data frame for maps *
 
 
-#abs_df <- Nmin_all_abs
-#maps_df <- Nmin_all_maps
+abs_df <- Nmin_all_abs
+maps_df <- Nmin_all_maps
 
 join_maps_abs <- function(
     abs_df,
@@ -42,7 +42,12 @@ join_maps_abs <- function(
     by = join_by(row, column, plate_id)
   ) |> 
     # add well_id column
-    mutate(well_id = paste0(row, column), .after = 2) |> 
+    # and unique well identifier, i.e. the concatenation of plate_id and well_id
+    mutate(
+      well_id = paste0(row, column), 
+      unique_well_id = paste0(plate_id, "_", well_id),
+      N_sp = str_split_i(plate_id, "_", 1),
+      .after = 2) |> 
     # sort it per plate then per "column" (from plates)
     arrange(plate_id,column)
   

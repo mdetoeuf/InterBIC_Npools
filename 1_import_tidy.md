@@ -321,7 +321,7 @@ extractant_conc <- 0.5 # we need numeric
 timestamp <- timestamp() # see if the format of this is important
 ```
 
-    ##------ Mon Mar 23 14:36:30 2026 ------##
+    ##------ Tue Mar 24 00:13:14 2026 ------##
 
 ``` r
 #wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
@@ -345,26 +345,26 @@ Nmin_data <- join_maps_abs(maps_df = Nmin_all_maps, abs_df = Nmin_all_abs)
 Nmin_data
 ```
 
-    # A tibble: 11,232 × 6
-       row   column well_id plate_id plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>    <chr>          <dbl>
-     1 A          1 A1      NH4_1F1  Std            0.039
-     2 B          1 B1      NH4_1F1  Std            0.043
-     3 C          1 C1      NH4_1F1  Std            0.047
-     4 D          1 D1      NH4_1F1  Std            0.053
-     5 E          1 E1      NH4_1F1  Std            0.059
-     6 F          1 F1      NH4_1F1  Std            0.067
-     7 G          1 G1      NH4_1F1  Std            0.096
-     8 H          1 H1      NH4_1F1  Std            0.126
-     9 A          2 A2      NH4_1F1  81_t1_z2       0.046
-    10 B          2 B2      NH4_1F1  81_t1_z2       0.046
+    # A tibble: 11,232 × 7
+       row   column well_id unique_well_id plate_id plate_map absorbance
+       <chr>  <dbl> <chr>   <chr>          <chr>    <chr>          <dbl>
+     1 A          1 A1      NH4_1F1_A1     NH4_1F1  Std            0.039
+     2 B          1 B1      NH4_1F1_B1     NH4_1F1  Std            0.043
+     3 C          1 C1      NH4_1F1_C1     NH4_1F1  Std            0.047
+     4 D          1 D1      NH4_1F1_D1     NH4_1F1  Std            0.053
+     5 E          1 E1      NH4_1F1_E1     NH4_1F1  Std            0.059
+     6 F          1 F1      NH4_1F1_F1     NH4_1F1  Std            0.067
+     7 G          1 G1      NH4_1F1_G1     NH4_1F1  Std            0.096
+     8 H          1 H1      NH4_1F1_H1     NH4_1F1  Std            0.126
+     9 A          2 A2      NH4_1F1_A2     NH4_1F1  81_t1_z2       0.046
+    10 B          2 B2      NH4_1F1_B2     NH4_1F1  81_t1_z2       0.046
     # ℹ 11,222 more rows
 
 Now that we have our final raw data frame, we can export it to save it
 as a document to use for downstream analysis
 
 ``` r
-write_csv(Nmin_data, file = "output/data/Nmin_tidy.rds")
+write_rds(Nmin_data, file = "output/data/Nmin_tidy.rds")
 ```
 
 # °°° — Below this, draft, to be picked up — °°°
