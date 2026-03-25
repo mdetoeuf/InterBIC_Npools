@@ -357,10 +357,10 @@ when valid default values can be relied upon without major issues. !!!**
 Nmin_t1t2_metadata <- read_csv("raw_data/Nmin/Nmin_metadata.csv")
 ```
 
-    Rows: 99 Columns: 15
+    Rows: 99 Columns: 16
     ── Column specification ────────────────────────────────────────────────────────
     Delimiter: ","
-    chr (10): plate_id, std_column, std_sp, std_unit, std_prep, std_conc, sample...
+    chr (11): plate_id, sampling_time, std_column, std_sp, std_unit, std_prep, s...
     dbl  (1): extractant_conc
     lgl  (4): date, time, extractant_column, empty_column
 
@@ -371,12 +371,12 @@ Nmin_t1t2_metadata <- read_csv("raw_data/Nmin/Nmin_metadata.csv")
 Nmin_t3_metadata <- read_csv("raw_data/Nmin_t3/Nmint3_metadata.csv")
 ```
 
-    Rows: 36 Columns: 15
+    Rows: 36 Columns: 16
     ── Column specification ────────────────────────────────────────────────────────
     Delimiter: ","
-    chr (9): plate_id, std_sp, std_unit, std_prep, std_conc, sample_dilution, ex...
-    dbl (1): extractant_conc
-    lgl (5): date, time, std_column, extractant_column, empty_column
+    chr (10): plate_id, sampling_time, std_sp, std_unit, std_prep, std_conc, sam...
+    dbl  (1): extractant_conc
+    lgl  (5): date, time, std_column, extractant_column, empty_column
 
     ℹ Use `spec()` to retrieve the full column specification for this data.
     ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
