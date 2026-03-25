@@ -5,17 +5,21 @@
 - [Intro](#intro)
 - [Code](#code)
   - [1 - Set up](#1---set-up)
-  - [3 - QC suspicious wells](#3---qc-suspicious-wells)
-  - [4 - Correct absorbance values](#4---correct-absorbance-values)
-    - [4.1 - Correct std curves for
-      blanc](#41---correct-std-curves-for-blanc)
-    - [4.2 - Correct samples for blanc](#42---correct-samples-for-blanc)
+  - [2 - QC suspicious wells](#2---qc-suspicious-wells)
+  - [3 - Correct absorbance values](#3---correct-absorbance-values)
+    - [3.1 - Correct std curves for
+      blanc](#31---correct-std-curves-for-blanc)
+    - [3.2 - Correct samples for blanc](#32---correct-samples-for-blanc)
 - [°<sup>°°°</sup> Milestone : corrected data ready for downstream
   analysis
   °<sup>°°°</sup>](#-milestone--corrected-data-ready-for-downstream-analysis-)
+- [4 - Compute regression equation btw absorbance and
+  concentration](#4---compute-regression-equation-btw-absorbance-and-concentration)
+  - [4.1 - Quality check of standard
+    curves](#41---quality-check-of-standard-curves)
+  - [4.2 - Transform absorbance in raw concentrations using
+    regression](#42---transform-absorbance-in-raw-concentrations-using-regression)
 - [°°° —- START HERE — °°°°](#---start-here--)
-  - [5 - Computing regression equation btw absorbance and
-    concentration](#5---computing-regression-equation-btw-absorbance-and-concentration)
 - [°<sup>°°°</sup> Milestone : all data ready for downstream analysis
   °<sup>°°°</sup>](#-milestone--all-data-ready-for-downstream-analysis-)
   - [6 - Exporting data](#6---exporting-data)
@@ -23,8 +27,6 @@
 
 # To Do
 
-- upstream steps = import “real” table (the code below creates a
-  fictional plate to get started)
 - export + downstream steps (different options based on analysis)
 
 # Intro
@@ -71,6 +73,10 @@ library(roperators) # to be able to add %ni% for "not in"
 
 ``` r
 library(patchwork) # for wrap_plots
+library(RColorBrewer) # to find and set color palette
+
+source("functions/extract_curve.R")
+source("functions/plot_qc_std_all.R")
 ```
 
 Prep template data: fake tables for the sake of building the next steps
@@ -78,14 +84,23 @@ of the code. Once that code is working, then we can figure out how to
 extract real plate data instead of this fake model one.
 
 ``` r
-# import tidy data
+# import tidy data and metadata
 Nmin_data <- read_rds("output/data/Nmin_tidy.rds")
+Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
 
 # remove empty wells
 Nmin_full <- Nmin_data |> filter(plate_map != "empty")
 ```
 
-## 3 - QC suspicious wells
+Set up pipetting direction for the std curve
+
+``` r
+top_down_pipetting <- LETTERS[2:8]
+#bottom_up_pipetting <- LETTERS[8:2]
+pipetting_direction <- top_down_pipetting
+```
+
+## 2 - QC suspicious wells
 
 **–\> Issues a warning if absorbances not in specified range,
 e.g. \[0.03,1.1\]**
@@ -199,7 +214,7 @@ species
 
 </div>
 
-## 4 - Correct absorbance values
+## 3 - Correct absorbance values
 
 Now we correct absorbance values by subtracting blanc values from raw
 values (absorbance of the light by the solution = absorbance by the
@@ -218,7 +233,7 @@ the mean of the values of the wells where the extractant was added.
 - Make sure that the slice-min part in next chunk behaves as expected in
   the case of a tie
 
-### 4.1 - Correct std curves for blanc
+### 3.1 - Correct std curves for blanc
 
 For now, this is a separate process to account for the fact that the
 standard curve was prepared in H2O, not in the extractant (K2SO4 or
@@ -323,7 +338,7 @@ nb_std_per_plate |> ggplot(aes(x = n_std)) + geom_histogram() + labs(title = "if
 
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-6-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-7-1.png)
 
 Second, we can take a subset of `std_data` that contains only the rows
 with blancs, and only those that we trust (normally row A or H only)
@@ -591,10 +606,16 @@ for (plate in 1:length(std_blanc_big_coeff)) {
 Now we can correct the absorbance values for the standard curves.
 
 ``` r
-std_corrected <- 
-  std_data |>  
+if (is.unsorted(pipetting_direction)) {
+  lowest_well <- "H"
+} else {lowest_well = "A"}
+
+std_corrected <- std_data |>  
     # keep only data that is not from blanc wells
-  filter(unique_well_id %ni% std_blanc_all$unique_well_id) |> 
+  filter(
+    unique_well_id %ni% std_blanc_all$unique_well_id,
+    row != lowest_well
+    ) |> 
   select(plate_id, well_id, absorbance) |> 
     pivot_wider(names_from = well_id, values_from = absorbance) |> 
     left_join(std_blanc_avg |> select(plate_id, blanc_avg)) |> 
@@ -609,7 +630,11 @@ std_corrected <-
   # this will the rows containing the blancs, but with "NA" for obs_corrected (so the right_join will not drop observations when they are missing)
   right_join(std_data) |> 
   # not vital, just for readibility: rearrange column order
-  relocate(row, column, well_id, plate_id, unique_well_id, N_sp, plate_map, absorbance)
+  relocate(row, column, well_id, plate_id, unique_well_id, N_sp, plate_map, absorbance) |> 
+  # remove rows where no corrected absorbance data (untrusted or blancs)
+  filter(!is.na(abs_corrected)) |> 
+  # create unique curve_id which will be needed for downstream analysis
+  mutate(unique_curve_id = paste0(plate_id, "_c", column))
 ```
 
     Joining with `by = join_by(plate_id)`
@@ -625,7 +650,7 @@ equation between corrected absorbance and concentration. For thematic
 clarity purpose, this will be done in a later section (to keep all work
 on blancs in one place)
 
-### 4.2 - Correct samples for blanc
+### 3.2 - Correct samples for blanc
 
 First, we extract the raws with extractant
 
@@ -701,7 +726,7 @@ extr_avg |>
   xlab("intra-plate coefficient of variation [%]")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-12-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-13-1.png)
 
 Let’s prepare a warning for plates containing these outliers
 
@@ -1025,9 +1050,638 @@ At this point, we could export the data table for downstream analysis
 (Microresp, etc), although for most applications, the next step is still
 needed: computing regression equation
 
+# 4 - Compute regression equation btw absorbance and concentration
+
+## 4.1 - Quality check of standard curves
+
+First we need to do some quality check of the Standard curve
+
+- checking that metadata and data have the same nb of plates
+
+- check that there are no negative values for the corrected absorbance
+
+``` r
+# First check: do we have the same number of plates in data and in metadata?
+n_groups(std_corrected) == nrow(Nmin_metadata) # yes :-)
+```
+
+    [1] TRUE
+
+``` r
+# do we have negative values? (check last column)
+std_corrected |> 
+  arrange(abs_corrected) # no, nice :-)
+```
+
+    # A tibble: 1,886 × 10
+    # Groups:   plate_id [135]
+       row   column well_id plate_id  unique_well_id N_sp  plate_map absorbance
+       <chr>  <dbl> <chr>   <chr>     <chr>          <chr> <chr>          <dbl>
+     1 B          1 B1      NH4_2F4_1 NH4_2F4_1_B1   NH4   Std            0.039
+     2 B          1 B1      NH4_2F4_2 NH4_2F4_2_B1   NH4   Std            0.039
+     3 B         12 B12     NH4_2P7_1 NH4_2P7_1_B12  NH4   Std            0.041
+     4 B         12 B12     NH4_2P7_2 NH4_2P7_2_B12  NH4   Std            0.041
+     5 B          1 B1      NH4_1G1   NH4_1G1_B1     NH4   Std            0.041
+     6 B         12 B12     NH4_1G2   NH4_1G2_B12    NH4   Std            0.041
+     7 B          1 B1      NH4_2F1_1 NH4_2F1_1_B1   NH4   Std            0.041
+     8 B          1 B1      NH4_2F1_2 NH4_2F1_2_B1   NH4   Std            0.041
+     9 B         12 B12     NH4_2F6_1 NH4_2F6_1_B12  NH4   Std            0.041
+    10 B         12 B12     NH4_2F6_2 NH4_2F6_2_B12  NH4   Std            0.041
+    # ℹ 1,876 more rows
+    # ℹ 2 more variables: abs_corrected <dbl>, unique_curve_id <chr>
+
+- Is it indeed a curve? If yes –\> proceed. But quite probably that some
+  curves are not monotonous (stricly increasing or decreasing)
+
+<!-- -->
+
+    -   First, identify those curves with `unsorted_curves`.
+
+    -   
+
+``` r
+# extracted unsorted curves
+unsorted_curves <- std_corrected |> 
+  group_by(plate_id, column) |> 
+  arrange(row) |> 
+  summarise(
+    suspicious = is.unsorted(abs_corrected),
+    .groups = "keep"
+  ) |> 
+  filter(suspicious) |> 
+  mutate(unique_curve_id = paste0(plate_id, "_c", column))
+
+# plot them all
+#i = 1
+file = Nmin_metadata
+plots <- list()
+for (i in 1:nrow(unsorted_curves)) {
+  
+  curve <- std_corrected |> 
+    #filter(unique_curve_id == unsorted_curves$unique_curve_id[i]) |> 
+    filter(plate_id == unsorted_curves$plate_id[i]) 
+  
+  conc <- tibble(
+    conc = extract_curve(file, N_sp = curve$N_sp[1])[2:8],
+    row = pipetting_direction
+  )
+  
+  curve <- curve |> 
+    left_join(conc)
+  nudge <- (max(curve$conc) - min(curve$conc))/30
+  
+  plot <- 
+    curve |> 
+    ggplot(aes(x = abs_corrected, y = conc)) + 
+    theme_minimal() +
+    geom_smooth(method = "lm", se = FALSE, color = "grey70") +
+    geom_point(color = "grey30", alpha = 1) + 
+      annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
+               label = curve$well_id, size = 3) +
+    labs(title = curve$plate_id[1]) 
+    
+  plots[[i]] <- plot
+}
+```
+
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+
+``` r
+wrap_plots(plots,axis_titles = "collect")
+```
+
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-18-1.png)
+
+Now we can manually encode a vector containing all outlier wells, based
+on visual appraisal of graphs
+
+``` r
+outlier_wells <- c(NA, "E12", "C1", "C1", "E12", NA, NA, NA)
+
+#unsorted_curves$outlier <- outlier_wells
+outlier_curves <- 
+  unsorted_curves |> 
+    ungroup() |> 
+    mutate(
+      outliers = outlier_wells,
+      unique_well_id = case_when(
+        is.na(outliers) ~ NA,
+        .default = paste0(plate_id, "_", outliers))
+    )
+outlier_curves
+```
+
+    # A tibble: 8 × 6
+      plate_id  column suspicious unique_curve_id outliers unique_well_id
+      <chr>      <dbl> <lgl>      <chr>           <chr>    <chr>         
+    1 NH4_1G1       12 TRUE       NH4_1G1_c12     <NA>     <NA>          
+    2 NH4_1G2       12 TRUE       NH4_1G2_c12     E12      NH4_1G2_E12   
+    3 NH4_2F4_1      1 TRUE       NH4_2F4_1_c1    C1       NH4_2F4_1_C1  
+    4 NH4_2F4_2      1 TRUE       NH4_2F4_2_c1    C1       NH4_2F4_2_C1  
+    5 NO2_2P1       12 TRUE       NO2_2P1_c12     E12      NO2_2P1_E12   
+    6 NO3_2F1_1      1 TRUE       NO3_2F1_1_c1    <NA>     <NA>          
+    7 NO3_2F1_2      1 TRUE       NO3_2F1_2_c1    <NA>     <NA>          
+    8 NO3_2P2        1 TRUE       NO3_2P2_c1      <NA>     <NA>          
+
+``` r
+# correct std data
+std_tidy <- std_corrected |> 
+  filter(unique_well_id %ni% outlier_curves$unique_well_id)
+```
+
+Now that we have a new version of the std data, we can look at all
+curves again –\> make a function!
+
+``` r
+unsorted_curves <- std_tidy |> 
+  group_by(plate_id, column) |> 
+  arrange(row) |> 
+  summarise(
+    suspicious = is.unsorted(abs_corrected),
+    .groups = "keep"
+  ) |> 
+  filter(suspicious) |> 
+  mutate(unique_curve_id = paste0(plate_id, "_c", column))
+
+# plot them all
+#i = 1
+file = Nmin_metadata
+plots <- list()
+for (i in 1:nrow(unsorted_curves)) {
+  
+  curve <- std_corrected |> 
+    #filter(unique_curve_id == unsorted_curves$unique_curve_id[i]) |> 
+    filter(plate_id == unsorted_curves$plate_id[i]) 
+  
+  conc <- tibble(
+    conc = extract_curve(file, N_sp = curve$N_sp[1])[2:8],
+    row = pipetting_direction
+  )
+  
+  curve <- curve |> 
+    left_join(conc)
+  nudge <- (max(curve$conc) - min(curve$conc))/30
+  
+  plot <- 
+    curve |> 
+    ggplot(aes(x = abs_corrected, y = conc)) + 
+    theme_minimal() +
+    geom_smooth(method = "lm", se = FALSE, color = "grey70") +
+    geom_point(color = "grey30", alpha = 1) + 
+      annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
+               label = curve$well_id, size = 3) +
+    labs(title = curve$plate_id[1]) 
+    
+  plots[[i]] <- plot
+}
+```
+
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+
+``` r
+wrap_plots(plots,axis_titles = "collect")
+```
+
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-20-1.png)
+
+At this stage, we are satisfied with the curves.
+
+We can visualize all curves for a given N species, to have an idea of
+inter-curve variability
+
+The next chunk works, but it produces a very difficult to read plot with
+multiple panels (135 actually).
+
+``` r
+# conc <- tibble(
+#     conc_nh4 = extract_curve(Nmin_metadata, N_sp = "NH4")[2:8],
+#     conc_no2 = extract_curve(Nmin_metadata, N_sp = "NO2")[2:8],
+#     conc_no3 = extract_curve(Nmin_metadata, N_sp = "NO3")[2:8],
+#     row = pipetting_direction)
+# conc
+
+i = 1
+metadata = Nmin_metadata
+data = std_tidy
+plots = list()
+for (i in 1:nrow(metadata)) {
+  
+  plate <- metadata$plate_id[i]
+  N_sp <- str_split_i(plate, "_", 1)
+  
+  conc <- tibble(
+    conc = extract_curve(metadata, N_sp = N_sp)[2:8],
+    row = pipetting_direction
+  )
+  conc
+  
+  curve <- data |> 
+    filter(plate_id == plate) |> 
+    left_join(conc) 
+  
+  plot <- curve |> 
+    ggplot(aes(x = abs_corrected, y = conc, color = column)) + 
+    theme_minimal() +
+    geom_smooth(method = "lm", se = TRUE, color = "grey70", alpha = 0.2) +
+    geom_point(color = "grey30", alpha = 1) + 
+      annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
+               label = curve$well_id, size = 3) +
+    labs(title = curve$plate_id[1])
+  
+  plots[[i]] <- plot
+}
+```
+
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+    Joining with `by = join_by(row)`
+
+``` r
+wrap_plots(plots,axis_titles = "collect")
+```
+
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-21-1.png)
+
+Let’s find a neater way to look at it by overplotting, using the
+function `plot_qc_std_all`.
+
+First, for NH4+
+(<a href="#fig-QC-std-all-nh4" class="quarto-xref">Figure 4</a>), then
+for NO2-
+(<a href="#fig-QC-std-all-no2" class="quarto-xref">Figure 5</a>) and for
+NO3- (<a href="#fig-QC-std-all-no3" class="quarto-xref">Figure 6</a>)
+
+``` r
+# Choice of color palette
+
+#display.brewer.all(n = 3)
+color_time <- brewer.pal(n = 3, "Accent")
+names(color_time) <- c("t1", "t2", "t3")
+
+plot_qc_std_all(
+  data = std_tidy |> filter(N_sp == "NH4"),
+  metadata = Nmin_metadata |> filter(std_sp == "NH4"),
+  color_time = color_time,
+  pipetting_direction = top_down_pipetting)
+```
+
+<div id="fig-QC-std-all-nh4">
+
+![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-nh4-1.png)
+
+Figure 4: QC for Standard curves. We se low intra-batch but higher
+inter-batch variability. Seeing this, I’d actually recommend considering
+increasing incubation time or concentrations: absorbance is very low
+
+</div>
+
+``` r
+plot_qc_std_all(
+  data = std_tidy |> filter(N_sp == "NO2"),
+  metadata = Nmin_metadata |> filter(std_sp == "NO2"),
+  color_time = color_time,
+  pipetting_direction = top_down_pipetting)
+```
+
+<div id="fig-QC-std-all-no2">
+
+![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-no2-1.png)
+
+Figure 5: QC for Standard curves. We se low intra- and interbatch
+variability. Seeing this, I’d actually recommend considering increasing
+incubation time or concentrations: absorbance is very low
+
+</div>
+
+``` r
+plot_qc_std_all(
+  data = std_tidy |> filter(N_sp == "NO3"),
+  metadata = Nmin_metadata |> filter(std_sp == "NO3"),
+  color_time = color_time,
+  pipetting_direction = top_down_pipetting)
+```
+
+<div id="fig-QC-std-all-no3">
+
+![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-no3-1.png)
+
+Figure 6: QC for Standard curves. We se low intra- and interbatch
+variability. Seeing this, I’d actually recommend considering increasing
+incubation time or concentrations: absorbance is very low
+
+</div>
+
+## 4.2 - Transform absorbance in raw concentrations using regression
+
 # °°° —- START HERE — °°°°
 
-## 5 - Computing regression equation btw absorbance and concentration
+``` r
+i = 1
+metadata = Nmin_metadata
+data = Nmin_corrected
+
+
+
+for (i in 1:nrow(metadata)) {
+  plate <- metadata$plate_id[i]
+  N_sp <- str_split_i(plate, "_", 1)
+  samples <- data |> filter(plate_id == plate)
+  samples
+  
+}
+```
 
 First, visualize the relationship
 
