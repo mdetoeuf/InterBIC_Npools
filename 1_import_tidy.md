@@ -14,7 +14,7 @@
   - [2.1 - Import plate absorbance
     data](#21---import-plate-absorbance-data)
   - [2.2 - import plate map](#22---import-plate-map)
-  - [2.3 - import plate metadat](#23---import-plate-metadat)
+  - [2.3 - import plate metadata](#23---import-plate-metadata)
 - [3 - import student csv (from
   xlsx)](#3---import-student-csv-from-xlsx)
 
@@ -312,26 +312,81 @@ representing the 96-well plates.
 
 ## 1.1 - Plate metadata
 
-This section need to be improved, based on files to import. (now it is
-manual encoding…)
+The file containing plate metadata can contain as much information on
+plates as the user wants.
+
+Absolutely necessary columns are:
+
+- plate_id
+
+  - ideally one row per plate id, corrections to the code may be needed
+    otherwise
+
+- std_unit
+
+- std_conc
+
+  - this contains a succession of all concentrations of the standard
+    curve, expressed in the unit above
+
+  - one cell is used for all concentrations, ideally in ascending order
+    (or tweak the code)
+
+  - concentrations should be separated by “-” and digits expressed with
+    “.”, not with “,”
+
+In the proposed code, N species can be deducted from plate names. Should
+that not be the case, then an additional column would be a good place to
+store that information:
+
+- N_sp
+
+Additional information can be encoded manually.
+
+**!! I prefered not relying on manual encoding of concentrations for the
+standard curve because we tend to run big chunks of code without paying
+attention that modifications are needed. In that sense, such a critical
+information coming directly from imported files, so that the code bugs
+when the information is not imported, feels like a good failsafe. As
+much as possible, I tried to only have moments of manual encoding when
+either the decision needs to be interactive (e.g., based on a plot) or
+when valid default values can be relied upon without major issues. !!!**
 
 ``` r
-# Just as a failsafe, here is everything that we wanted to collect ...
-
-std_column <- c("1", "12")
-std_id <- c("no3", "mgN_per_L", "H2O") # n species, unit, prepared in
-std_conc <- c(0,1,2,4,8,16, 24, 32) # we need numerics
-extractant_column <- "7"
-extractant_id <- c("K2SO4", "M") # extractant, unit
-extractant_conc <- 0.5 # we need numeric
-timestamp <- timestamp() # see if the format of this is important
+# import csv
+Nmin_t1t2_metadata <- read_csv("raw_data/Nmin/Nmin_metadata.csv")
 ```
 
-    ##------ Wed Mar 25 15:05:04 2026 ------##
+    Rows: 99 Columns: 15
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (10): plate_id, std_column, std_sp, std_unit, std_prep, std_conc, sample...
+    dbl  (1): extractant_conc
+    lgl  (4): date, time, extractant_column, empty_column
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
 
 ``` r
-#wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
-delay_min <- 30 # 
+Nmin_t3_metadata <- read_csv("raw_data/Nmin_t3/Nmint3_metadata.csv")
+```
+
+    Rows: 36 Columns: 15
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (9): plate_id, std_sp, std_unit, std_prep, std_conc, sample_dilution, ex...
+    dbl (1): extractant_conc
+    lgl (5): date, time, std_column, extractant_column, empty_column
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
+# join csv's
+Nmin_all_metadata <- bind_rows(Nmin_t1t2_metadata, Nmin_t3_metadata)
+
+# export it
+Nmin_all_metadata |> write_rds("output/data/Nmin_metadata.rds")
 ```
 
 # 2 - Join absorbance and map data
@@ -414,9 +469,6 @@ plate_abs <- tdn_abs_raw[i:(i+8),] |>
 From the sample list we can create plate maps. The next chunk does it
 for one plate. —\> make it a loop or a function or something…
 
-## 2.3 - import plate metadat
-
-this is strictly speaking the import. Then we can set for each row i the
-individual parameters
+## 2.3 - import plate metadata
 
 # 3 - import student csv (from xlsx)
