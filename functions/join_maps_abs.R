@@ -11,8 +11,8 @@
 #** + a single data frame for maps *
 
 
-abs_df <- Nmin_all_abs
-maps_df <- Nmin_all_maps
+#abs_df <- Nmin_all_abs
+#maps_df <- Nmin_all_maps
 
 join_maps_abs <- function(
     abs_df,

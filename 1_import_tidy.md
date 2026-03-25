@@ -137,23 +137,26 @@ Nmin_t1t2_abs$abs_data_df
 Nmin_t3_abs$abs_data_df
 ```
 
-    # A tibble: 96 × 20
-       row   column NO3_R1R2 NO3_R2R3 NO3_R4R5 NO3_R5R6 NO3_R6R7 NO3_R7R8 NO2_R1R2
-       <chr> <chr>     <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>
-     1 A     1         0.094    0.134    0.09     0.088    0.088    0.086    0.039
-     2 A     2         0.085    0.089    0.08     0.08     0.08     0.081    0.04 
-     3 A     3         0.277    0.151    0.084    0.081    0.081    0.079    0.048
-     4 A     4         0.152    0.147    0.146    0.209    0.17     0.179    0.04 
-     5 A     5         0.186    0.182    0.134    0.148    0.173    0.36     0.048
-     6 A     6         0.149    0.304    0.159    0.143    0.228    0.195    0.055
-     7 A     7         0.187    0.205    0.163    0.201    0.353    0.193    0.041
-     8 A     8         0.135    0.22     0.205    0.166    0.192    0.195    0.041
-     9 A     9         0.136    0.227    0.162    0.356    0.154    0.145    0.041
-    10 A     10        0.176    0.086    0.158    0.087    0.088    0.089    0.04 
+    # A tibble: 96 × 38
+       row   column NO3_R1R2_1 NO3_R2R3_1 NO3_R4R5_1 NO3_R5R6_1 NO3_R6R7_1
+       <chr> <chr>       <dbl>      <dbl>      <dbl>      <dbl>      <dbl>
+     1 A     1           0.094      0.134      0.09       0.088      0.088
+     2 A     2           0.085      0.089      0.08       0.08       0.08 
+     3 A     3           0.277      0.151      0.084      0.081      0.081
+     4 A     4           0.152      0.147      0.146      0.209      0.17 
+     5 A     5           0.186      0.182      0.134      0.148      0.173
+     6 A     6           0.149      0.304      0.159      0.143      0.228
+     7 A     7           0.187      0.205      0.163      0.201      0.353
+     8 A     8           0.135      0.22       0.205      0.166      0.192
+     9 A     9           0.136      0.227      0.162      0.356      0.154
+    10 A     10          0.176      0.086      0.158      0.087      0.088
     # ℹ 86 more rows
-    # ℹ 11 more variables: NO2_R2R3 <dbl>, NO2_R4R5 <dbl>, NO2_R5R6 <dbl>,
-    #   NO2_R6R7 <dbl>, NO2_R7R8 <dbl>, NH4_R1R2 <dbl>, NH4_R2R3 <dbl>,
-    #   NH4_R4R5 <dbl>, NH4_R5R6 <dbl>, NH4_R6R7 <dbl>, NH4_R7R8 <dbl>
+    # ℹ 31 more variables: NO3_R7R8_1 <dbl>, NO2_R1R2_1 <dbl>, NO2_R2R3_1 <dbl>,
+    #   NO2_R4R5_1 <dbl>, NO2_R5R6_1 <dbl>, NO2_R6R7_1 <dbl>, NO2_R7R8_1 <dbl>,
+    #   NH4_R1R2_1 <dbl>, NH4_R2R3_1 <dbl>, NH4_R4R5_1 <dbl>, NH4_R5R6_1 <dbl>,
+    #   NH4_R6R7_1 <dbl>, NH4_R7R8_1 <dbl>, NO3_R1R2_2 <dbl>, NO3_R2R3_2 <dbl>,
+    #   NO3_R4R5_2 <dbl>, NO3_R5R6_2 <dbl>, NO3_R6R7_2 <dbl>, NO3_R7R8_2 <dbl>,
+    #   NO2_R1R2_2 <dbl>, NO2_R2R3_2 <dbl>, NO2_R4R5_2 <dbl>, NO2_R5R6_2 <dbl>, …
 
 Now that all data is in the same format, we can regroup data in two
 general data frames: one for the absorbance data, one for the “maps”
@@ -170,7 +173,7 @@ Nmin_all_abs <- left_join(Nmin_t1t2_abs$abs_data_df, Nmin_t3_abs$abs_data_df)
 Nmin_all_abs
 ```
 
-    # A tibble: 96 × 119
+    # A tibble: 96 × 137
        row   column NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5 NH4_1G1
        <chr> <chr>    <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>   <dbl>
      1 A     1        0.039     0.039     0.039   0.038   0.039   0.039   0.039
@@ -184,7 +187,7 @@ Nmin_all_abs
      9 A     9        0.043     0.042     0.042   0.042   0.043   0.041   0.039
     10 A     10       0.042     0.041     0.041   0.042   0.042   0.046   0.04 
     # ℹ 86 more rows
-    # ℹ 110 more variables: NH4_1G2 <dbl>, NH4_1G3 <dbl>, NH4_1G4 <dbl>,
+    # ℹ 128 more variables: NH4_1G2 <dbl>, NH4_1G3 <dbl>, NH4_1G4 <dbl>,
     #   NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>, NH4_2F2_1 <dbl>,
     #   NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>, NH4_2F4_1 <dbl>,
     #   NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>, NH4_2F6_1 <dbl>,
@@ -197,7 +200,7 @@ Nmin_all_abs
 maps_t3_file <- read_csv("raw_data/Nmin_t3/Nmint3_maps.csv", col_names = FALSE)
 ```
 
-    Rows: 162 Columns: 13
+    Rows: 324 Columns: 13
     ── Column specification ────────────────────────────────────────────────────────
     Delimiter: ","
     chr (13): X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13
@@ -210,23 +213,26 @@ Nmin_t3_maps <- import_abs_csv(maps_t3_file)
 Nmin_t3_maps$abs_data_df 
 ```
 
-    # A tibble: 96 × 20
-       row   column NO3_R1R2 NO3_R2R3  NO3_R4R5  NO3_R5R6 NO3_R6R7 NO3_R7R8 NO2_R1R2
-       <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>    <chr>   
-     1 A     1      Std      Std       Std       Std      Std      Std      Std     
-     2 A     2      extr_1   extr_3    extr_4    extr_5   extr_6   extr_7   extr_1  
-     3 A     3      83_t3_z3 93_t3_z3  extr_5    extr_6   extr_7   extr_8   83_t3_z3
-     4 A     4      87_t3_z1 103_t3_z3 86_t3_z2  94_t3_z2 96_t3_z3 102_t3_… 87_t3_z1
-     5 A     5      88_t3_z1 104_t3_z1 91_t3_z2  95_t3_z1 99_t3_z1 std_R7_… 88_t3_z1
-     6 A     6      90_t3_z3 std_R2_t3 92_t3_z1  95_t3_z2 101_t3_… 83_t3_z1 90_t3_z3
-     7 A     7      91_t3_z3 81_t3_z1  93_t3_z1  96_t3_z2 std_R6_… 84_t3_z2 91_t3_z3
-     8 A     8      92_t3_z2 81_t3_z3  94_t3_z3  98_t3_z3 84_t3_z1 87_t3_z2 92_t3_z2
-     9 A     9      95_t3_z3 84_t3_z3  98_t3_z1  std_R5_… 86_t3_z3 97_t3_z3 95_t3_z3
-    10 A     10     97_t3_z1 extr_3    102_t3_z2 Std      Std      Std      97_t3_z1
+    # A tibble: 96 × 38
+       row   column NO3_R1R2_1 NO3_R2R3_1 NO3_R4R5_1 NO3_R5R6_1 NO3_R6R7_1
+       <chr> <chr>  <chr>      <chr>      <chr>      <chr>      <chr>     
+     1 A     1      Std        Std        Std        Std        Std       
+     2 A     2      extr_1     empty      extr_4     extr_5     extr_6    
+     3 A     3      83_t3_z3   93_t3_z3   empty      empty      empty     
+     4 A     4      87_t3_z1   103_t3_z3  86_t3_z2   94_t3_z2   96_t3_z3  
+     5 A     5      88_t3_z1   104_t3_z1  91_t3_z2   95_t3_z1   99_t3_z1  
+     6 A     6      90_t3_z3   std_R2_t3  92_t3_z1   95_t3_z2   101_t3_z2 
+     7 A     7      91_t3_z3   empty      93_t3_z1   96_t3_z2   std_R6_t3 
+     8 A     8      92_t3_z2   empty      94_t3_z3   98_t3_z3   empty     
+     9 A     9      95_t3_z3   empty      98_t3_z1   std_R5_t3  empty     
+    10 A     10     97_t3_z1   empty      102_t3_z2  Std        Std       
     # ℹ 86 more rows
-    # ℹ 11 more variables: NO2_R2R3 <chr>, NO2_R4R5 <chr>, NO2_R5R6 <chr>,
-    #   NO2_R6R7 <chr>, NO2_R7R8 <chr>, NH4_R1R2 <chr>, NH4_R2R3 <chr>,
-    #   NH4_R4R5 <chr>, NH4_R5R6 <chr>, NH4_R6R7 <chr>, NH4_R7R8 <chr>
+    # ℹ 31 more variables: NO3_R7R8_1 <chr>, NO2_R1R2_1 <chr>, NO2_R2R3_1 <chr>,
+    #   NO2_R4R5_1 <chr>, NO2_R5R6_1 <chr>, NO2_R6R7_1 <chr>, NO2_R7R8_1 <chr>,
+    #   NH4_R1R2_1 <chr>, NH4_R2R3_1 <chr>, NH4_R4R5_1 <chr>, NH4_R5R6_1 <chr>,
+    #   NH4_R6R7_1 <chr>, NH4_R7R8_1 <chr>, NO3_R1R2_2 <chr>, NO3_R2R3_2 <chr>,
+    #   NO3_R4R5_2 <chr>, NO3_R5R6_2 <chr>, NO3_R6R7_2 <chr>, NO3_R7R8_2 <chr>,
+    #   NO2_R1R2_2 <chr>, NO2_R2R3_2 <chr>, NO2_R4R5_2 <chr>, NO2_R5R6_2 <chr>, …
 
 ``` r
 # For Nmin t1 and t2
@@ -278,7 +284,7 @@ Nmin_all_maps <- left_join(Nmin_t1t1_maps$abs_data_df, Nmin_t3_maps$abs_data_df)
 Nmin_all_maps
 ```
 
-    # A tibble: 96 × 119
+    # A tibble: 96 × 137
        row   column NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5   NH4_1G1
        <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>     <chr>  
      1 A     1      Std      Std       Std       Std      Std      Std       Std    
@@ -292,7 +298,7 @@ Nmin_all_maps
      9 A     9      87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_z3 empty  
     10 A     10     88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_z3 8_t1   
     # ℹ 86 more rows
-    # ℹ 110 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
+    # ℹ 128 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
     #   NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>, NO2_1F2_2 <chr>,
     #   NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>, NO2_1G1 <chr>, NO2_1G2 <chr>,
     #   NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>, NO3_1F1 <chr>,
@@ -300,8 +306,8 @@ Nmin_all_maps
     #   NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, NO3_1G3 <chr>, …
 
 So now we have those 2 data frames that have strictly the same
-structure, with 96 rows and 119 columns, with 2 columns attributed to
-the well identifier (“row” and “column”), and the remaining 117 columns
+structure, with 96 rows and 137 columns, with 2 columns attributed to
+the well identifier (“row” and “column”), and the remaining 135 columns
 representing the 96-well plates.
 
 ## 1.1 - Plate metadata
@@ -321,7 +327,7 @@ extractant_conc <- 0.5 # we need numeric
 timestamp <- timestamp() # see if the format of this is important
 ```
 
-    ##------ Tue Mar 24 00:13:14 2026 ------##
+    ##------ Wed Mar 25 15:05:04 2026 ------##
 
 ``` r
 #wavelength <- "540 nm" # this is just to store info and will not be used for calculations, can be any format 
@@ -345,20 +351,20 @@ Nmin_data <- join_maps_abs(maps_df = Nmin_all_maps, abs_df = Nmin_all_abs)
 Nmin_data
 ```
 
-    # A tibble: 11,232 × 7
-       row   column well_id unique_well_id plate_id plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr>    <chr>          <dbl>
-     1 A          1 A1      NH4_1F1_A1     NH4_1F1  Std            0.039
-     2 B          1 B1      NH4_1F1_B1     NH4_1F1  Std            0.043
-     3 C          1 C1      NH4_1F1_C1     NH4_1F1  Std            0.047
-     4 D          1 D1      NH4_1F1_D1     NH4_1F1  Std            0.053
-     5 E          1 E1      NH4_1F1_E1     NH4_1F1  Std            0.059
-     6 F          1 F1      NH4_1F1_F1     NH4_1F1  Std            0.067
-     7 G          1 G1      NH4_1F1_G1     NH4_1F1  Std            0.096
-     8 H          1 H1      NH4_1F1_H1     NH4_1F1  Std            0.126
-     9 A          2 A2      NH4_1F1_A2     NH4_1F1  81_t1_z2       0.046
-    10 B          2 B2      NH4_1F1_B2     NH4_1F1  81_t1_z2       0.046
-    # ℹ 11,222 more rows
+    # A tibble: 12,960 × 8
+       row   column well_id unique_well_id N_sp  plate_id plate_map absorbance
+       <chr>  <dbl> <chr>   <chr>          <chr> <chr>    <chr>          <dbl>
+     1 A          1 A1      NH4_1F1_A1     NH4   NH4_1F1  Std            0.039
+     2 B          1 B1      NH4_1F1_B1     NH4   NH4_1F1  Std            0.043
+     3 C          1 C1      NH4_1F1_C1     NH4   NH4_1F1  Std            0.047
+     4 D          1 D1      NH4_1F1_D1     NH4   NH4_1F1  Std            0.053
+     5 E          1 E1      NH4_1F1_E1     NH4   NH4_1F1  Std            0.059
+     6 F          1 F1      NH4_1F1_F1     NH4   NH4_1F1  Std            0.067
+     7 G          1 G1      NH4_1F1_G1     NH4   NH4_1F1  Std            0.096
+     8 H          1 H1      NH4_1F1_H1     NH4   NH4_1F1  Std            0.126
+     9 A          2 A2      NH4_1F1_A2     NH4   NH4_1F1  81_t1_z2       0.046
+    10 B          2 B2      NH4_1F1_B2     NH4   NH4_1F1  81_t1_z2       0.046
+    # ℹ 12,950 more rows
 
 Now that we have our final raw data frame, we can export it to save it
 as a document to use for downstream analysis
