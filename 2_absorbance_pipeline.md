@@ -15,13 +15,17 @@
   °<sup>°°°</sup>](#-milestone--corrected-data-ready-for-downstream-analysis-)
 - [4 - Compute regression equation btw absorbance and
   concentration](#4---compute-regression-equation-btw-absorbance-and-concentration)
-  - [4.1 - Quality check of standard
-    curves](#41---quality-check-of-standard-curves)
-  - [4.2 - Transform absorbance in raw concentrations using
-    regression](#42---transform-absorbance-in-raw-concentrations-using-regression)
-- [°°° —- START HERE — °°°°](#---start-here--)
+  - [4.1 - Quality check of standard curves (NH4 only for
+    now)](#41---quality-check-of-standard-curves-nh4-only-for-now)
+  - [4.2 - Perform linear model and infer
+    slope](#42---perform-linear-model-and-infer-slope)
+  - [4.3 - Compute concentrations in N
+    species](#43---compute-concentrations-in-n-species)
 - [°<sup>°°°</sup> Milestone : all data ready for downstream analysis
   °<sup>°°°</sup>](#-milestone--all-data-ready-for-downstream-analysis-)
+- [°°° —- START HERE — °°°°](#---start-here--)
+- [°°° —- Below this: draft, to be picked up —
+  °°°°](#---below-this-draft-to-be-picked-up--)
   - [6 - Exporting data](#6---exporting-data)
 - [Algorithm in natural language](#algo_natural)
 
@@ -1052,7 +1056,7 @@ needed: computing regression equation
 
 # 4 - Compute regression equation btw absorbance and concentration
 
-## 4.1 - Quality check of standard curves
+## 4.1 - Quality check of standard curves (NH4 only for now)
 
 First we need to do some quality check of the Standard curve
 
@@ -1134,7 +1138,9 @@ for (i in 1:nrow(unsorted_curves)) {
     curve |> 
     ggplot(aes(x = abs_corrected, y = conc)) + 
     theme_minimal() +
-    geom_smooth(method = "lm", se = FALSE, color = "grey70") +
+    geom_smooth(
+      method = "lm", se = FALSE, formula = y~x-1,
+      color = "grey70") +
     geom_point(color = "grey30", alpha = 1) + 
       annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
                label = curve$well_id, size = 3) +
@@ -1156,15 +1162,6 @@ for (i in 1:nrow(unsorted_curves)) {
 ``` r
 wrap_plots(plots,axis_titles = "collect")
 ```
-
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
 
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-18-1.png)
 
@@ -1306,7 +1303,7 @@ for (i in 1:nrow(metadata)) {
   plot <- curve |> 
     ggplot(aes(x = abs_corrected, y = conc, color = column)) + 
     theme_minimal() +
-    geom_smooth(method = "lm", se = TRUE, color = "grey70", alpha = 0.2) +
+    geom_smooth(method = "lm", se = TRUE, formula = y~x-1, color = "grey70", alpha = 0.2) +
     geom_point(color = "grey30", alpha = 1) + 
       annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
                label = curve$well_id, size = 3) +
@@ -1456,142 +1453,6 @@ for (i in 1:nrow(metadata)) {
 wrap_plots(plots,axis_titles = "collect")
 ```
 
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-    `geom_smooth()` using formula = 'y ~ x'
-
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-21-1.png)
 
 Let’s find a neater way to look at it by overplotting, using the
@@ -1663,49 +1524,309 @@ incubation time or concentrations: absorbance is very low
 
 </div>
 
-## 4.2 - Transform absorbance in raw concentrations using regression
+## 4.2 - Perform linear model and infer slope
 
-# °°° —- START HERE — °°°°
+- Regression & compute concentrations
+
+  - loop per plate:
+
+    - extract plate
+
+    - compute regression
+
+    - store coefficients, R2 and p-val in a df
+
+  - QC after loop
 
 ``` r
-i = 1
+#i = 1
 metadata = Nmin_metadata
 data = Nmin_corrected
-
-
-
+std_data = std_tidy
+plots <- list()
+lm_output <- tibble(
+  plate_id = character(), slope = double(), p_val_slope = double(), r_squared_mult = double()
+)
 for (i in 1:nrow(metadata)) {
+#for (i in 1:6) {
+
   plate <- metadata$plate_id[i]
   N_sp <- str_split_i(plate, "_", 1)
-  samples <- data |> filter(plate_id == plate)
-  samples
   
+  conc <- tibble(
+    conc = extract_curve(metadata, N_sp = N_sp)[2:8],
+    row = pipetting_direction
+  )
+  #conc
+  
+  curve <- std_data |> 
+    filter(plate_id == plate) |> 
+    left_join(conc, by = join_by(row)) 
+  #curve
+  
+  meta_line <- metadata |> filter(plate_id == plate)
+  
+  curve_lm <- lm(data = curve, conc ~ 0 + abs_corrected) |> summary() 
+  #curve_lm
+
+  lm_coeff <- curve_lm$coefficients |> as.data.frame() |> as_tibble()
+  
+  names(lm_coeff) <- c(
+  #"rowname", # not needed when fitted to go through origin
+  "Estimate", "std_error", "t_value", "p_value_slope")
+  #lm_coeff
+  
+  slope = lm_coeff$Estimate |> signif(digits = 3)
+  p_val_slope = lm_coeff$p_value_slope |> signif(digits = 3)
+  r_squared_mult = curve_lm$r.squared |> signif(digits = 3)
+  
+  color_p_val <- case_when(
+    p_val_slope > 0.05 ~ "red",
+    .default = "black"
+  )
+  
+  size_p_val <- case_when(
+    p_val_slope > 0.05 ~ 4,
+    .default = 2.8
+  )
+    unit <-  meta_line |> 
+      select(std_unit) |> magrittr::extract2(1)
+    extractant <- meta_line |> select(extractant_sp, extractant_unit, extractant_conc) 
+
+  # Plot it
+  std_curve <-  curve |> 
+    ggplot(aes(x = abs_corrected, y = conc)) + 
+    theme_minimal() +
+    geom_smooth(method = "lm", color = "grey30", formula = y~x-1) +
+    geom_jitter(alpha = 0.5) +
+    labs(
+      title = plate,
+      subtitle = paste("slope = ", slope, "\nMultiple R-squared = ", r_squared_mult),
+      caption = paste0(
+        "extracted in ", 
+        extractant$extractant_conc[1], extractant$extractant_unit[1],
+        " ",
+        extractant)) +
+    ylab(paste0("Concentration of ", curve$N_sp[1], "\n[", unit, "]")) +
+    xlab("Blanc-corrected absorbance") +
+    annotate(
+      geom = "text", 
+      x = median(curve$abs_corrected),
+      y = max(curve$conc),
+      label = paste0("p-value of\nslope = ", p_val_slope),
+      color = color_p_val,
+      fontface = "bold",
+      size = size_p_val)
+  std_curve
+  
+  plots[[plate]] <- std_curve 
+  #plots[[plate]]
+  
+  lm_output <- bind_rows(
+    lm_output,
+    tibble(
+      plate_id = plate,
+      slope = slope,
+      p_val_slope = p_val_slope,
+      r_squared_mult = r_squared_mult
+      )
+  )
+#i = i +1
+}
+
+max_nb_plots <- 16
+nb_of_iterations <- length(plots) %/% max_nb_plots
+rest_to_plot <- length(plots) %% max_nb_plots
+
+#i = 1
+multi_plots = list()
+if (nb_of_iterations > 0) {
+  for (i in 1:nb_of_iterations) {
+    first_plot_index <- (i-1)*max_nb_plots + 1
+    last_plot_index <- first_plot_index + max_nb_plots -1
+    multi_plots[[i]] <- wrap_plots(plots[first_plot_index:last_plot_index], axis_titles = "collect")
+    #i = i +1
+  } 
+  if (rest_to_plot > 0) { 
+    first_plot_index <- (i-1)*max_nb_plots + 1
+    last_plot_index <- first_plot_index + rest_to_plot -1
+  multi_plots[[i+1]] <- wrap_plots(plots[first_plot_index:last_plot_index], axis_titles = "collect")
+  }
+} else {
+  first_plot_index <- 1
+  last_plot_index <- rest_to_plot
+  multi_plots[[1]] <- wrap_plots(plots[first_plot_index:last_plot_index], axis_titles = "collect")
+}
+
+# Now save the QC somewhere
+filenames <- "QC_singles_page"
+filepath <- "output/figures/QC/"
+
+#i = 1
+for (i in 1:length(multi_plots)) {
+single_file <- paste0(filepath, filenames, i, ".pdf")
+
+#dev.new()
+#pdf(single_file, width = 8, height = 6)
+
+ggsave(plot = multi_plots[[i]], single_file, width = 12, height = 8)
+
+#dev.off()
+}
+
+# Validate p-values of all curves
+bad_p_val <- lm_output |> arrange(desc(p_val_slope)) |> filter(p_val_slope >= 0.05)
+
+if (nrow(bad_p_val) == 0) {
+  message(paste0(
+    "!! YAY !!\nThe linear model is significative for all plates (p-value < 0.05). You can proceed with the inference of concentrations."
+  ))
+} else {
+  warning(paste0(
+    "!!!!! Watch out !!!! The linear model is not significative at p-value < 0.05 for ",
+    bad_p_val, 
+    " curve",
+    if (nrow(bad_p_val > 1)) {"s"},
+    ".\nCheck out the table hereabove to identify suspicious plates and decide what to do."
+  ))
 }
 ```
 
-First, visualize the relationship
+    !! YAY !!
+    The linear model is significative for all plates (p-value < 0.05). You can proceed with the inference of concentrations.
 
-<u>**To be thought through:**</u>
+## 4.3 - Compute concentrations in N species
 
-- Now, to make sure that there is no inversion of the standard curve
-  (e.g., we write from smallest to biggest, but we pipette the biggest
-  in row A), I sort both vectors (concentration ans absorbances). But in
-  the case of a pipetting mistake where one value of the curve would be
-  off, we may not realize the issue if it means that the order of wells
-  is reshuffled
+Setting up parameters. We will need molar masses
 
-- Propose something more elegant
+``` r
+# N and N-species molar masses [g/mol]
+# n_molar_g_mol <- 14.0069
+# no3_molar_g_mol <- 62.0051
+# no2_molar_g_mol <- 46.0057
+# nh4_molar_g_mol <- 36.0775
 
-- **Maybe best to not reorganize anything. If the correlation is
-  negative, we will spot it in the graph!**
+molar_masses <- c(
+  "N" = 14.0069,
+  "NO3" = 62.0051,
+  "NO2" = 46.0057,
+  "NH4" = 36.0775
+)
+```
 
-- Don’t have an optimal way (or I am not yet convinced that it is
-  correct) to access the p-value of the model / the slope. The problem
-  is: the number that comes out is not the same as displayed in the
-  summary. But it would be quite long to check summaries of each
-  individual plate…
+First, we compute `Nmin_regressed`, a data frame with the computed
+concentration expressed in mg Nsp per L (eg., mg NH4+ per L).
+
+**!! the concentration in mg N/L for NO3 is as this stage still a gross
+measurement that also contains the amouns of NO2 that was present in the
+sample but was oxidised to NO3. In theory we have to make a substraction
+(NO3 neat = NO3 gross - NO2). But**
+
+- **we can only do this once we’ve agregated data on each sample (so an
+  average of the 4 wells = technical replicates)**
+
+- in practice we see that concentrations in NO2 are so low that it’s ok,
+  in first approximation, to have a look at this value for now.
+
+``` r
+#i = 1
+metadata <- Nmin_metadata
+data <- Nmin_corrected |> group_by(plate_id)
+
+# create a table to be iteratively completed
+Nmin_regressed <- data |> filter(FALSE) |> mutate(conc_mgNsp_L = double(), conc_N_L = double())
+for (i in 1:n_groups(data)) {
+  # get plate details
+  plate <- metadata$plate_id[i]
+  N_sp <- str_split_i(plate, "_", 1)
+  slope <- lm_output |> 
+    filter(plate_id == plate) |> 
+    select(slope) |> magrittr::extract2(1)
+  
+  # compute concentration in mg Nsp per L
+  plate_data <- data |> 
+    filter(plate_id == plate) |> 
+    mutate(
+      conc_mgNsp_L = slope * abs_corrected,
+      conc_N_L = conc_mgNsp_L * molar_masses["N"] / molar_masses[N_sp]
+        )
+  Nmin_regressed <- bind_rows(Nmin_regressed, plate_data)
+  #i = i+1
+}
+```
+
+To finally convert these numbers from mg N /L into mg N / g dry soil, we
+need to integrate the 2 variables from external data sets: soil dry
+matter and the soil:exctractant ratio. This is thus something for
+another script. We can nevertheless have a first look at plots and see
+that indeed NO2 is mostly at 0, there is some noise in NH4, and clear
+variations in NO3.
+
+``` r
+Nmin_regressed |> 
+  ggplot(aes(x = plate_map, y = conc_N_L)) +
+  theme_minimal()+
+  geom_boxplot() +
+  facet_wrap(~N_sp, nrow = 3)
+```
+
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-25-1.png)
+
+``` r
+Nmin_regressed |> 
+  ggplot(aes(x = conc_N_L)) +
+  theme_minimal()+
+  geom_density() +
+  facet_wrap(~N_sp, nrow = 3, scales = "free_y", strip.position = "right")
+```
+
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-25-2.png)
+
+Let us now format then export the table for later use. We will need the
+last step of computation to happen per sample, so that technical reps
+(wells) should be pivotted onto a single line. We’ll have a lot of NAs
+bc each plate will only have values at either A, B, C, D or E, F, G, H.
+We could find a way to fuse it probably…
+
+``` r
+Nmin_conc <- Nmin_regressed |> 
+  mutate(
+    rep_tech = case_when(
+      row %in% c("A", "E") ~ "rt1",
+      row %in% c("B", "F") ~ "rt2",
+      row %in% c("C", "G") ~ "rt3",
+      row %in% c("D", "H") ~ "rt4"
+      )
+    ) |> 
+  #filter(plate_id == "NH4_1F1") |> 
+  select(!(c(well_id:unique_well_id, absorbance:conc_mgNsp_L))) |> 
+  
+  # the next 3 lines should be activated in case we get an error saying that there are duplicates observations (typically there are either 2x the same sample in one plate, or there is a mistake in the plate map). Once the problem is solved, these 3 lines can be deactivated again.
+  # ungroup() |> 
+  # dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map, rep_tech)) |>
+  # dplyr::filter(n > 1L)
+  
+  pivot_wider(
+    id_cols = c(plate_id, N_sp, plate_map),
+    names_from = rep_tech,
+    values_from = conc_N_L,
+    names_prefix = "conc_N_L"
+    
+  )
+```
+
+Export
+
+``` r
+lm_output |> write_rds("output/data/Nmin_std_curves_lm.rds")
+Nmin_conc |> write_rds("output/data/Nmin_conc.rds")
+```
 
 # °<sup>°°°</sup> Milestone : all data ready for downstream analysis °<sup>°°°</sup>
+
+# °°° —- START HERE — °°°°
+
+# °°° —- Below this: draft, to be picked up — °°°°
 
 At this point, each plate needs to be evaluated. This could go in
 another script. In the case where there is a standard curve (anything
