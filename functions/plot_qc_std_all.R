@@ -48,7 +48,7 @@ plot_qc_std_all <- function(
           data = curve, 
           aes(x = abs_corrected, y = conc, 
               fill = "t1", color = "t1"),
-          formula = 'y ~ x',
+          formula = y~x-1,
           method = "lm", se = TRUE, alpha = 0.1) 
     } else if (t == "t2") {
       p <- p + 
@@ -56,7 +56,7 @@ plot_qc_std_all <- function(
           data = curve, 
           aes(x = abs_corrected, y = conc, 
               fill = "t2", color = "t2"),
-          formula = 'y ~ x',
+          formula = y~x-1,
           method = "lm", se = TRUE, alpha = 0.1) 
     } else if (t == "t3") {
       p <- p + 
@@ -64,7 +64,7 @@ plot_qc_std_all <- function(
           data = curve, 
           aes(x = abs_corrected, y = conc, 
               fill = "t3", color = "t3",),
-          formula = 'y ~ x',
+          formula = y~x-1,
           method = "lm", se = TRUE, alpha = 0.1) 
     }
   }
