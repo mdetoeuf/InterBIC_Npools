@@ -10,9 +10,8 @@
     - [3.1 - Correct std curves for
       blanc](#31---correct-std-curves-for-blanc)
     - [3.2 - Correct samples for blanc](#32---correct-samples-for-blanc)
-- [°<sup>°°°</sup> Milestone : corrected data ready for downstream
-  analysis
-  °<sup>°°°</sup>](#-milestone--corrected-data-ready-for-downstream-analysis-)
+- [°<sup>°°°</sup> Milestone : blanc-corrected data
+  °<sup>°°°</sup>](#-milestone--blanc-corrected-data-)
 - [4 - Compute regression equation btw absorbance and
   concentration](#4---compute-regression-equation-btw-absorbance-and-concentration)
   - [4.1 - Quality check of standard curves (NH4 only for
@@ -31,11 +30,11 @@
 
 # To Do
 
-- export + downstream steps (different options based on analysis)
+- Turn as much as possible into functions
 
 # Intro
 
-For an explanation of the pipeline in English, see last section
+For an explanation of the pipeline in plain English, see last section
 “Algorithm in natural language”. It is not 100% up to date, but it shows
 the main steps of the pipeline
 
@@ -43,49 +42,19 @@ the main steps of the pipeline
 
 ## 1 - Set up
 
-Loading packages
+Loading packages and homemade functions
 
 ``` r
 library(tidyverse)
-```
-
-    ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-    ✔ dplyr     1.1.4     ✔ readr     2.1.5
-    ✔ forcats   1.0.1     ✔ stringr   1.6.0
-    ✔ ggplot2   4.0.0     ✔ tibble    3.3.0
-    ✔ lubridate 1.9.4     ✔ tidyr     1.3.1
-    ✔ purrr     1.2.0     
-    ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-    ✖ dplyr::filter() masks stats::filter()
-    ✖ dplyr::lag()    masks stats::lag()
-    ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
-
-``` r
 library(roperators) # to be able to add %ni% for "not in"
-```
-
-
-    Attaching package: 'roperators'
-
-    The following object is masked from 'package:tibble':
-
-        num
-
-    The following object is masked from 'package:ggplot2':
-
-        %+%
-
-``` r
-library(patchwork) # for wrap_plots
+library(patchwork) # for wrap_plots and wrap_tables
 library(RColorBrewer) # to find and set color palette
 
 source("functions/extract_curve.R")
 source("functions/plot_qc_std_all.R")
 ```
 
-Prep template data: fake tables for the sake of building the next steps
-of the code. Once that code is working, then we can figure out how to
-extract real plate data instead of this fake model one.
+Loading data
 
 ``` r
 # import tidy data and metadata
@@ -96,11 +65,19 @@ Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
 Nmin_full <- Nmin_data |> filter(plate_map != "empty")
 ```
 
-Set up pipetting direction for the std curve
+Set up pipetting direction for the std curve.
+
+<u>**!! THIS IS SOMETHING TO CHECK / UPDATE BY THE USER**</u>
+
+(although failing to do so will become obvious latest with the std
+curves that will be plotted as decreasing curves)
 
 ``` r
+# define both options
 top_down_pipetting <- LETTERS[2:8]
-#bottom_up_pipetting <- LETTERS[8:2]
+bottom_up_pipetting <- LETTERS[8:2]
+
+# choose one option (should the whole script become a function, this could be a default argument)
 pipetting_direction <- top_down_pipetting
 ```
 
@@ -129,10 +106,8 @@ decision.
   the min and max values of absorbance and/or the number of wells that
   are out of range
 
-- 
-
 ``` r
-#** Make sure empty wells contain NA, otherwise, lots of warning messages? To be tested *
+#** Make sure empty wells have been removed or contain NA, otherwise, lots of warning messages? To be tested *
 #*
 
 # the threshold can be moved a little
@@ -147,6 +122,7 @@ for (i in 1:nrow(Nmin_full)) {
     suspicious_rows <- append(suspicious_rows, i)
     }
 }
+
 # Send a warning message
 if (!is.null(suspicious_rows)) {
   warning(paste0("Some wells are out of range for absorbance, i.e., not in [", min_abs, "; ",max_abs, "] allowed \nSee table hereabove to identify suspicious wells"))
@@ -160,10 +136,10 @@ if (!is.null(suspicious_rows)) {
     °^° !! YAY !! °^° All wells are in range for absorbance between 0.03 and 1.1
 
 ``` r
-# ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
+#> ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
 #out_of_range <- Nmin_full |> filter(row_number() %in% suspicious_rows) 
 
-# but they're all NH4 or NO2 --> acceptable!
+#> but they're all NH4 or NO2 --> acceptable!
 # out_of_range |> filter(
 #   str_split_i(plate_id, pattern = "_", 1) %ni% c("NH4", "NO2")
 #   )
@@ -234,8 +210,8 @@ the mean of the values of the wells where the extractant was added.
 - If it becomes relevant: make some sort of if condition, based on plate
   information (`blanc_id` and `std_id`)
 
-- Make sure that the slice-min part in next chunk behaves as expected in
-  the case of a tie
+- Make sure that the slice-min part in 2nd next chunk behaves as
+  expected in the case of a tie
 
 ### 3.1 - Correct std curves for blanc
 
@@ -252,6 +228,8 @@ std_data <- Nmin_full |>
   filter(
     plate_map == "Std") |> 
   group_by(plate_id)
+
+# have a look at it
 std_data
 ```
 
@@ -286,7 +264,7 @@ is bigger than second row (issue in pipetting).
 –\> In the chunk below we get 3 suspicious curves. So we can exclude
 those combinations of plate and column from the computation of the
 average blanc. So we will only take the value from the other std curve.
-Here, we always pipetted 2 per plate.
+Here, we always pipetted 2 per plate (yay!).
 
 –\> This option of course is not valid in the case where only one
 standard curve is pipetted per plate. In that case, one option is to
@@ -355,50 +333,22 @@ std_blanc_all <- std_data |>
     n = nb_std,  # pick as many rows as the nb of columns with standard curve
     with_ties = FALSE # in case there are ties, it will add extra rows
     ) 
-std_blanc_all
-```
+#std_blanc_all
 
-    # A tibble: 270 × 8
-    # Groups:   plate_id [135]
-       row   column well_id unique_well_id N_sp  plate_id  plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>     <chr>          <dbl>
-     1 A         12 A12     NH4_1F1_A12    NH4   NH4_1F1   Std            0.038
-     2 A          1 A1      NH4_1F1_A1     NH4   NH4_1F1   Std            0.039
-     3 A         12 A12     NH4_1F2_1_A12  NH4   NH4_1F2_1 Std            0.038
-     4 A          1 A1      NH4_1F2_1_A1   NH4   NH4_1F2_1 Std            0.039
-     5 A         12 A12     NH4_1F2_2_A12  NH4   NH4_1F2_2 Std            0.038
-     6 A          1 A1      NH4_1F2_2_A1   NH4   NH4_1F2_2 Std            0.039
-     7 A          1 A1      NH4_1F3_A1     NH4   NH4_1F3   Std            0.038
-     8 A         12 A12     NH4_1F3_A12    NH4   NH4_1F3   Std            0.038
-     9 A         12 A12     NH4_1F4_A12    NH4   NH4_1F4   Std            0.038
-    10 A          1 A1      NH4_1F4_A1     NH4   NH4_1F4   Std            0.039
-    # ℹ 260 more rows
 
-``` r
 # check that we will remove the "correct" suspicious blancs in a moment
 std_blanc_trusted <- std_blanc_all |> 
   # remove anything not first or last row of plate <=> suspicious
   filter(row %in% c("A", "H"))
+#std_blanc_trusted
 
-# see that we get 3 less rows now
-std_blanc_trusted
+# see that we get 4 less rows now
+nrow(std_blanc_all); nrow(std_blanc_trusted)
 ```
 
-    # A tibble: 266 × 8
-    # Groups:   plate_id [135]
-       row   column well_id unique_well_id N_sp  plate_id  plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>     <chr>          <dbl>
-     1 A         12 A12     NH4_1F1_A12    NH4   NH4_1F1   Std            0.038
-     2 A          1 A1      NH4_1F1_A1     NH4   NH4_1F1   Std            0.039
-     3 A         12 A12     NH4_1F2_1_A12  NH4   NH4_1F2_1 Std            0.038
-     4 A          1 A1      NH4_1F2_1_A1   NH4   NH4_1F2_1 Std            0.039
-     5 A         12 A12     NH4_1F2_2_A12  NH4   NH4_1F2_2 Std            0.038
-     6 A          1 A1      NH4_1F2_2_A1   NH4   NH4_1F2_2 Std            0.039
-     7 A          1 A1      NH4_1F3_A1     NH4   NH4_1F3   Std            0.038
-     8 A         12 A12     NH4_1F3_A12    NH4   NH4_1F3   Std            0.038
-     9 A         12 A12     NH4_1F4_A12    NH4   NH4_1F4   Std            0.038
-    10 A          1 A1      NH4_1F4_A1     NH4   NH4_1F4   Std            0.039
-    # ℹ 256 more rows
+    [1] 270
+
+    [1] 266
 
 Third, we compute the blanc value (average) and return a warning if
 blanc values show too much variation (in the case of several
@@ -406,210 +356,73 @@ plate-columns with standard curves)
 
 ``` r
 #** !! Adapt threshold parameter *
+#*
+threshold <- 5 # max coeff_var that we accept [%] 
 
-# Change parameter "2" in something computed?
-
+# compute intra-plate mean for the blanc, st-dev and coefficient of variation in %
 std_blanc_avg <-  std_blanc_trusted |> 
   summarise(
     blanc_avg = mean(absorbance), 
     blanc_sdev = sd(absorbance)) |> 
   mutate(
     blanc_coeff_var_percent = 100 * blanc_sdev / blanc_avg)
-std_blanc_avg
-```
+#std_blanc_avg
 
-    # A tibble: 135 × 4
-       plate_id  blanc_avg blanc_sdev blanc_coeff_var_percent
-       <chr>         <dbl>      <dbl>                   <dbl>
-     1 NH4_1F1      0.0385   0.000707                    1.84
-     2 NH4_1F2_1    0.0385   0.000707                    1.84
-     3 NH4_1F2_2    0.0385   0.000707                    1.84
-     4 NH4_1F3      0.038    0                           0   
-     5 NH4_1F4      0.0385   0.000707                    1.84
-     6 NH4_1F5      0.0385   0.000707                    1.84
-     7 NH4_1G1      0.0385   0.000707                    1.84
-     8 NH4_1G2      0.0385   0.000707                    1.84
-     9 NH4_1G3      0.038    0                           0   
-    10 NH4_1G4      0.038    0                           0   
-    # ℹ 125 more rows
-
-``` r
-# Do we accept this "worse" level of variation?
-# Find an automatized way to look at it?
-std_blanc_avg |> 
-  slice_max(blanc_coeff_var_percent, n = 10)
-```
-
-    # A tibble: 10 × 4
-       plate_id   blanc_avg blanc_sdev blanc_coeff_var_percent
-       <chr>          <dbl>      <dbl>                   <dbl>
-     1 NO2_1F3       0.0385    0.00354                    9.18
-     2 NO2_1G2       0.037     0.00141                    3.82
-     3 NH4_2F2_1     0.038     0.00141                    3.72
-     4 NH4_2F2_2     0.038     0.00141                    3.72
-     5 NO3_2P4       0.0835    0.00212                    2.54
-     6 NO3_1G3       0.0875    0.00212                    2.42
-     7 NO3_R7R8_1    0.0875    0.00212                    2.42
-     8 NO3_R7R8_2    0.0875    0.00212                    2.42
-     9 NO3_R4R5_1    0.0885    0.00212                    2.40
-    10 NO3_R4R5_2    0.0885    0.00212                    2.40
-
-``` r
-# coeff variation above 3% are only a few, all below 10%, and only for NO2 and NH4, acceptable
-
-# Warning if values are too divergent (decide what "threshold" is for the coefficient of variation ?)
-
-threshold <- 5 # max coeff_var that we accept [%] 
-
-# in case of several values...
+# in case of several values... (can't do this if only one curve per plate)
 if (#length(std_column) != 1 # replace by something else
   TRUE) {
   # ... and of coefficient of variation > set threshold
   if (max(std_blanc_avg$blanc_coeff_var_percent,na.rm = TRUE) > threshold) {
     # send a warning
-    warning(paste0("There are plates showing a big variation in absorbance values the blanc of the standard curve (more than ", threshold, "%).\nPick the most likely values / remove outliers manually.\nSee tables above to judge on values and find suspicious wells"))
+    warning(paste0("There are plates showing a big variation in absorbance values for the blanc of the standard curve (more than ", threshold, "%).\nPick the most likely values / remove outliers manually.\nSee table to judge on values and find suspicious wells"))
     # and show suspicious wells
     std_blanc_avg |> 
       filter(blanc_coeff_var_percent > threshold)
-      #slice_max(blanc_coeff_var_percent, n = 10)
+    
+    # another way to visualize it: 
+      #std_blanc_avg |> slice_max(blanc_coeff_var_percent, n = 10) # coeff variation above 3% are only a few, all below 10%, and only for NO2 and NH4, acceptable
+
   }
 }
 ```
 
-    Warning: There are plates showing a big variation in absorbance values the blanc of the standard curve (more than 5%).
+    Warning: There are plates showing a big variation in absorbance values for the blanc of the standard curve (more than 5%).
     Pick the most likely values / remove outliers manually.
-    See tables above to judge on values and find suspicious wells
+    See table to judge on values and find suspicious wells
 
     # A tibble: 1 × 4
       plate_id blanc_avg blanc_sdev blanc_coeff_var_percent
       <chr>        <dbl>      <dbl>                   <dbl>
     1 NO2_1F3     0.0385    0.00354                    9.18
 
-``` r
-std_blanc_avg |> 
-  slice_max(blanc_coeff_var_percent, n = 10)
-```
-
-    # A tibble: 10 × 4
-       plate_id   blanc_avg blanc_sdev blanc_coeff_var_percent
-       <chr>          <dbl>      <dbl>                   <dbl>
-     1 NO2_1F3       0.0385    0.00354                    9.18
-     2 NO2_1G2       0.037     0.00141                    3.82
-     3 NH4_2F2_1     0.038     0.00141                    3.72
-     4 NH4_2F2_2     0.038     0.00141                    3.72
-     5 NO3_2P4       0.0835    0.00212                    2.54
-     6 NO3_1G3       0.0875    0.00212                    2.42
-     7 NO3_R7R8_1    0.0875    0.00212                    2.42
-     8 NO3_R7R8_2    0.0875    0.00212                    2.42
-     9 NO3_R4R5_1    0.0885    0.00212                    2.40
-    10 NO3_R4R5_2    0.0885    0.00212                    2.40
-
 If we are troubled by the big variation within plate, we can check out
 the identified suspicious plates. In this case, I find it not so
 dramatic. We are just dealing with small values…
 
-We can look at suspicious blancs in their plate context.
-
-<u>**To be thought through:**</u>
-
-- We could maybe use `patchwork::wrap_table()` to visualize them in the
-  nice way. Maybe to do later…
+We can look at suspicious blancs in their plate context to decide how
+bad the situation is.
 
 ``` r
+#** set a number of plates with "the worst coefficient of variation" that you want to look at *
+#*
 nb_of_plates_to_look_at <- 3
 
 std_blanc_big_coeff <- std_blanc_avg |> 
   slice_max(blanc_coeff_var_percent, n = nb_of_plates_to_look_at)
 
+# visualize numbers in context
 for (plate in 1:length(std_blanc_big_coeff)) {
-  print(std_data |> filter(plate_id == std_blanc_big_coeff$plate_id[plate]))
+  wrap_table(std_data |> filter(plate_id == std_blanc_big_coeff$plate_id[plate]))
 }
 ```
 
-    # A tibble: 16 × 8
-    # Groups:   plate_id [1]
-       row   column well_id unique_well_id N_sp  plate_id plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>    <chr>          <dbl>
-     1 A          1 A1      NO2_1F3_A1     NO2   NO2_1F3  Std            0.041
-     2 B          1 B1      NO2_1F3_B1     NO2   NO2_1F3  Std            0.048
-     3 C          1 C1      NO2_1F3_C1     NO2   NO2_1F3  Std            0.06 
-     4 D          1 D1      NO2_1F3_D1     NO2   NO2_1F3  Std            0.081
-     5 E          1 E1      NO2_1F3_E1     NO2   NO2_1F3  Std            0.129
-     6 F          1 F1      NO2_1F3_F1     NO2   NO2_1F3  Std            0.23 
-     7 G          1 G1      NO2_1F3_G1     NO2   NO2_1F3  Std            0.399
-     8 H          1 H1      NO2_1F3_H1     NO2   NO2_1F3  Std            0.522
-     9 A         12 A12     NO2_1F3_A12    NO2   NO2_1F3  Std            0.036
-    10 B         12 B12     NO2_1F3_B12    NO2   NO2_1F3  Std            0.048
-    11 C         12 C12     NO2_1F3_C12    NO2   NO2_1F3  Std            0.058
-    12 D         12 D12     NO2_1F3_D12    NO2   NO2_1F3  Std            0.08 
-    13 E         12 E12     NO2_1F3_E12    NO2   NO2_1F3  Std            0.128
-    14 F         12 F12     NO2_1F3_F12    NO2   NO2_1F3  Std            0.23 
-    15 G         12 G12     NO2_1F3_G12    NO2   NO2_1F3  Std            0.396
-    16 H         12 H12     NO2_1F3_H12    NO2   NO2_1F3  Std            0.525
-    # A tibble: 16 × 8
-    # Groups:   plate_id [1]
-       row   column well_id unique_well_id N_sp  plate_id plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>    <chr>          <dbl>
-     1 A          1 A1      NO2_1G2_A1     NO2   NO2_1G2  Std            0.038
-     2 B          1 B1      NO2_1G2_B1     NO2   NO2_1G2  Std            0.048
-     3 C          1 C1      NO2_1G2_C1     NO2   NO2_1G2  Std            0.059
-     4 D          1 D1      NO2_1G2_D1     NO2   NO2_1G2  Std            0.08 
-     5 E          1 E1      NO2_1G2_E1     NO2   NO2_1G2  Std            0.127
-     6 F          1 F1      NO2_1G2_F1     NO2   NO2_1G2  Std            0.223
-     7 G          1 G1      NO2_1G2_G1     NO2   NO2_1G2  Std            0.39 
-     8 H          1 H1      NO2_1G2_H1     NO2   NO2_1G2  Std            0.487
-     9 A         12 A12     NO2_1G2_A12    NO2   NO2_1G2  Std            0.036
-    10 B         12 B12     NO2_1G2_B12    NO2   NO2_1G2  Std            0.048
-    11 C         12 C12     NO2_1G2_C12    NO2   NO2_1G2  Std            0.058
-    12 D         12 D12     NO2_1G2_D12    NO2   NO2_1G2  Std            0.079
-    13 E         12 E12     NO2_1G2_E12    NO2   NO2_1G2  Std            0.131
-    14 F         12 F12     NO2_1G2_F12    NO2   NO2_1G2  Std            0.225
-    15 G         12 G12     NO2_1G2_G12    NO2   NO2_1G2  Std            0.402
-    16 H         12 H12     NO2_1G2_H12    NO2   NO2_1G2  Std            0.489
-    # A tibble: 16 × 8
-    # Groups:   plate_id [1]
-       row   column well_id unique_well_id N_sp  plate_id  plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>     <chr>          <dbl>
-     1 A          1 A1      NH4_2F2_1_A1   NH4   NH4_2F2_1 Std            0.039
-     2 B          1 B1      NH4_2F2_1_B1   NH4   NH4_2F2_1 Std            0.041
-     3 C          1 C1      NH4_2F2_1_C1   NH4   NH4_2F2_1 Std            0.045
-     4 D          1 D1      NH4_2F2_1_D1   NH4   NH4_2F2_1 Std            0.052
-     5 E          1 E1      NH4_2F2_1_E1   NH4   NH4_2F2_1 Std            0.059
-     6 F          1 F1      NH4_2F2_1_F1   NH4   NH4_2F2_1 Std            0.068
-     7 G          1 G1      NH4_2F2_1_G1   NH4   NH4_2F2_1 Std            0.101
-     8 H          1 H1      NH4_2F2_1_H1   NH4   NH4_2F2_1 Std            0.121
-     9 A         12 A12     NH4_2F2_1_A12  NH4   NH4_2F2_1 Std            0.037
-    10 B         12 B12     NH4_2F2_1_B12  NH4   NH4_2F2_1 Std            0.042
-    11 C         12 C12     NH4_2F2_1_C12  NH4   NH4_2F2_1 Std            0.044
-    12 D         12 D12     NH4_2F2_1_D12  NH4   NH4_2F2_1 Std            0.052
-    13 E         12 E12     NH4_2F2_1_E12  NH4   NH4_2F2_1 Std            0.059
-    14 F         12 F12     NH4_2F2_1_F12  NH4   NH4_2F2_1 Std            0.067
-    15 G         12 G12     NH4_2F2_1_G12  NH4   NH4_2F2_1 Std            0.102
-    16 H         12 H12     NH4_2F2_1_H12  NH4   NH4_2F2_1 Std            0.117
-    # A tibble: 16 × 8
-    # Groups:   plate_id [1]
-       row   column well_id unique_well_id N_sp  plate_id  plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>     <chr>          <dbl>
-     1 A          1 A1      NH4_2F2_2_A1   NH4   NH4_2F2_2 Std            0.039
-     2 B          1 B1      NH4_2F2_2_B1   NH4   NH4_2F2_2 Std            0.041
-     3 C          1 C1      NH4_2F2_2_C1   NH4   NH4_2F2_2 Std            0.045
-     4 D          1 D1      NH4_2F2_2_D1   NH4   NH4_2F2_2 Std            0.052
-     5 E          1 E1      NH4_2F2_2_E1   NH4   NH4_2F2_2 Std            0.059
-     6 F          1 F1      NH4_2F2_2_F1   NH4   NH4_2F2_2 Std            0.068
-     7 G          1 G1      NH4_2F2_2_G1   NH4   NH4_2F2_2 Std            0.101
-     8 H          1 H1      NH4_2F2_2_H1   NH4   NH4_2F2_2 Std            0.121
-     9 A         12 A12     NH4_2F2_2_A12  NH4   NH4_2F2_2 Std            0.037
-    10 B         12 B12     NH4_2F2_2_B12  NH4   NH4_2F2_2 Std            0.042
-    11 C         12 C12     NH4_2F2_2_C12  NH4   NH4_2F2_2 Std            0.044
-    12 D         12 D12     NH4_2F2_2_D12  NH4   NH4_2F2_2 Std            0.052
-    13 E         12 E12     NH4_2F2_2_E12  NH4   NH4_2F2_2 Std            0.059
-    14 F         12 F12     NH4_2F2_2_F12  NH4   NH4_2F2_2 Std            0.067
-    15 G         12 G12     NH4_2F2_2_G12  NH4   NH4_2F2_2 Std            0.102
-    16 H         12 H12     NH4_2F2_2_H12  NH4   NH4_2F2_2 Std            0.117
-
 Now we can correct the absorbance values for the standard curves.
 
+<u>**!! HEREUNDER: CANDIDATE FOR TURNING INTO A FUNCTION !! - CORRECTION
+OF BAD WELLS FOR BLANC OF STD CURVE**</u>
+
 ``` r
+# set case (no update necessary, will find the right answer if pipetting was set correctly earlier)
 if (is.unsorted(pipetting_direction)) {
   lowest_well <- "H"
 } else {lowest_well = "A"}
@@ -662,6 +475,8 @@ First, we extract the raws with extractant
 extr_data <- Nmin_full |> 
   filter(str_split_i(plate_map, "_", 1) == "extr") |> 
   group_by(plate_id, plate_map)
+
+# have a look
 extr_data
 ```
 
@@ -685,7 +500,8 @@ Then we do some quality check: how big is the variation? Do we have
 suspicious wells?
 
 Looking at the distribution of absorbance, it appears that some wells
-have very different scoring.
+have very different scoring, see
+<a href="#fig-hist-extr-coeff-var" class="quarto-xref">Figure 2</a>
 
 ``` r
 extr_avg <- extr_data |> 
@@ -725,17 +541,25 @@ extr_avg |>
   #geom_density() +
   #geom_boxplot() +
   labs(
-    title = "Distribution of absorbance of extractant (blanc)",
+    title = "Distribution of coefficient of variation of absorbance of extractant (blanc)",
     subtitle = "anything above 5% seems to be an outlier (even above 3%)") +
   xlab("intra-plate coefficient of variation [%]")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-13-1.png)
+<div id="fig-hist-extr-coeff-var">
+
+![](2_absorbance_pipeline_files/figure-commonmark/fig-hist-extr-coeff-var-1.png)
+
+Figure 2: Distribution of coefficient of variation of absorbance of
+extractant (blanc)
+
+</div>
 
 Let’s prepare a warning for plates containing these outliers
 
 ``` r
-# set coeff max that we want to accept
+#** Set up the coeff max that you want to accept*
+
 threshold_coeff <- 3
 
   if (max(extr_avg$extr_coeff_var_percent,na.rm = TRUE) > threshold_coeff) {
@@ -773,37 +597,20 @@ threshold_coeff <- 3
     10 NO2_R2R3_1 extr_2      0.0395   0.00120                   3.03
 
 ``` r
+# get names of plates with a coefficient of variation for the blanc higher than the threshold
 suspicious_plates
 ```
 
      [1] "NH4_2F2_2"  "NH4_2P2"    "NO2_2F1_1"  "NO2_2F6_1"  "NO2_2P6_1" 
      [6] "NO2_R2R3_1" "NO2_R4R5_1" "NO3_2F1_1"  "NO3_2P6_2"  "NO3_R7R8_1"
 
-Let’s now have a look at those plates
+Let’s now have a look at those suspicious plates
 
 ``` r
 extr_suspicious <- extr_data |> 
   filter(plate_id %in% suspicious_plates)
-extr_suspicious
-```
+#extr_suspicious
 
-    # A tibble: 92 × 8
-    # Groups:   plate_id, plate_map [10]
-       row   column well_id unique_well_id N_sp  plate_id  plate_map absorbance
-       <chr>  <dbl> <chr>   <chr>          <chr> <chr>     <chr>          <dbl>
-     1 A          8 A8      NH4_2F2_2_A8   NH4   NH4_2F2_2 extr           0.038
-     2 B          8 B8      NH4_2F2_2_B8   NH4   NH4_2F2_2 extr           0.037
-     3 C          8 C8      NH4_2F2_2_C8   NH4   NH4_2F2_2 extr           0.038
-     4 D          8 D8      NH4_2F2_2_D8   NH4   NH4_2F2_2 extr           0.038
-     5 E          8 E8      NH4_2F2_2_E8   NH4   NH4_2F2_2 extr           0.038
-     6 F          8 F8      NH4_2F2_2_F8   NH4   NH4_2F2_2 extr           0.038
-     7 G          8 G8      NH4_2F2_2_G8   NH4   NH4_2F2_2 extr           0.038
-     8 H          8 H8      NH4_2F2_2_H8   NH4   NH4_2F2_2 extr           0.059
-     9 A          8 A8      NH4_2P2_A8     NH4   NH4_2P2   extr           0.039
-    10 B          8 B8      NH4_2P2_B8     NH4   NH4_2P2   extr           0.039
-    # ℹ 82 more rows
-
-``` r
 plots <- extr_suspicious |> 
   group_map(
     .f = ~ggplot(.x, aes(x = absorbance)) + 
@@ -829,7 +636,7 @@ wrap_plots(plots, axis_titles = "collect")
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-suspicious-plates-1.png)
 
-Figure 2: Distribution of absorbance in suspicious plates. From this we
+Figure 3: Distribution of absorbance in suspicious plates. From this we
 can manually identify then remove outliers
 
 </div>
@@ -838,7 +645,7 @@ We have to remove outliers manually: it is really a personal
 appreciation that works. Watch out, in the case of plates with several
 blancs like here, that a bimodal distribution might not be an issue
 (e.g., plate NO2_R4R5 in
-<a href="#fig-suspicious-plates" class="quarto-xref">Figure 2</a>,
+<a href="#fig-suspicious-plates" class="quarto-xref">Figure 3</a>,
 although in this case the bimodal aspect comes split accross
 extractants, but actually with very close values).
 
@@ -859,52 +666,16 @@ all values, we put a value of 1 as threshold.
 lower values, consider updating the code.**
 
 ``` r
+#** !! Manually input the thrshold values of your choosing (read plots from left to right, then from up to down (rowise reading)) *
+
 # print it to check in which order the plates are
-suspicious_plates
-```
+#suspicious_plates
 
-     [1] "NH4_2F2_2"  "NH4_2P2"    "NO2_2F1_1"  "NO2_2F6_1"  "NO2_2P6_1" 
-     [6] "NO2_R2R3_1" "NO2_R4R5_1" "NO3_2F1_1"  "NO3_2P6_2"  "NO3_R7R8_1"
-
-``` r
 cut_threshold <- c(0.040, 0.041, 0.039, 0.038, 0.038, 0.041, 0.042, 0.072, 0.09, 0.09)
 
 grouped_rows_suspicious <- group_rows(extr_suspicious)
-grouped_rows_suspicious
-```
+#grouped_rows_suspicious
 
-    <list_of<integer>[10]>
-    [[1]]
-    [1] 1 2 3 4 5 6 7 8
-
-    [[2]]
-    [1]  9 10 11 12 13 14 15 16
-
-    [[3]]
-    [1] 17 18 19 20 21 22 23 24
-
-    [[4]]
-    [1] 25 26 27 28 29 30 31 32
-
-    [[5]]
-    [1] 33 34 35 36 37 38 39 40
-
-    [[6]]
-    [1] 41 42 43 44 45 46 47 48
-
-    [[7]]
-     [1] 49 50 51 52 53 54 55 56 57 58 59 60
-
-    [[8]]
-    [1] 61 62 63 64 65 66 67 68
-
-    [[9]]
-    [1] 69 70 71 72 73 74 75 76
-
-    [[10]]
-     [1] 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92
-
-``` r
 rep_threshold <- c()
 #i = 1
 for (i in 1:length(grouped_rows_suspicious)) {
@@ -1002,13 +773,15 @@ plot + wrap_table(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-distrib-variation-extr-improved-1.png)
 
-Figure 3: Distribution of variation of absorbance of extractant (blanc)
+Figure 4: Distribution of variation of absorbance of extractant (blanc)
 after removal of outliers
 
 </div>
 
 Now that we have computed a trusted version of the average of absorbance
 per plate per “blanc”, we can correct sample absorbance values.
+
+<u>**!! ALSO GOOD CANDIDATE FOR FUNCTION HEREUNDER !!**</u>
 
 ``` r
 Nmin_corrected <- 
@@ -1048,11 +821,7 @@ Nmin_corrected <-
     Joining with `by = join_by(plate_id)`
     Joining with `by = join_by(plate_id, well_id)`
 
-# °<sup>°°°</sup> Milestone : corrected data ready for downstream analysis °<sup>°°°</sup>
-
-At this point, we could export the data table for downstream analysis
-(Microresp, etc), although for most applications, the next step is still
-needed: computing regression equation
+# °<sup>°°°</sup> Milestone : blanc-corrected data °<sup>°°°</sup>
 
 # 4 - Compute regression equation btw absorbance and concentration
 
@@ -1163,7 +932,7 @@ for (i in 1:nrow(unsorted_curves)) {
 wrap_plots(plots,axis_titles = "collect")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-18-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-17-1.png)
 
 Now we can manually encode a vector containing all outlier wells, based
 on visual appraisal of graphs
@@ -1263,7 +1032,7 @@ wrap_plots(plots,axis_titles = "collect")
     `geom_smooth()` using formula = 'y ~ x'
     `geom_smooth()` using formula = 'y ~ x'
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-20-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-19-1.png)
 
 At this stage, we are satisfied with the curves.
 
@@ -1453,16 +1222,16 @@ for (i in 1:nrow(metadata)) {
 wrap_plots(plots,axis_titles = "collect")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-21-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-20-1.png)
 
 Let’s find a neater way to look at it by overplotting, using the
 function `plot_qc_std_all`.
 
 First, for NH4+
-(<a href="#fig-QC-std-all-nh4" class="quarto-xref">Figure 4</a>), then
+(<a href="#fig-QC-std-all-nh4" class="quarto-xref">Figure 5</a>), then
 for NO2-
-(<a href="#fig-QC-std-all-no2" class="quarto-xref">Figure 5</a>) and for
-NO3- (<a href="#fig-QC-std-all-no3" class="quarto-xref">Figure 6</a>)
+(<a href="#fig-QC-std-all-no2" class="quarto-xref">Figure 6</a>) and for
+NO3- (<a href="#fig-QC-std-all-no3" class="quarto-xref">Figure 7</a>)
 
 ``` r
 # Choice of color palette
@@ -1482,7 +1251,7 @@ plot_qc_std_all(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-nh4-1.png)
 
-Figure 4: QC for Standard curves. We se low intra-batch but higher
+Figure 5: QC for Standard curves. We se low intra-batch but higher
 inter-batch variability. Seeing this, I’d actually recommend considering
 increasing incubation time or concentrations: absorbance is very low
 
@@ -1500,7 +1269,7 @@ plot_qc_std_all(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-no2-1.png)
 
-Figure 5: QC for Standard curves. We se low intra- and interbatch
+Figure 6: QC for Standard curves. We se low intra- and interbatch
 variability. Seeing this, I’d actually recommend considering increasing
 incubation time or concentrations: absorbance is very low
 
@@ -1518,7 +1287,7 @@ plot_qc_std_all(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-no3-1.png)
 
-Figure 6: QC for Standard curves. We se low intra- and interbatch
+Figure 7: QC for Standard curves. We se low intra- and interbatch
 variability. Seeing this, I’d actually recommend considering increasing
 incubation time or concentrations: absorbance is very low
 
@@ -1770,7 +1539,7 @@ Nmin_regressed |>
   facet_wrap(~N_sp, nrow = 3)
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-25-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-24-1.png)
 
 ``` r
 Nmin_regressed |> 
@@ -1780,7 +1549,7 @@ Nmin_regressed |>
   facet_wrap(~N_sp, nrow = 3, scales = "free_y", strip.position = "right")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-25-2.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-24-2.png)
 
 Let us now format then export the table for later use. We will need the
 last step of computation to happen per sample, so that technical reps

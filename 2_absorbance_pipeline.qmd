@@ -13,29 +13,32 @@ toc: true
 
 # To Do
 
--   export + downstream steps (different options based on analysis)
+-   Turn as much as possible into functions
 
 # Intro
 
-For an explanation of the pipeline in English, see last section "Algorithm in natural language". It is not 100% up to date, but it shows the main steps of the pipeline
+For an explanation of the pipeline in plain English, see last section "Algorithm in natural language". It is not 100% up to date, but it shows the main steps of the pipeline
 
 # Code
 
 ## 1 - Set up
 
-Loading packages
+Loading packages and homemade functions
 
 ```{r}
+#| output: false
+#| message: false
+#| warning: false
 library(tidyverse)
 library(roperators) # to be able to add %ni% for "not in"
-library(patchwork) # for wrap_plots
+library(patchwork) # for wrap_plots and wrap_tables
 library(RColorBrewer) # to find and set color palette
 
 source("functions/extract_curve.R")
 source("functions/plot_qc_std_all.R")
 ```
 
-Prep template data: fake tables for the sake of building the next steps of the code. Once that code is working, then we can figure out how to extract real plate data instead of this fake model one.
+Loading data
 
 ```{r}
 
@@ -48,11 +51,18 @@ Nmin_full <- Nmin_data |> filter(plate_map != "empty")
 
 ```
 
-Set up pipetting direction for the std curve
+Set up pipetting direction for the std curve.
+
+[**!! THIS IS SOMETHING TO CHECK / UPDATE BY THE USER**]{.underline}
+
+(although failing to do so will become obvious latest with the std curves that will be plotted as decreasing curves)
 
 ```{r}
+# define both options
 top_down_pipetting <- LETTERS[2:8]
-#bottom_up_pipetting <- LETTERS[8:2]
+bottom_up_pipetting <- LETTERS[8:2]
+
+# choose one option (should the whole script become a function, this could be a default argument)
 pipetting_direction <- top_down_pipetting
 ```
 
@@ -70,10 +80,8 @@ This chunk filters out only rows where absorbance is out of range, and returns e
 
 -   another option could be, instead of returning a table, to return only the min and max values of absorbance and/or the number of wells that are out of range
 
--   
-
 ```{r}
-#** Make sure empty wells contain NA, otherwise, lots of warning messages? To be tested *
+#** Make sure empty wells have been removed or contain NA, otherwise, lots of warning messages? To be tested *
 #*
 
 # the threshold can be moved a little
@@ -88,6 +96,7 @@ for (i in 1:nrow(Nmin_full)) {
     suspicious_rows <- append(suspicious_rows, i)
     }
 }
+
 # Send a warning message
 if (!is.null(suspicious_rows)) {
   warning(paste0("Some wells are out of range for absorbance, i.e., not in [", min_abs, "; ",max_abs, "] allowed \nSee table hereabove to identify suspicious wells"))
@@ -97,10 +106,10 @@ if (!is.null(suspicious_rows)) {
   message(paste0("°^° !! YAY !! °^° All wells are in range for absorbance between ", min_abs, " and ", max_abs))
 }
 
-# ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
+#> ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
 #out_of_range <- Nmin_full |> filter(row_number() %in% suspicious_rows) 
 
-# but they're all NH4 or NO2 --> acceptable!
+#> but they're all NH4 or NO2 --> acceptable!
 # out_of_range |> filter(
 #   str_split_i(plate_id, pattern = "_", 1) %ni% c("NH4", "NO2")
 #   )
@@ -142,7 +151,7 @@ If the standard curves were prepared in water, then the blanc for the standard c
 
 -   If it becomes relevant: make some sort of if condition, based on plate information (`blanc_id` and `std_id`)
 
--   Make sure that the slice-min part in next chunk behaves as expected in the case of a tie
+-   Make sure that the slice-min part in 2nd next chunk behaves as expected in the case of a tie
 
 ### 3.1 - Correct std curves for blanc
 
@@ -156,6 +165,8 @@ std_data <- Nmin_full |>
   filter(
     plate_map == "Std") |> 
   group_by(plate_id)
+
+# have a look at it
 std_data
 ```
 
@@ -163,7 +174,7 @@ A typical pipetting error with the automated pipette is to forget to expell the 
 
 With this information, for example, we can exclude wells where first row is bigger than second row (issue in pipetting).
 
---\> In the chunk below we get 3 suspicious curves. So we can exclude those combinations of plate and column from the computation of the average blanc. So we will only take the value from the other std curve. Here, we always pipetted 2 per plate.
+--\> In the chunk below we get 3 suspicious curves. So we can exclude those combinations of plate and column from the computation of the average blanc. So we will only take the value from the other std curve. Here, we always pipetted 2 per plate (yay!).
 
 --\> This option of course is not valid in the case where only one standard curve is pipetted per plate. In that case, one option is to check whether absorbance values are fairly constant between plates. If so, it is a fair correction to take the inter-plate average value (or a standardized version of it... we'll cross that bridge when we get to it)
 
@@ -209,87 +220,80 @@ std_blanc_all <- std_data |>
     n = nb_std,  # pick as many rows as the nb of columns with standard curve
     with_ties = FALSE # in case there are ties, it will add extra rows
     ) 
-std_blanc_all
+#std_blanc_all
 
 
 # check that we will remove the "correct" suspicious blancs in a moment
 std_blanc_trusted <- std_blanc_all |> 
   # remove anything not first or last row of plate <=> suspicious
   filter(row %in% c("A", "H"))
+#std_blanc_trusted
 
-# see that we get 3 less rows now
-std_blanc_trusted
+# see that we get 4 less rows now
+nrow(std_blanc_all); nrow(std_blanc_trusted)
 ```
 
 Third, we compute the blanc value (average) and return a warning if blanc values show too much variation (in the case of several plate-columns with standard curves)
 
 ```{r}
-
-
 #** !! Adapt threshold parameter *
+#*
+threshold <- 5 # max coeff_var that we accept [%] 
 
-# Change parameter "2" in something computed?
-
+# compute intra-plate mean for the blanc, st-dev and coefficient of variation in %
 std_blanc_avg <-  std_blanc_trusted |> 
   summarise(
     blanc_avg = mean(absorbance), 
     blanc_sdev = sd(absorbance)) |> 
   mutate(
     blanc_coeff_var_percent = 100 * blanc_sdev / blanc_avg)
-std_blanc_avg
+#std_blanc_avg
 
-# Do we accept this "worse" level of variation?
-# Find an automatized way to look at it?
-std_blanc_avg |> 
-  slice_max(blanc_coeff_var_percent, n = 10)
-# coeff variation above 3% are only a few, all below 10%, and only for NO2 and NH4, acceptable
-
-# Warning if values are too divergent (decide what "threshold" is for the coefficient of variation ?)
-
-threshold <- 5 # max coeff_var that we accept [%] 
-
-# in case of several values...
+# in case of several values... (can't do this if only one curve per plate)
 if (#length(std_column) != 1 # replace by something else
   TRUE) {
   # ... and of coefficient of variation > set threshold
   if (max(std_blanc_avg$blanc_coeff_var_percent,na.rm = TRUE) > threshold) {
     # send a warning
-    warning(paste0("There are plates showing a big variation in absorbance values the blanc of the standard curve (more than ", threshold, "%).\nPick the most likely values / remove outliers manually.\nSee tables above to judge on values and find suspicious wells"))
+    warning(paste0("There are plates showing a big variation in absorbance values for the blanc of the standard curve (more than ", threshold, "%).\nPick the most likely values / remove outliers manually.\nSee table to judge on values and find suspicious wells"))
     # and show suspicious wells
     std_blanc_avg |> 
       filter(blanc_coeff_var_percent > threshold)
-      #slice_max(blanc_coeff_var_percent, n = 10)
+    
+    # another way to visualize it: 
+      #std_blanc_avg |> slice_max(blanc_coeff_var_percent, n = 10) # coeff variation above 3% are only a few, all below 10%, and only for NO2 and NH4, acceptable
+
   }
 }
 
-std_blanc_avg |> 
-  slice_max(blanc_coeff_var_percent, n = 10)
 ```
 
 If we are troubled by the big variation within plate, we can check out the identified suspicious plates. In this case, I find it not so dramatic. We are just dealing with small values...
 
-We can look at suspicious blancs in their plate context.
-
-[**To be thought through:**]{.underline}
-
--   We could maybe use `patchwork::wrap_table()` to visualize them in the nice way. Maybe to do later...
+We can look at suspicious blancs in their plate context to decide how bad the situation is.
 
 ```{r}
-
+#** set a number of plates with "the worst coefficient of variation" that you want to look at *
+#*
 nb_of_plates_to_look_at <- 3
 
 std_blanc_big_coeff <- std_blanc_avg |> 
   slice_max(blanc_coeff_var_percent, n = nb_of_plates_to_look_at)
 
+# visualize numbers in context
 for (plate in 1:length(std_blanc_big_coeff)) {
-  print(std_data |> filter(plate_id == std_blanc_big_coeff$plate_id[plate]))
+  wrap_table(std_data |> filter(plate_id == std_blanc_big_coeff$plate_id[plate]))
 }
+
 ```
 
 Now we can correct the absorbance values for the standard curves.
 
+[**!! HEREUNDER: CANDIDATE FOR TURNING INTO A FUNCTION !! - CORRECTION OF BAD WELLS FOR BLANC OF STD CURVE**]{.underline}
+
 ```{r}
 
+# set case (no update necessary, will find the right answer if pipetting was set correctly earlier)
 if (is.unsorted(pipetting_direction)) {
   lowest_well <- "H"
 } else {lowest_well = "A"}
@@ -334,14 +338,18 @@ First, we extract the raws with extractant
 extr_data <- Nmin_full |> 
   filter(str_split_i(plate_map, "_", 1) == "extr") |> 
   group_by(plate_id, plate_map)
+
+# have a look
 extr_data
 ```
 
 Then we do some quality check: how big is the variation? Do we have suspicious wells?
 
-Looking at the distribution of absorbance, it appears that some wells have very different scoring.
+Looking at the distribution of absorbance, it appears that some wells have very different scoring, see @fig-hist-extr-coeff-var
 
 ```{r}
+#| label: fig-hist-extr-coeff-var
+#| fig-cap: "Distribution of coefficient of variation of absorbance of extractant (blanc)"
 
 extr_avg <- extr_data |> 
   summarise(
@@ -356,7 +364,7 @@ extr_avg |>
   #geom_density() +
   #geom_boxplot() +
   labs(
-    title = "Distribution of absorbance of extractant (blanc)",
+    title = "Distribution of coefficient of variation of absorbance of extractant (blanc)",
     subtitle = "anything above 5% seems to be an outlier (even above 3%)") +
   xlab("intra-plate coefficient of variation [%]")
 
@@ -366,8 +374,8 @@ extr_avg |>
 Let's prepare a warning for plates containing these outliers
 
 ```{r}
+#** Set up the coeff max that you want to accept*
 
-# set coeff max that we want to accept
 threshold_coeff <- 3
 
   if (max(extr_avg$extr_coeff_var_percent,na.rm = TRUE) > threshold_coeff) {
@@ -383,18 +391,19 @@ threshold_coeff <- 3
       arrange(desc(extr_coeff_var_percent))
   }
 
+# get names of plates with a coefficient of variation for the blanc higher than the threshold
 suspicious_plates
 
 ```
 
-Let's now have a look at those plates
+Let's now have a look at those suspicious plates
 
 ```{r}
 #| label: fig-suspicious-plates
 #| fig-cap: "Distribution of absorbance in suspicious plates. From this we can manually identify then remove outliers"
 extr_suspicious <- extr_data |> 
   filter(plate_id %in% suspicious_plates)
-extr_suspicious
+#extr_suspicious
 
 plots <- extr_suspicious |> 
   group_map(
@@ -417,13 +426,15 @@ In the next chunk, we manually enter a vector of values to use as max threshold 
 **!! In case you want to exclude lower values only, then just change the `>` into `<`. But if you want to exclude some upper values, and some lower values, consider updating the code.**
 
 ```{r}
+#** !! Manually input the thrshold values of your choosing (read plots from left to right, then from up to down (rowise reading)) *
+
 # print it to check in which order the plates are
-suspicious_plates
+#suspicious_plates
 
 cut_threshold <- c(0.040, 0.041, 0.039, 0.038, 0.038, 0.041, 0.042, 0.072, 0.09, 0.09)
 
 grouped_rows_suspicious <- group_rows(extr_suspicious)
-grouped_rows_suspicious
+#grouped_rows_suspicious
 
 rep_threshold <- c()
 #i = 1
@@ -502,6 +513,8 @@ plot + wrap_table(
 
 Now that we have computed a trusted version of the average of absorbance per plate per "blanc", we can correct sample absorbance values.
 
+[**!! ALSO GOOD CANDIDATE FOR FUNCTION HEREUNDER !!**]{.underline}
+
 ```{r}
 
 Nmin_corrected <- 
@@ -540,9 +553,7 @@ Nmin_corrected <-
 
 ```
 
-# °^°°°^ Milestone : corrected data ready for downstream analysis °^°°°^
-
-At this point, we could export the data table for downstream analysis (Microresp, etc), although for most applications, the next step is still needed: computing regression equation
+# °^°°°^ Milestone : blanc-corrected data °^°°°^
 
 # 4 - Compute regression equation btw absorbance and concentration
 
