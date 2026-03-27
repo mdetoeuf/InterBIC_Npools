@@ -3,46 +3,108 @@
 
 - [To Do](#to-do)
 - [Intro](#intro)
-- [Code](#code)
-  - [1 - Set up](#1---set-up)
-  - [2 - QC suspicious wells](#2---qc-suspicious-wells)
-  - [3 - Correct absorbance values](#3---correct-absorbance-values)
-    - [3.1 - Correct std curves for
-      blanc](#31---correct-std-curves-for-blanc)
-    - [3.2 - Correct samples for blanc](#32---correct-samples-for-blanc)
+- [1 - Set up](#1---set-up)
+  - [1.1 - Loading packages and homemade
+    functions](#11---loading-packages-and-homemade-functions)
+  - [1.2 - Loading data](#12---loading-data)
+- [2 - preliminary QC : suspicious
+  wells](#2---preliminary-qc--suspicious-wells)
+- [3 - Blanc-correction of absorbance
+  values](#3---blanc-correction-of-absorbance-values)
+  - [3.1 - Correct standard curves for
+    blanc](#31---correct-standard-curves-for-blanc)
+  - [3.2 - Correcting samples for
+    blanc](#32---correcting-samples-for-blanc)
 - [°<sup>°°°</sup> Milestone : blanc-corrected data
   °<sup>°°°</sup>](#-milestone--blanc-corrected-data-)
 - [4 - Compute regression equation btw absorbance and
   concentration](#4---compute-regression-equation-btw-absorbance-and-concentration)
-  - [4.1 - Quality check of standard curves (NH4 only for
-    now)](#41---quality-check-of-standard-curves-nh4-only-for-now)
+  - [4.1 - Quality check of standard
+    curves](#41---quality-check-of-standard-curves)
+    - [4.1.1 - removing outliers](#411---removing-outliers)
+    - [4.1.2 - Inter-curve variability](#412---inter-curve-variability)
   - [4.2 - Perform linear model and infer
     slope](#42---perform-linear-model-and-infer-slope)
   - [4.3 - Compute concentrations in N
     species](#43---compute-concentrations-in-n-species)
+- [5 - Export](#5---export)
 - [°<sup>°°°</sup> Milestone : all data ready for downstream analysis
   °<sup>°°°</sup>](#-milestone--all-data-ready-for-downstream-analysis-)
-- [°°° —- START HERE — °°°°](#---start-here--)
-- [°°° —- Below this: draft, to be picked up —
-  °°°°](#---below-this-draft-to-be-picked-up--)
-  - [6 - Exporting data](#6---exporting-data)
-- [Algorithm in natural language](#algo_natural)
 
 # To Do
 
-- Turn as much as possible into functions
+- Improve visualization for multiple plots –\> make a loop to produce
+  several pages?
+- improve rendering of
+  <a href="#lst-qc4" class="quarto-xref">Listing 6</a>
+  - have the table(s) called in successive chunks with labels –\> can
+    call them in comments above
+  - change the printing of warning / message? (seems to appear twice)
+- Change function for superposed plots so that it is easy to modulate
+  which column of metadata goes into the color-coding of the curves
 
 # Intro
 
-For an explanation of the pipeline in plain English, see last section
-“Algorithm in natural language”. It is not 100% up to date, but it shows
-the main steps of the pipeline
+To keep this pipeline easily readable and reproducible, most operations
+are “hidden” in functions. Until I learn how to create a package
+(upcoming…), you’ll have to download the folder containing functions. It
+should be in the current working directory. If not, update the path
+below.
 
-# Code
+In this pipeline we refer to
 
-## 1 - Set up
+- “curve” = all wells and associated data that refer to one standard
+  curve (typically a whole column on the plate).
 
-Loading packages and homemade functions
+- “plate” = one 96-well plate used for the experiment. It is, together
+  with rows and columns, one of the smallest scales of extracting data.
+  Although data at this stage is no longer formated in the shape of a
+  plate, the plate still constitutes a unit. All wells on that plate
+  share the same blanc and the same standard curve, they will thus be
+  treated as one for many computation steps.
+
+- “row” can be used to designate the row (i.e., observation) of a table
+  or data set. But it also designates the row of a plate and, as such,
+  becomes data recorded in a column called “row”. This dual meaning can
+  lead to some confusion. I try to use “row-plate” when refering to the
+  rows (A, B, C…) of a 96-well plate. But it is possible that I forgot
+  to do that sometimes and simply used “row”. Context should help.
+
+- “suspicious”. We refer to suspicious curves or suspicious wells or
+  suspicious plates: they need to be examined and may contain /
+  constitute outliers
+
+- “(un)trusted”: this is one step further than “suspicion”. A decision
+  has been taken. This refers to wells that have been or will be removed
+  (untrusted) or kept (trusted)
+
+> [!TIP]
+>
+> ### Your input is needed!
+>
+> The pipeline is highly automated. Nevertheless, as a user, you’ll have
+> to take a few decisions:
+>
+> - adapting path for import of data
+>   (<a href="#lst-load" class="quarto-xref">Listing 1</a>)
+> - Playing around with the range of absorbance to accept
+>   (<a href="#lst-qc1-initial-range" class="quarto-xref">Listing 3</a>)
+> - Playing around with max acceptable coefficient of variation for
+>   extractant
+>   (<a href="#lst-hist-extr-coeff-var" class="quarto-xref">Listing 8</a>)
+> - Based on observations from
+>   <a href="#fig-suspicious-plates" class="quarto-xref">Figure 3</a>,
+>   thresholds can be set in <a href="#lst-cut-threshold-extractant"
+>   class="quarto-xref">Listing 9</a> to exclude outlier wells from
+>   extractant data
+> - Based on visual appraisal of graphs
+>   <a href="#fig-unsorted-curves" class="quarto-xref">Figure 5</a>,
+>   encode identifier of outlier wells
+>   <a href="#lst-outlier-std" class="quarto-xref">Listing 11</a>
+
+# 1 - Set up
+
+## 1.1 - Loading packages and homemade functions
 
 ``` r
 library(tidyverse)
@@ -67,57 +129,77 @@ source("functions/std_regression.R")
 source("functions/abs_to_mgN_L.R")
 ```
 
-Loading data
+## 1.2 - Loading data
+
+> [!TIP]
+>
+> ### Your input is needed!
+>
+> The paths in the next chunk should be replaced by your own data,
+> possibly generated in previous pipeline
+
+<div id="lst-load">
+
+Listing 1: Load data (possibly generated in previous pipeline)
 
 ``` r
 # import tidy data and metadata
 Nmin_data <- read_rds("output/data/Nmin_tidy.rds")
 Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
-
-# remove empty wells
-Nmin_full <- Nmin_data |> filter(plate_map != "empty")
-
-# extracting data for the standard curves only
-#std_data <- extract_std_data(Nmin_data)
 ```
 
-Set up pipetting direction for the std curve.
+</div>
 
-<u>**!! THIS IS SOMETHING TO CHECK / UPDATE BY THE USER**</u>
-
-(although failing to do so will become obvious latest with the std
-curves that will be plotted as decreasing curves)
-
-## 2 - QC suspicious wells
-
-**–\> Issues a warning if absorbances not in specified range,
-e.g. \[0.03,1.1\]**
+# 2 - preliminary QC : suspicious wells
 
 The ideal range for absorbance readings (Beer-Lambert in linear range of
 relationship between concentration and absorbance) is between 0.1 and 1.
 But these are not super strict borders. I don’t want to send out a
-warning message too soon, so we take higher values.
+warning message too soon, so we take higher values as a default,
+especially because with NO2-, we expect virtually zero in a lot of
+wells.
 
-This chunk filters out only rows where absorbance is out of range, and
-returns either a warning (when there are out-of-range values) or a happy
-message (when there are none). In case of a warning, it also shares the
-table with suspicious wells, so that the user can take an informed
-decision.
+The following chunk filters out only rows where absorbance is out of
+range, and returns either a warning (when there are out-of-range values)
+or a happy message (when there are none). In case of a warning, it also
+shares the table with suspicious wells, so that the user can take an
+informed decision.
 
-<u>**To be thought through:**</u>
+> [!TIP]
+>
+> ### To be thought through
+>
+> If wells are out of range of “acceptable” absorbance values, you’ll
+> get a warning.
+>
+> - You can play around with the min and max of the “acceptable” range
+>   (<a href="#lst-qc1-initial-range" class="quarto-xref">Listing 3</a>)
+>
+> - You can also evaluate this range with having a look at
+>   <a href="#fig-plot_QC_wells" class="quarto-xref">Figure 1</a>
+>
+> <!-- -->
+>
+> - What if some wells are out of range? Ware options then? Remove
+>   suspicious wells (replace by NAs?)
 
-- What are options then? Remove suspicious wells (replace by NAs?) –\>
-  deal with it if we are confronted with it
+<div id="lst-qc1-initial-range">
 
-- another option could be, instead of returning a table, to return only
-  the min and max values of absorbance and/or the number of wells that
-  are out of range
+Listing 2: Here you can play around with the range of `acceptable`
+absorbance values
 
 ``` r
 qc1_initial_range_abs(Nmin_data, min_abs = 0.03, max_abs = 1.1)
 ```
 
+</div>
+
     °^° !! YAY !! °^° All wells are in range for absorbance between 0.03 and 1.1
+
+<div id="lst-qc1-initial-range">
+
+Listing 3: Here you can play around with the range of `acceptable`
+absorbance values
 
 ``` r
 #> ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
@@ -129,9 +211,7 @@ qc1_initial_range_abs(Nmin_data, min_abs = 0.03, max_abs = 1.1)
 #   )
 ```
 
-Other approach: Report on min and max well values + distribution so user
-can evaluate, see
-<a href="#fig-plot_QC_wells" class="quarto-xref">Figure 1</a>
+</div>
 
 ``` r
 qc2_plot_range_abs(Nmin_data) +
@@ -162,37 +242,22 @@ species
 
 </div>
 
-## 3 - Correct absorbance values
+# 3 - Blanc-correction of absorbance values
 
 Now we correct absorbance values by subtracting blanc values from raw
 values (absorbance of the light by the solution = absorbance by the
 blank solution + absorbance by the substance to be quantified)
 
-If the standard curves were prepared in water, then the blanc for the
-standard curve is the absorbance of the well containing only water of
-that curve. If it was prepared with the extractant, then the blanc is
-the mean of the values of the wells where the extractant was added.
+## 3.1 - Correct standard curves for blanc
+
+For now, this is a separate process (std curves vs samples) to account
+for the fact that the standard curve was prepared in H2O, not in the
+extractant (K2SO4 or KCl), so it needs its own blanc-correction.
 
 <u>**To be thought through:**</u>
 
 - If it becomes relevant: make some sort of if condition, based on plate
   information (`blanc_id` and `std_id`)
-
-- Make sure that the slice-min part in 2nd next chunk behaves as
-  expected in the case of a tie
-
-### 3.1 - Correct std curves for blanc
-
-For now, this is a separate process to account for the fact that the
-standard curve was prepared in H2O, not in the extractant (K2SO4 or
-KCl).
-
-First, we extract the rows containing data related to Standard curves
-only
-
-``` r
-# done now in next function
-```
 
 A typical pipetting error with the automated pipette is to forget to
 expell the first bit (containing air) before the “real” pipetting
@@ -203,12 +268,12 @@ the identification of minimum values within a standard curve that are
 not situated in the first or last row of the plate (usually the standard
 curve is pipetted in ascending or descending order).
 
-With this information, for example, we can exclude wells where first row
-is bigger than second row (issue in pipetting).
+With this information, for example, we can exclude wells where the first
+row shows a higher absorbance than the second row.
 
-–\> In the chunk below we get 3 suspicious curves. So we can exclude
-those combinations of plate and column from the computation of the
-average blanc. So we will only take the value from the other std curve.
+–\> In the chunk below we get suspicious curves. So we can exclude those
+combinations of plate and column from the computation of the average
+blanc. So we will only take the value from the remaining std curve.
 Here, we always pipetted 2 per plate (yay!).
 
 –\> This option of course is not valid in the case where only one
@@ -217,18 +282,8 @@ check whether absorbance values are fairly constant between plates. If
 so, it is a fair correction to take the inter-plate average value (or a
 standardized version of it… we’ll cross that bridge when we get to it)
 
-``` r
-# Identify plates, wells, columns where there was an issue: the min value for the Std curve is not in row A or row H (in case pipetting was in the opposite direction...)
-
-#suspicious_blancs <- # in case we need to store it somewhere
-# std_data |> 
-#   group_by(plate_id, column) |> 
-#   slice_min(absorbance) |> 
-#   filter(row %ni% c("A", "H")) 
-```
-
-Now, we can compute the average blanc values, but disregard those
-suspicious wells
+Once we disregard those suspicious wells, we can compute the average
+blanc values.
 
 First, we check that we indeed have 2 columns with std curve on every
 plate
@@ -240,14 +295,20 @@ qc3_nb_curve_per_plate(Nmin_data, nb_std = 2)
 
     !! YAY !! There is/are indeed on average exactly 2 standard curves per plate. It is very likely that there are exactly 2 curves per plate. To be sure, check the distribution of number of standard curves per plate. If there is only 1 value at 2, then it is confirmed.
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-7-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-3-1.png)
 
 Second, we can take a subset of `std_data` that contains only the rows
 with blancs, and only those that we trust (normally row A or H only)
 
+<div id="lst-qc4">
+
+Listing 4: QC 4 - Variation of Standard blanc
+
 ``` r
 QC4 <- qc4_std_blanc_variation(Nmin_data, nb_std = 2)
 ```
+
+</div>
 
     Warning in qc4_std_blanc_variation(Nmin_data, nb_std = 2): There are 270 standard curves in this data set, thus in theory also 270 wells containing the blanc for those curves. 
     Of those 270, 4 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  
@@ -257,16 +318,22 @@ QC4 <- qc4_std_blanc_variation(Nmin_data, nb_std = 2)
     Pick the most likely values / remove outliers manually.
     See table to judge on values and find suspicious wells
 
+<div id="lst-qc4">
+
+Listing 5: QC 4 - Variation of Standard blanc
+
 ``` r
 lapply(QC4, print)
 ```
 
+</div>
+
     [1] "There are 270 standard curves in this data set, thus in theory also 270 wells containing the blanc for those curves. \nOf those 270, 4 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  \nWe are thus a priori trusting 266 wells out of 270."
     [1] "Even after removal of untrusted wells, there are plates showing a big variation in absorbance values for the blanc of the standard curve (more than 5%).\nPick the most likely values / remove outliers manually.\nSee table to judge on values and find suspicious wells"
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-8-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-4-1.png)
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-8-2.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-4-2.png)
 
     $untrusted_msg
     [1] "There are 270 standard curves in this data set, thus in theory also 270 wells containing the blanc for those curves. \nOf those 270, 4 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  \nWe are thus a priori trusting 266 wells out of 270."
@@ -276,16 +343,22 @@ lapply(QC4, print)
 
     $suspicious_curve_coeff_var
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-8-3.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-4-3.png)
 
 
     $NO2_1F3
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-8-4.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-4-4.png)
+
+<div id="lst-qc4">
+
+Listing 6: QC 4 - Variation of Standard blanc
 
 ``` r
 #** DECIDE WHAT TO DO WITH THIS INFO. SO FAR, I HAVEN'T HAD THE CASE THAT I NEED TO REMOVE FURTHER WELLS BEYOND THE "UNTRUSTED" ONES. SO CODE FOR THIS STILL REMAINS TO BE WRITTEN, ALTHOUGH INSPIRATION CAN BE TAKEN FROM FURTHER QC STEPS * 
 ```
+
+</div>
 
 Third, we compute the blanc value (average) and return a warning if
 blanc values show too much variation (in the case of several
@@ -297,13 +370,11 @@ dramatic. We are just dealing with small values which tend to
 artificially increase the coefficient of variation (division by small
 numbers…).
 
-We can look at suspicious blancs in their plate context to decide how
-bad the situation is.
+We can look at suspicious blancs in their full plate context to decide
+how bad the situation is (see printed table).
 
-Now we can correct the absorbance values for the standard curves.
-
-<u>**!! HEREUNDER: CANDIDATE FOR TURNING INTO A FUNCTION !! - CORRECTION
-OF BAD WELLS FOR BLANC OF STD CURVE**</u>
+Now we can blanc-correct the absorbance values for the whole standard
+curves.
 
 ``` r
 std_corrected <- correct_abs_std(Nmin_data)
@@ -316,23 +387,34 @@ We could add those corrected values back into the main data table, but
 actually those numbers are only useful to compute the regression
 equation between corrected absorbance and concentration. For thematic
 clarity purpose, this will be done in a later section (to keep all work
-on blancs in one place)
+on blancs in one place). So we have now just save the output into the
+object `std_corrected` so we can get back to it later.
 
-### 3.2 - Correct samples for blanc
+## 3.2 - Correcting samples for blanc
 
-First, we extract the rows with extractant
+While the mathematical approach is similar to correcting the blanc of
+the standard curve, the computational steps are somewhat different
+because the data is organised differently on the plates.
 
-Then we do some quality check: how big is the variation? Do we have
-suspicious wells?
+First, we extract the plate-rows containing extractant, then we do some
+quality check: how big is the variation? Do we have suspicious wells?
+All this happens with “QC 5” in the following chunk.
 
-Looking at the distribution of absorbance, it appears that some wells
-have very different scoring, see
+Looking at the distribution of the coefficient of variation per plate,
+it appears that some plates have very different scoring, see
 <a href="#fig-hist-extr-coeff-var" class="quarto-xref">Figure 2</a>
+
+<div id="lst-hist-extr-coeff-var">
+
+Listing 7: Playing around with maximum acceptable coefficient of
+variation for the absorbance of extractant (blanc)
 
 ``` r
 #** Look at this (and the next chunk) iteratively a couple of times to decide where to put the threshold. *
   QC5 <- qc5_extr_blanc_variation(Nmin_data,max_coeff = 3)
 ```
+
+</div>
 
     `summarise()` has grouped output by 'plate_id'. You can override using the
     `.groups` argument.
@@ -342,10 +424,17 @@ have very different scoring, see
     See table above to judge on values. 
     Suspicious plates are stored in vector called suspicious_plate_id
 
+<div id="lst-hist-extr-coeff-var">
+
+Listing 8: Playing around with maximum acceptable coefficient of
+variation for the absorbance of extractant (blanc)
+
 ``` r
   QC5$distrib_coeff +
   labs(subtitle = "anything above 5% seems to be an outlier (even above 3%)")
 ```
+
+</div>
 
 <div id="fig-hist-extr-coeff-var">
 
@@ -355,8 +444,6 @@ Figure 2: Distribution of coefficient of variation of absorbance of
 extractant (blanc)
 
 </div>
-
-Let’s prepare a warning for plates containing these outliers
 
 Let’s now have a look at those suspicious plates
 
@@ -386,29 +473,53 @@ can manually identify then remove outliers
 
 </div>
 
-We have to remove outliers manually: it is really a personal
-appreciation that works. Watch out, in the case of plates with several
-blancs like here, that a bimodal distribution might not be an issue
-(e.g., plate NO2_R4R5 in
-<a href="#fig-suspicious-plates" class="quarto-xref">Figure 3</a>,
-although in this case the bimodal aspect comes split accross
-extractants, but actually with very close values).
+We have to remove outliers manually: it is really a visual appreciation
+that works (see
+<a href="#fig-suspicious-plates" class="quarto-xref">Figure 3</a>). Only
+“suspicious” plates from above are displayed.
+
+- Watch out, in the case of plates with several blancs like here (coming
+  from several batches of soil extraction), that a bimodal distribution
+  might not necessary be an issue.
+
+- Also look at the scale of the axes: bins will always spread over the
+  whole x-axis, even if the distance is only of 0.001…
 
 Based on visual appreciation, here is the list of plates that we want to
 correct. One way to do it is to impose, for each plate, a threshold
-value that we can later use to filter out outlier wells.
+value that we can later use to filter out outlier wells (wells above the
+threshold value).
 
-(FYI: by default, the function `wrap_plots()` orders plots by row, so
-that the order of plates in `extr_suspicious` corresponds to the plots
-read from left to right, then next row, etc.)
-
-In the next chunk, we manually enter a vector of values to use as max
-threshold (exclude values above it). For plates where we decide to keep
-all values, we put a value of 1 as threshold.
+> [!TIP]
+>
+> > [!TIP]
+> >
+> > ### Manually remove outliers!
+> >
+> > In the following chunk, you need to input threshold values as a
+> > vector with one number per “suspicious” plate. If you decide to keep
+> > all values, you can set a threshold of 1.00.
+> >
+> > - look at
+> >   <a href="#fig-suspicious-plates" class="quarto-xref">Figure 3</a>
+> >   to decide on threshold values. By default, the function
+> >   `wrap_plots()` orders plots by row, so that the order of plates in
+> >   `extr_suspicious` corresponds to the plots read from left to
+> >   right, then next row, etc.
+> >
+> > - The function call only allows to exclude values above the
+> >   threshold for now. If your outliers are rather the lower values,
+> >   you’ll need to have a look in the source code of the function
+> >   `qc6_extr_trusted()`, and update it somehow.
 
 **!! In case you want to exclude lower values only, then just change the
 `>` into `<`. But if you want to exclude some upper values, and some
 lower values, consider updating the code.**
+
+<div id="lst-cut-threshold-extractant">
+
+Listing 9: Set up threshold and remove outlier wells for absorbance of
+extractant
 
 ``` r
 #** !! Manually input the threshold values of your choosing (read plots from left to right, then from up to down (rowise reading)) *
@@ -422,6 +533,8 @@ cut_threshold <- c(0.040, 0.041, 0.039, 0.038, 0.038, 0.041, 0.042, 0.072, 0.09,
 
 QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
 ```
+
+</div>
 
     Warning in qc6_extr_trusted(QC5, cut_threshold = cut_threshold): From 1272 wells in total for extractant, 11 have been removed because their absorbance value appeared to be an outlier from a within-plate perspective. 
     This amounts to a removal of 0.9% of extractant wells based on an intervention tolerance threshold of 3% for the intra-plate coefficient of variation
@@ -458,24 +571,23 @@ corrected_data <- correct_abs_samples(Nmin_data, QC6 = QC6)
 
 # 4 - Compute regression equation btw absorbance and concentration
 
-## 4.1 - Quality check of standard curves (NH4 only for now)
+## 4.1 - Quality check of standard curves
 
-First we need to do some quality check of the Standard curve
+The next chunk will first perfom a basic quality check of the standard
+curve
 
 - checking that metadata and data have the same nb of plates
 
 - check that there are no negative values for the corrected absorbance
 
-<!-- -->
+### 4.1.1 - removing outliers
 
-- Is it indeed a curve? If yes –\> proceed. But quite probably that some
-  curves are not monotonous (stricly increasing or decreasing)
-
-<!-- -->
-
-    -   First, identify those curves with `unsorted_curves`.
-
-    -   
+Then, it will look for curves that are not monotonous, i.e., not
+strictly increasing (or decreasing, depending on pipetting).
+Non-monotonous curves are referred to in the code as “unsorted_curves”
+(absorbance values are not sorted). Aberrant wells responsible for the
+non-monotony can be spotted on the plots in
+<a href="#fig-unsorted-curves" class="quarto-xref">Figure 5</a>
 
 ``` r
 QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_metadata)
@@ -496,12 +608,41 @@ QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_met
 QC7.1$multiplot + plot_annotation(subtitle = "1st iteration, no outlier removed yet")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-18-1.png)
+<div id="fig-unsorted-curves">
 
-Now we can manually encode a vector containing all outlier wells, based
-on visual appraisal of graphs
+![](2_absorbance_pipeline_files/figure-commonmark/fig-unsorted-curves-1.png)
 
-<u>**!!! PUT THIS LITTLE CHUNK IN A FUNCTION**</u>
+Figure 5: Non-monotonous curves - helps to identify potential outliers
+
+</div>
+
+> [!TIP]
+>
+> > [!TIP]
+> >
+> > ### Manually remove outliers!
+> >
+> > In the following chunk, we can manually encode a vector containing
+> > all outlier wells, based on visual appraisal of graphs
+> > <a href="#fig-unsorted-curves" class="quarto-xref">Figure 5</a>
+> >
+> > - For the plates where you want to keep all wells, encode NA
+> >
+> > - For the plates where you want to remove <u>**one**</u> well,
+> >   encode its identifier (e.g., “E12”)
+> >
+> > - Currently, you have to encode exactly one value per suspicious
+> >   curve. If you want to remove 2 wells, proceed either iteratively
+> >   or go to the source code of the function `qc7_std_find_outlier()`.
+
+Once outlier wells are encoded, the following chunk will update input
+data (`std_tidy` will replace `std_corrected`). You can then look again
+at the remaining “suspicious” curves and see the improvement, then
+decide to proceed for one more iteration or keep the tidy data as is.
+
+<div id="lst-outlier-std">
+
+Listing 10: Manually encode identifier of outlier wells
 
 ``` r
 #** !!! MANUALLY ENCODE THE OBJECT CALLED outlier_wells base on last plot - read it from left to right then from up to down *
@@ -532,186 +673,57 @@ std_tidy <- std_corrected |>
 QC7.2 <- qc7_std_find_outlier(std_corrected = std_tidy, metadata = Nmin_metadata)
 ```
 
+</div>
+
     Joining with `by = join_by(row)`
     Joining with `by = join_by(row)`
     Joining with `by = join_by(row)`
     Joining with `by = join_by(row)`
+
+<div id="lst-outlier-std">
+
+Listing 11: Manually encode identifier of outlier wells
 
 ``` r
 # Look at plos and decide if happy
 QC7.2$multiplot + plot_annotation(subtitle = "2nd iteration, outliers removed. Curves satisfactory now")
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-19-1.png)
+</div>
 
-Now that we have a new version of the std data, we can look at all
-curves again –\> make a function!
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-8-1.png)
 
-At this stage, we are satisfied with the curves.
+### 4.1.2 - Inter-curve variability
+
+At this stage, we should be satisfied with the curves.
 
 We can visualize all curves for a given N species, to have an idea of
-inter-curve variability
+inter-curve variability.
 
 The next chunk works, but it produces a very difficult to read plot with
 multiple panels (135 actually).
 
 ``` r
-# conc <- tibble(
-#     conc_nh4 = extract_curve(Nmin_metadata, N_sp = "NH4")[2:8],
-#     conc_no2 = extract_curve(Nmin_metadata, N_sp = "NO2")[2:8],
-#     conc_no3 = extract_curve(Nmin_metadata, N_sp = "NO3")[2:8],
-#     row = pipetting_direction)
-# conc
-
 plot_qc_std_multiple(metadata = Nmin_metadata, std_data = std_tidy)
 ```
 
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-    Joining with `by = join_by(row)`
-
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-21-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-9-1.png)
 
 Let’s find a neater way to look at it by overplotting, using the
 function `plot_qc_std_all`.
 
 First, for NH4+
-(<a href="#fig-QC-std-all-nh4" class="quarto-xref">Figure 5</a>), then
+(<a href="#fig-QC-std-all-nh4" class="quarto-xref">Figure 6</a>), then
 for NO2-
-(<a href="#fig-QC-std-all-no2" class="quarto-xref">Figure 6</a>) and for
-NO3- (<a href="#fig-QC-std-all-no3" class="quarto-xref">Figure 7</a>)
+(<a href="#fig-QC-std-all-no2" class="quarto-xref">Figure 7</a>) and for
+NO3- (<a href="#fig-QC-std-all-no3" class="quarto-xref">Figure 8</a>).
+
+For now, the visual is made to attribute color-coding to the factor
+“sampling-time” which is related to lab experimental batches, so I
+expected it to show some variability. To change the attribution of
+colors, either go to the source code to improve options, or rename
+whatever column containing the factor of interest into “sampling_time”
+prior to sending the metadata into the pipeline.
 
 ``` r
 # Choice of color palette
@@ -731,7 +743,7 @@ plot_qc_std_all(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-nh4-1.png)
 
-Figure 5: QC for Standard curves. We se low intra-batch but higher
+Figure 6: QC for Standard curves. We se low intra-batch but higher
 inter-batch variability. Seeing this, I’d actually recommend considering
 increasing incubation time or concentrations: absorbance is very low
 
@@ -749,7 +761,7 @@ plot_qc_std_all(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-no2-1.png)
 
-Figure 6: QC for Standard curves. We se low intra- and interbatch
+Figure 7: QC for Standard curves. We se low intra- and interbatch
 variability. Seeing this, I’d actually recommend considering increasing
 incubation time or concentrations: absorbance is very low
 
@@ -767,7 +779,7 @@ plot_qc_std_all(
 
 ![](2_absorbance_pipeline_files/figure-commonmark/fig-QC-std-all-no3-1.png)
 
-Figure 7: QC for Standard curves. We se low intra- and interbatch
+Figure 8: QC for Standard curves. We se low intra- and interbatch
 variability. Seeing this, I’d actually recommend considering increasing
 incubation time or concentrations: absorbance is very low
 
@@ -775,20 +787,16 @@ incubation time or concentrations: absorbance is very low
 
 ## 4.2 - Perform linear model and infer slope
 
-- Regression & compute concentrations
-
-  - loop per plate:
-
-    - extract plate
-
-    - compute regression
-
-    - store coefficients, R2 and p-val in a df
-
-  - QC after loop
+The next chunk computes the regression on the data from the standard
+curve, to obtain, for each plate: the slope, the multiple R-squared and
+the p-value associated to the linear model. It also plots all curves in
+a series of successive multi-plots (~pages) that are saved individually
+into a pdf (if the argument `save_pdf` is set to `TRUE`.). Only one of
+those plots is rendered here for illustration. The nb of plots per page
+can be modulated with the argument `max_nb_plots` (set to 16 by
+default).
 
 ``` r
-#i = 1
 std_reg <- std_regression(
   data = corrected_data, 
   metadata = Nmin_metadata,
@@ -827,19 +835,53 @@ std_reg$lm_output
 std_reg$multi_plots[[1]]
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-22-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-10-1.png)
 
 ## 4.3 - Compute concentrations in N species
 
-Setting up parameters. We will need molar masses
+Finally, we can transform the data, using the slope obtained above to
+compute the concentration. For now, this pipeline was meant for dosage
+of N fractions, all going through the dosage of NO2-, NO3- or NH4+.
+
+–\> For dosing anything else, the source code will need to be adapted,
+but it should be fairly simple.
+
+The function `abs_to_mgN_L` first transforms corrected absorbances into
+concentration in mg of N species per L (e.g., mg NH4+/L), which is then
+converted to the next unit: mg N/L. The output of the function is
+multiple: it contains the transformed data in the same vertical format
+as has been used throughout this pipeline. Finally, the function also
+outputs 2 plot formats to have a rough visualization of the range of the
+transformed data.
+
+> [!TIP]
+>
+> > [!TIP]
+> >
+> > > [!TIP]
+> > >
+> > > ### NO3 not final yet
+> > >
+> > > The concentration in mg N/L for NO3 is as this stage still a gross
+> > > measurement that also contains the amouns of NO2 that was present
+> > > in the sample but was oxidised to NO3. In theory we have to make a
+> > > substraction (NO3 neat = NO3 gross - NO2). But
+> > >
+> > > - we can only do this once we’ve agregated data on each sample (so
+> > >   an average of the 4 wells = technical replicates)
+> > >
+> > > - in practice we see that concentrations in NO2 are so low that
+> > >   it’s ok, in first approximation, to have a look at this value
+> > >   for now.
+
+To finally convert these numbers from mg N /L into mg N / g dry soil, we
+need to integrate the 2 variables from external data sets: soil dry
+matter and the soil:exctractant ratio. This is thus something for
+another script. We can nevertheless have a first look at plots and see
+that indeed NO2 is mostly at 0, there is some noise in NH4, and clear
+variations in NO3.
 
 ``` r
-# N and N-species molar masses [g/mol]
-# n_molar_g_mol <- 14.0069
-# no3_molar_g_mol <- 62.0051
-# no2_molar_g_mol <- 46.0057
-# nh4_molar_g_mol <- 36.0775
-
 data_transformed <- abs_to_mgN_L(
   data = corrected_data,
   metadata = Nmin_metadata,
@@ -877,7 +919,7 @@ data_transformed$data
 data_transformed$boxplot
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-24-1.png)
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-12-1.png)
 
 ``` r
 #|label: fig-all-conc-density
@@ -886,28 +928,7 @@ data_transformed$boxplot
 data_transformed$density
 ```
 
-![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-25-1.png)
-
-First, we compute `Nmin_regressed`, a data frame with the computed
-concentration expressed in mg Nsp per L (eg., mg NH4+ per L).
-
-**!! the concentration in mg N/L for NO3 is as this stage still a gross
-measurement that also contains the amouns of NO2 that was present in the
-sample but was oxidised to NO3. In theory we have to make a substraction
-(NO3 neat = NO3 gross - NO2). But**
-
-- **we can only do this once we’ve agregated data on each sample (so an
-  average of the 4 wells = technical replicates)**
-
-- in practice we see that concentrations in NO2 are so low that it’s ok,
-  in first approximation, to have a look at this value for now.
-
-To finally convert these numbers from mg N /L into mg N / g dry soil, we
-need to integrate the 2 variables from external data sets: soil dry
-matter and the soil:exctractant ratio. This is thus something for
-another script. We can nevertheless have a first look at plots and see
-that indeed NO2 is mostly at 0, there is some noise in NH4, and clear
-variations in NO3.
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-13-1.png)
 
 Let us now format then export the table for later use. We will need the
 last step of computation to happen per sample, so that technical reps
@@ -960,7 +981,7 @@ data_export
     10 NH4_1F1  NH4   93_t1_z1       0.334       0.287       0.287       0.287 
     # ℹ 1,207 more rows
 
-Export
+# 5 - Export
 
 ``` r
 std_reg$lm_output |> write_rds("output/data/Nmin_std_curves_lm.rds")
@@ -968,132 +989,3 @@ data_export |> write_rds("output/data/Nmin_conc.rds")
 ```
 
 # °<sup>°°°</sup> Milestone : all data ready for downstream analysis °<sup>°°°</sup>
-
-# °°° —- START HERE — °°°°
-
-# °°° —- Below this: draft, to be picked up — °°°°
-
-At this point, each plate needs to be evaluated. This could go in
-another script. In the case where there is a standard curve (anything
-but MicroResp), we could store everything above in one or more function,
-then code an iterative process to go through each plate with those
-functions while
-
-- storing the corrected absorbance data and append it to a central data
-  table per manip for downstrem computation
-
-- storing the slope, R-squared and p-values of the models in the
-  original “plate-id” data frame
-
-  - this could be added to the corrected dataframe, but it adds about 72
-    times as much data, so better to have just one line per plate as
-    this is per plate information
-
-  - We could consider adding other information like suspicious wells and
-    so on
-
-- storing the graphs which probably is the quickest way for a quick
-  assessment
-
-  - the plots are made so that p-values higher than 0.05 should be
-    spotted directly bc the annotation will appear bigger and in red
-
-Then, after this iterative process, we have everything that we need for
-the computation of the concentrations and other downstrem calculations
-
-<u>**To be thought through:**</u>
-
-- I haven’t really considered in great depths how the downstream
-  pipeline would look like for the MicroResp experiment. To be defined.
-  For my data analysis, it is meant for later, so I’ll get back to it,
-  but not super soon *a priori*
-
-- We could consider computing the concentration already at this step,
-  but I like to have a cut here where we first assess all the things to
-  look at (suspicious wells, suspicious standard curves, etc.), before
-  we move on. This is kind of a failsafe to avoid blindly going through
-  the analysis without considering potential issues
-
-## 6 - Exporting data
-
-Until I go through upstream steps (extracting “real” data from original
-files) and consider the downstream steps more concretely, it is hard to
-be sure about how / in which format, etc, to export the data. Still,
-here is a list of items that need to be exported one way or another
-
-# Algorithm in natural language
-
-- Plate info list:
-
-  - plate number - element \<chr\>
-
-  - column(s) with std curve(s) - vector \<chr\>
-
-  - standard identity & unit - vector \<chr\> (element1 = name, element2
-    = unit)
-
-  - range of std concentration - vector \<num\>
-
-  - column(s) with blanc - vector \<chr\>
-
-  - blanc identity & unit of concentration - vector \<chr\> (element1 =
-    name, element2 = unit)
-
-  - concentration of blanc - element \<num\>
-
-  - timestamp - date-time format (?)
-
-  - wavelength in nm - element \<int\>
-
-- vectorization of absorbance data, vectors are:
-
-  - plate number
-
-  - row
-
-  - column
-
-  - raw absorbance
-
-  - legend (or ID)
-
-- Correct absorbances for blanc
-
-  - Return a warning message
-
-    - when absorbances are below 0.05 or above 1.5
-
-    - give the number of wells concerned,
-
-    - give the max and min value of those wells
-
-  - case when row concerns std curve: correct std absorbances for std
-    blanc
-
-    - find rows where concentration is zero (slice.min?)
-
-    - take average of absorbance from those rows
-
-    - substract to all absorbances of the std the average “zero” value
-      and store it in a new column = “corrected_abs”
-
-  - case when row concerns samples: Correct sample absorbances for blanc
-
-    - find rows with blanc
-
-    - compute variation coefficient
-
-      - return a warning message when var.coeff \> 30%?
-
-      - exclude wells based on this? Or human decision?
-
-    - compute average of blancs
-
-    - substract that value to all non-standard rows and store it in
-      column “corrected_abs”
-
-- Compute standard curve
-
-  - Operation per plate
-
-  - in plate df, filter rows corresponding to the std
