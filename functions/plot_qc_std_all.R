@@ -22,9 +22,15 @@
 plot_qc_std_all <- function(
     data,
     metadata,
-    pipetting_direction = top_down_pipetting,
+    pipetting_direction = "top_down",
     color_time = c("t1" = "#7FC97F", "t2" = "#BEAED4", "t3" = "#FDC086")
     ) {
+  
+  if (pipetting_direction == "top_down") {
+    diluted_to_concentrated <- LETTERS[1:8]
+  } else if (pipetting_direction == "bottom_up") {
+    diluted_to_concentrated <- LETTERS[8:1]
+  } else {stop("No valid information was provided on position of the standard curve")}
   
   p <- ggplot() + theme_minimal()
   for (i in 1:nrow(metadata)) {
@@ -33,7 +39,7 @@ plot_qc_std_all <- function(
     
     conc <- tibble(
       conc = extract_curve(metadata, N_sp = N_sp)[2:8],
-      row = pipetting_direction
+      row = diluted_to_concentrated[2:8]
     )
     
     curve <- data |> 

@@ -81,9 +81,16 @@ qc7_std_find_outlier <- function(
       #plot
     }
     
-    wrap_plots(plots,axis_titles = "collect")
+   multiplot <-  wrap_plots(plots,axis_titles = "collect") +
+     plot_annotation(title = "Plots of Standard curves that are not strictly monotonous")
+    
+    return(list(
+      "unsorted_curves" = unsorted_curves,
+      "multiplot" = multiplot
+    ))
     
   }
+  
   
 
 }
