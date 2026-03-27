@@ -45,6 +45,10 @@ source("functions/correct_abs_std.R")
 source("functions/qc5_extr_blanc_variation.R")
 source("functions/qc6_extr_trusted.R")
 source("functions/qc7_std_find_outlier.R")
+source("functions/correct_abs_samples.R")
+source("functions/plot_qc_std_multiple.R")
+source("functions/std_regression.R")
+source("functions/abs_to_mgN_L.R")
 ```
 
 Loading data
@@ -326,10 +330,11 @@ First we need to do some quality check of the Standard curve
 
 ```{r}
 
-qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_metadata)
+QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_metadata)
 
 #** Same principle as above: visually identify obvious outliers, and list them in the vector below. !! Only works for one well per plate for now. If several --> work iteratively or update code *
 
+QC7.1$multiplot + plot_annotation(subtitle = "1st iteration, no outlier removed yet")
 
 ```
 
@@ -338,12 +343,17 @@ Now we can manually encode a vector containing all outlier wells, based on visua
 [**!!! PUT THIS LITTLE CHUNK IN A FUNCTION**]{.underline}
 
 ```{r}
+#** !!! MANUALLY ENCODE THE OBJECT CALLED outlier_wells base on last plot - read it from left to right then from up to down *
 
+# Default just to be sure that the code can work, create an empty vector of the correct length
+outlier_wells <- rep(NA, nrow(QC7.1$unsorted_curves))
+
+# Or Manual encoding
 outlier_wells <- c(NA, "E12", "C1", "C1", "E12", NA, NA, NA)
 
-#unsorted_curves$outlier <- outlier_wells
+# connect id of problematic curves (plate id of "unsorted" curves) to ourlier_wells
 outlier_curves <- 
-  unsorted_curves |> 
+  QC7.1$unsorted_curves |> 
     ungroup() |> 
     mutate(
       outliers = outlier_wells,
@@ -351,63 +361,24 @@ outlier_curves <-
         is.na(outliers) ~ NA,
         .default = paste0(plate_id, "_", outliers))
     )
-outlier_curves
+#outlier_curves
 
-# correct std data
+# tidy std data with ourlier wells removed
 std_tidy <- std_corrected |> 
   filter(unique_well_id %ni% outlier_curves$unique_well_id)
 
 # Run it once more, approve of wells... evtl re-run previous bit
-qc7_std_find_outlier(std_corrected = std_tidy, metadata = Nmin_metadata)
+QC7.2 <- qc7_std_find_outlier(std_corrected = std_tidy, metadata = Nmin_metadata)
+
+# Look at plos and decide if happy
+QC7.2$multiplot + plot_annotation(subtitle = "2nd iteration, outliers removed. Curves satisfactory now")
 
 ```
 
 Now that we have a new version of the std data, we can look at all curves again –\> make a function!
 
 ```{r}
-unsorted_curves <- std_tidy |> 
-  group_by(plate_id, column) |> 
-  arrange(row) |> 
-  summarise(
-    suspicious = is.unsorted(abs_corrected),
-    .groups = "keep"
-  ) |> 
-  filter(suspicious) |> 
-  mutate(unique_curve_id = paste0(plate_id, "_c", column))
 
-# plot them all
-#i = 1
-file = Nmin_metadata
-plots <- list()
-for (i in 1:nrow(unsorted_curves)) {
-  
-  curve <- std_corrected |> 
-    #filter(unique_curve_id == unsorted_curves$unique_curve_id[i]) |> 
-    filter(plate_id == unsorted_curves$plate_id[i]) 
-  
-  conc <- tibble(
-    conc = extract_curve(file, N_sp = curve$N_sp[1])[2:8],
-    row = diluted_to_concentrated[2:8]
-  )
-  
-  curve <- curve |> 
-    left_join(conc)
-  nudge <- (max(curve$conc) - min(curve$conc))/30
-  
-  plot <- 
-    curve |> 
-    ggplot(aes(x = abs_corrected, y = conc)) + 
-    theme_minimal() +
-    geom_smooth(method = "lm", se = FALSE, color = "grey70") +
-    geom_point(color = "grey30", alpha = 1) + 
-      annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
-               label = curve$well_id, size = 3) +
-    labs(title = curve$plate_id[1]) 
-    
-  plots[[i]] <- plot
-}
-
-wrap_plots(plots,axis_titles = "collect")
 ```
 
 At this stage, we are satisfied with the curves.
@@ -425,38 +396,8 @@ The next chunk works, but it produces a very difficult to read plot with multipl
 #     row = pipetting_direction)
 # conc
 
-i = 1
-metadata = Nmin_metadata
-data = std_tidy
-plots = list()
-for (i in 1:nrow(metadata)) {
-  
-  plate <- metadata$plate_id[i]
-  N_sp <- str_split_i(plate, "_", 1)
-  
-  conc <- tibble(
-    conc = extract_curve(metadata, N_sp = N_sp)[2:8],
-    row = pipetting_direction
-  )
-  conc
-  
-  curve <- data |> 
-    filter(plate_id == plate) |> 
-    left_join(conc) 
-  
-  plot <- curve |> 
-    ggplot(aes(x = abs_corrected, y = conc, color = column)) + 
-    theme_minimal() +
-    geom_smooth(method = "lm", se = TRUE, formula = y~x-1, color = "grey70", alpha = 0.2) +
-    geom_point(color = "grey30", alpha = 1) + 
-      annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
-               label = curve$well_id, size = 3) +
-    labs(title = curve$plate_id[1])
-  
-  plots[[i]] <- plot
-}
+plot_qc_std_multiple(metadata = Nmin_metadata, std_data = std_tidy)
 
-wrap_plots(plots,axis_titles = "collect")
 ```
 
 Let's find a neater way to look at it by overplotting, using the function `plot_qc_std_all`.
@@ -477,7 +418,7 @@ plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NH4"),
   metadata = Nmin_metadata |> filter(std_sp == "NH4"),
   color_time = color_time,
-  pipetting_direction = top_down_pipetting)
+  pipetting_direction = "top_down")
 
 ```
 
@@ -490,7 +431,7 @@ plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NO2"),
   metadata = Nmin_metadata |> filter(std_sp == "NO2"),
   color_time = color_time,
-  pipetting_direction = top_down_pipetting)
+  pipetting_direction = "top_down")
 ```
 
 ```{r}
@@ -502,7 +443,7 @@ plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NO3"),
   metadata = Nmin_metadata |> filter(std_sp == "NO3"),
   color_time = color_time,
-  pipetting_direction = top_down_pipetting)
+  pipetting_direction = "top_down")
 ```
 
 ## 4.2 - Perform linear model and infer slope
@@ -521,156 +462,20 @@ plot_qc_std_all(
 
 ```{r}
 #i = 1
-metadata = Nmin_metadata
-data = Nmin_corrected
-std_data = std_tidy
-plots <- list()
-lm_output <- tibble(
-  plate_id = character(), slope = double(), p_val_slope = double(), r_squared_mult = double()
-)
-for (i in 1:nrow(metadata)) {
-#for (i in 1:6) {
+std_reg <- std_regression(
+  data = corrected_data, 
+  metadata = Nmin_metadata,
+  std_data = std_tidy,
+  pipetting_direction = "top_down",
+  max_nb_plots = 16,
+  save_pdf = TRUE, 
+  filepath = "output/figures/QC/")
 
-  plate <- metadata$plate_id[i]
-  N_sp <- str_split_i(plate, "_", 1)
-  
-  conc <- tibble(
-    conc = extract_curve(metadata, N_sp = N_sp)[2:8],
-    row = pipetting_direction
-  )
-  #conc
-  
-  curve <- std_data |> 
-    filter(plate_id == plate) |> 
-    left_join(conc, by = join_by(row)) 
-  #curve
-  
-  meta_line <- metadata |> filter(plate_id == plate)
-  
-  curve_lm <- lm(data = curve, conc ~ 0 + abs_corrected) |> summary() 
-  #curve_lm
+# Here we have the simplified output of the linear model
+std_reg$lm_output
 
-  lm_coeff <- curve_lm$coefficients |> as.data.frame() |> as_tibble()
-  
-  names(lm_coeff) <- c(
-  #"rowname", # not needed when fitted to go through origin
-  "Estimate", "std_error", "t_value", "p_value_slope")
-  #lm_coeff
-  
-  slope = lm_coeff$Estimate |> signif(digits = 3)
-  p_val_slope = lm_coeff$p_value_slope |> signif(digits = 3)
-  r_squared_mult = curve_lm$r.squared |> signif(digits = 3)
-  
-  color_p_val <- case_when(
-    p_val_slope > 0.05 ~ "red",
-    .default = "black"
-  )
-  
-  size_p_val <- case_when(
-    p_val_slope > 0.05 ~ 4,
-    .default = 2.8
-  )
-    unit <-  meta_line |> 
-      select(std_unit) |> magrittr::extract2(1)
-    extractant <- meta_line |> select(extractant_sp, extractant_unit, extractant_conc) 
-
-  # Plot it
-  std_curve <-  curve |> 
-    ggplot(aes(x = abs_corrected, y = conc)) + 
-    theme_minimal() +
-    geom_smooth(method = "lm", color = "grey30", formula = y~x-1) +
-    geom_jitter(alpha = 0.5) +
-    labs(
-      title = plate,
-      subtitle = paste("slope = ", slope, "\nMultiple R-squared = ", r_squared_mult),
-      caption = paste0(
-        "extracted in ", 
-        extractant$extractant_conc[1], extractant$extractant_unit[1],
-        " ",
-        extractant)) +
-    ylab(paste0("Concentration of ", curve$N_sp[1], "\n[", unit, "]")) +
-    xlab("Blanc-corrected absorbance") +
-    annotate(
-      geom = "text", 
-      x = median(curve$abs_corrected),
-      y = max(curve$conc),
-      label = paste0("p-value of\nslope = ", p_val_slope),
-      color = color_p_val,
-      fontface = "bold",
-      size = size_p_val)
-  std_curve
-  
-  plots[[plate]] <- std_curve 
-  #plots[[plate]]
-  
-  lm_output <- bind_rows(
-    lm_output,
-    tibble(
-      plate_id = plate,
-      slope = slope,
-      p_val_slope = p_val_slope,
-      r_squared_mult = r_squared_mult
-      )
-  )
-#i = i +1
-}
-
-max_nb_plots <- 16
-nb_of_iterations <- length(plots) %/% max_nb_plots
-rest_to_plot <- length(plots) %% max_nb_plots
-
-#i = 1
-multi_plots = list()
-if (nb_of_iterations > 0) {
-  for (i in 1:nb_of_iterations) {
-    first_plot_index <- (i-1)*max_nb_plots + 1
-    last_plot_index <- first_plot_index + max_nb_plots -1
-    multi_plots[[i]] <- wrap_plots(plots[first_plot_index:last_plot_index], axis_titles = "collect")
-    #i = i +1
-  } 
-  if (rest_to_plot > 0) { 
-    first_plot_index <- (i-1)*max_nb_plots + 1
-    last_plot_index <- first_plot_index + rest_to_plot -1
-  multi_plots[[i+1]] <- wrap_plots(plots[first_plot_index:last_plot_index], axis_titles = "collect")
-  }
-} else {
-  first_plot_index <- 1
-  last_plot_index <- rest_to_plot
-  multi_plots[[1]] <- wrap_plots(plots[first_plot_index:last_plot_index], axis_titles = "collect")
-}
-
-# Now save the QC somewhere
-filenames <- "QC_singles_page"
-filepath <- "output/figures/QC/"
-
-#i = 1
-for (i in 1:length(multi_plots)) {
-single_file <- paste0(filepath, filenames, i, ".pdf")
-
-#dev.new()
-#pdf(single_file, width = 8, height = 6)
-
-ggsave(plot = multi_plots[[i]], single_file, width = 12, height = 8)
-
-#dev.off()
-}
-
-# Validate p-values of all curves
-bad_p_val <- lm_output |> arrange(desc(p_val_slope)) |> filter(p_val_slope >= 0.05)
-
-if (nrow(bad_p_val) == 0) {
-  message(paste0(
-    "!! YAY !!\nThe linear model is significative for all plates (p-value < 0.05). You can proceed with the inference of concentrations."
-  ))
-} else {
-  warning(paste0(
-    "!!!!! Watch out !!!! The linear model is not significative at p-value < 0.05 for ",
-    bad_p_val, 
-    " curve",
-    if (nrow(bad_p_val > 1)) {"s"},
-    ".\nCheck out the table hereabove to identify suspicious plates and decide what to do."
-  ))
-}
+# plots are saved as pdf. But just for illustration, let's look at one
+std_reg$multi_plots[[1]]
 
 ```
 
@@ -685,14 +490,32 @@ Setting up parameters. We will need molar masses
 # no2_molar_g_mol <- 46.0057
 # nh4_molar_g_mol <- 36.0775
 
-molar_masses <- c(
-  "N" = 14.0069,
-  "NO3" = 62.0051,
-  "NO2" = 46.0057,
-  "NH4" = 36.0775
-)
+data_transformed <- abs_to_mgN_L(
+  data = corrected_data,
+  metadata = Nmin_metadata,
+  lm_output = std_reg$lm_output)
+
+# check out the first result
+data_transformed$data
 
 
+
+# the next 2 will be pu in separate chunks to get a figure nb
+```
+
+```{r}
+#|label: fig-all-conc-boxplot
+#|fig-cap: "Overview of all transformed data per N species - boxplot"
+
+data_transformed$boxplot
+
+```
+
+```{r}
+#|label: fig-all-conc-density
+#|fig-cap: "Overview of all transformed data per N species - density curves"
+
+data_transformed$density
 ```
 
 First, we compute `Nmin_regressed`, a data frame with the computed concentration expressed in mg Nsp per L (eg., mg NH4+ per L).
@@ -705,47 +528,14 @@ First, we compute `Nmin_regressed`, a data frame with the computed concentration
 
 ```{r}
 
-#i = 1
-metadata <- Nmin_metadata
-data <- Nmin_corrected |> group_by(plate_id)
 
-# create a table to be iteratively completed
-Nmin_regressed <- data |> filter(FALSE) |> mutate(conc_mgNsp_L = double(), conc_N_L = double())
-for (i in 1:n_groups(data)) {
-  # get plate details
-  plate <- metadata$plate_id[i]
-  N_sp <- str_split_i(plate, "_", 1)
-  slope <- lm_output |> 
-    filter(plate_id == plate) |> 
-    select(slope) |> magrittr::extract2(1)
-  
-  # compute concentration in mg Nsp per L
-  plate_data <- data |> 
-    filter(plate_id == plate) |> 
-    mutate(
-      conc_mgNsp_L = slope * abs_corrected,
-      conc_N_L = conc_mgNsp_L * molar_masses["N"] / molar_masses[N_sp]
-        )
-  Nmin_regressed <- bind_rows(Nmin_regressed, plate_data)
-  #i = i+1
-}
 
 ```
 
 To finally convert these numbers from mg N /L into mg N / g dry soil, we need to integrate the 2 variables from external data sets: soil dry matter and the soil:exctractant ratio. This is thus something for another script. We can nevertheless have a first look at plots and see that indeed NO2 is mostly at 0, there is some noise in NH4, and clear variations in NO3.
 
 ```{r}
-Nmin_regressed |> 
-  ggplot(aes(x = plate_map, y = conc_N_L)) +
-  theme_minimal()+
-  geom_boxplot() +
-  facet_wrap(~N_sp, nrow = 3)
 
-Nmin_regressed |> 
-  ggplot(aes(x = conc_N_L)) +
-  theme_minimal()+
-  geom_density() +
-  facet_wrap(~N_sp, nrow = 3, scales = "free_y", strip.position = "right")
 
 ```
 
@@ -753,31 +543,32 @@ Let us now format then export the table for later use. We will need the last ste
 
 ```{r}
 
-Nmin_conc <- Nmin_regressed |> 
-  mutate(
-    rep_tech = case_when(
-      row %in% c("A", "E") ~ "rt1",
-      row %in% c("B", "F") ~ "rt2",
-      row %in% c("C", "G") ~ "rt3",
-      row %in% c("D", "H") ~ "rt4"
+# pivot for export
+  data_export <- data_transformed$data |> 
+    mutate(
+      rep_tech = case_when(
+        row %in% c("A", "E") ~ "rt1",
+        row %in% c("B", "F") ~ "rt2",
+        row %in% c("C", "G") ~ "rt3",
+        row %in% c("D", "H") ~ "rt4"
       )
     ) |> 
-  #filter(plate_id == "NH4_1F1") |> 
-  select(!(c(well_id:unique_well_id, absorbance:conc_mgNsp_L))) |> 
-  
-  # the next 3 lines should be activated in case we get an error saying that there are duplicates observations (typically there are either 2x the same sample in one plate, or there is a mistake in the plate map). Once the problem is solved, these 3 lines can be deactivated again.
-  # ungroup() |> 
-  # dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map, rep_tech)) |>
-  # dplyr::filter(n > 1L)
-  
-  pivot_wider(
-    id_cols = c(plate_id, N_sp, plate_map),
-    names_from = rep_tech,
-    values_from = conc_N_L,
-    names_prefix = "conc_N_L"
+    #filter(plate_id == "NH4_1F1") |> 
+    select(!(c(well_id:unique_well_id, conc_mgNsp_L))) |> 
     
-  )
-
+    # the next 3 lines should be activated in case we get an error saying that there are duplicates observations (typically there are either 2x the same sample in one plate, or there is a mistake in the plate map). Once the problem is solved, these 3 lines can be deactivated again.
+    # ungroup() |> 
+    # dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map, rep_tech)) |>
+    # dplyr::filter(n > 1L)
+    
+    pivot_wider(
+      id_cols = c(plate_id, N_sp, plate_map),
+      names_from = rep_tech,
+      values_from = conc_N_L,
+      names_prefix = "conc_N_L"
+      
+    )
+data_export
 
 ```
 
@@ -786,8 +577,8 @@ Export
 ```{r}
 #| label: export
 
-lm_output |> write_rds("output/data/Nmin_std_curves_lm.rds")
-Nmin_conc |> write_rds("output/data/Nmin_conc.rds")
+std_reg$lm_output |> write_rds("output/data/Nmin_std_curves_lm.rds")
+data_export |> write_rds("output/data/Nmin_conc.rds")
 
 ```
 
