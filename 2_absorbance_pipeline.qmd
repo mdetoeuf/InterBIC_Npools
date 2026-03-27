@@ -42,6 +42,8 @@ source("functions/qc3_nb_curves_per_plate.R")
 source("functions/subset_data.R")
 source("functions/qc4_std_blanc_variation.R")
 source("functions/correct_abs_std.R")
+source("functions/qc5_extr_blanc_variation.R")
+source("functions/qc6_extr_trusted.R")
 ```
 
 Loading data
@@ -208,15 +210,10 @@ We could add those corrected values back into the main data table, but actually 
 
 ### 3.2 - Correct samples for blanc
 
-First, we extract the raws with extractant
+First, we extract the rows with extractant
 
 ```{r}
-extr_data <- Nmin_full |> 
-  filter(str_split_i(plate_map, "_", 1) == "extr") |> 
-  group_by(plate_id, plate_map)
 
-# have a look
-extr_data
 ```
 
 Then we do some quality check: how big is the variation? Do we have suspicious wells?
@@ -227,22 +224,11 @@ Looking at the distribution of absorbance, it appears that some wells have very 
 #| label: fig-hist-extr-coeff-var
 #| fig-cap: "Distribution of coefficient of variation of absorbance of extractant (blanc)"
 
-extr_avg <- extr_data |> 
-  summarise(
-    extr_avg = mean(absorbance),
-    extr_sdev = sd(absorbance)) |> 
-  mutate(extr_coeff_var_percent = 100 * extr_sdev / extr_avg)
-extr_avg
-
-extr_avg |> 
-  ggplot(aes(x = extr_coeff_var_percent)) +
-  geom_histogram(bins = 100) +
-  #geom_density() +
-  #geom_boxplot() +
-  labs(
-    title = "Distribution of coefficient of variation of absorbance of extractant (blanc)",
-    subtitle = "anything above 5% seems to be an outlier (even above 3%)") +
-  xlab("intra-plate coefficient of variation [%]")
+#** Look at this (and the next chunk) iteratively a couple of times to decide where to put the threshold. *
+  QC5 <- qc5_extr_blanc_variation(Nmin_data,max_coeff = 3)
+  
+  QC5$distrib_coeff +
+  labs(subtitle = "anything above 5% seems to be an outlier (even above 3%)")
 
 
 ```
@@ -250,25 +236,6 @@ extr_avg |>
 Let's prepare a warning for plates containing these outliers
 
 ```{r}
-#** Set up the coeff max that you want to accept*
-
-threshold_coeff <- 3
-
-  if (max(extr_avg$extr_coeff_var_percent,na.rm = TRUE) > threshold_coeff) {
-    # store id of problematic plates
-    suspicious_plates <- extr_avg |> 
-      filter(extr_coeff_var_percent > threshold_coeff) |> 
-      select(plate_id) |> as.vector() |> magrittr::extract2(1)
-    # send a warning
-    warning(paste0("There is a big variation in absorbance values for the blanc  (more than ", threshold_coeff, "%).\nRemove the most unlikely values / remove outliers manually.\nSee tables above to judge on values. \nSuspicious plates are stored in vector called suspicious_plates"))
-    # and show suspicious wells
-    extr_avg |> 
-      filter(extr_coeff_var_percent > threshold_coeff) |> 
-      arrange(desc(extr_coeff_var_percent))
-  }
-
-# get names of plates with a coefficient of variation for the blanc higher than the threshold
-suspicious_plates
 
 ```
 
@@ -277,18 +244,12 @@ Let's now have a look at those suspicious plates
 ```{r}
 #| label: fig-suspicious-plates
 #| fig-cap: "Distribution of absorbance in suspicious plates. From this we can manually identify then remove outliers"
-extr_suspicious <- extr_data |> 
-  filter(plate_id %in% suspicious_plates)
-#extr_suspicious
 
-plots <- extr_suspicious |> 
-  group_map(
-    .f = ~ggplot(.x, aes(x = absorbance)) + 
-      geom_histogram() +
-      theme_minimal() +
-      labs(title = .y)
-    ) 
-wrap_plots(plots, axis_titles = "collect")
+#** To play around with the maximum coefficient of variation, change argument max_coeff in the function call *
+#*
+QC5$multiple_plot 
+
+
 ```
 
 We have to remove outliers manually: it is really a personal appreciation that works. Watch out, in the case of plates with several blancs like here, that a bimodal distribution might not be an issue (e.g., plate NO2_R4R5 in @fig-suspicious-plates, although in this case the bimodal aspect comes split accross extractants, but actually with very close values).
@@ -302,27 +263,20 @@ In the next chunk, we manually enter a vector of values to use as max threshold 
 **!! In case you want to exclude lower values only, then just change the `>` into `<`. But if you want to exclude some upper values, and some lower values, consider updating the code.**
 
 ```{r}
-#** !! Manually input the thrshold values of your choosing (read plots from left to right, then from up to down (rowise reading)) *
+#** !! Manually input the threshold values of your choosing (read plots from left to right, then from up to down (rowise reading)) *
 
 # print it to check in which order the plates are
-#suspicious_plates
+# suspicious_plates
 
+# Or manual input
 cut_threshold <- c(0.040, 0.041, 0.039, 0.038, 0.038, 0.041, 0.042, 0.072, 0.09, 0.09)
 
-grouped_rows_suspicious <- group_rows(extr_suspicious)
-#grouped_rows_suspicious
 
-rep_threshold <- c()
-#i = 1
-for (i in 1:length(grouped_rows_suspicious)) {
-  to_append <- rep(cut_threshold[i], length(grouped_rows_suspicious[[i]]))
-  rep_threshold <- append(rep_threshold, to_append)
-}
+QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
 
-extr_untrusted <- extr_suspicious |> 
-  ungroup() |> 
-  mutate(cut_threshold = rep_threshold) |> 
-  filter(absorbance > cut_threshold)
+```
+
+```{r}
 
 ```
 
@@ -332,99 +286,15 @@ Now we can use the list of untrusted wells to filter them out of the extractant 
 #| label: fig-distrib-variation-extr-improved
 #| fig-cap: "Distribution of variation of absorbance of extractant (blanc) after removal of outliers"
 
-
-# filtering out untrusted values
-extr_trusted <- extr_data |> 
-  ungroup() |> 
-  filter(unique_well_id %ni% extr_untrusted$unique_well_id) 
-extr_trusted
-
-warning(paste0(
-  "From ", 
-  nrow(extr_data), 
-  " wells in total for extractant, ", 
-  nrow(extr_data) - nrow(extr_trusted),
-  " have been removed because their absorbance value appeared to be an outlier from a within-plate perspective. \nThis amounts to a removal of ",
-  round(100*(nrow(extr_data) - nrow(extr_trusted))/nrow(extr_data), digits = 1),
-  "% of extractant wells based on an intervention tolerance threshold of ",
-  threshold_coeff,
-  "% for the intra-plate coefficient of variation"))
-
-# re-compute extr_average per plate
-extr_avg_trusted <- extr_trusted |> 
-  summarise(
-    extr_avg = mean(absorbance),
-    extr_sdev = sd(absorbance),
-    .by = c(plate_id, plate_map)) |> 
-  mutate(
-    extr_coeff_var_percent = round((100 * extr_sdev / extr_avg), digits = 1),
-    extr_avg = round(extr_avg, digits = 3),
-    extr_sdev = round(extr_sdev, digits = 3)) |> 
-  arrange(desc(extr_coeff_var_percent))
-
-plot <- extr_avg_trusted |> 
-  ggplot(aes(x = extr_coeff_var_percent)) +
-  geom_histogram(bins = 100) +
-  #geom_density() +
-  #geom_boxplot() +
-  labs(
-    title = "Distribution of absorbance of extractant (blanc) after removal of outliers",
-    subtitle = "2 plates are still outliers (above 3%), but much less so than before") +
-  xlab("intra-plate coefficient of variation [%]")
-
-extr_avg_trusted_prettier <- extr_avg_trusted |> 
-  mutate(
-    absorbance_avg = round(extr_avg, digits = 3),
-    coeff_var = extr_coeff_var_percent,
-    .keep = "unused") |> 
-  select(!extr_sdev)
-
-plot + wrap_table(
-  extr_avg_trusted_prettier |> filter(coeff_var > 2.5),
-  panel = "full", space = "full")
-
-#extr_avg_trusted
-
+QC6$extr_distrib_coeff +
+  labs(subtitle = "1 plate is still outlier (above 3%), but much less so than before")
 ```
 
 Now that we have computed a trusted version of the average of absorbance per plate per "blanc", we can correct sample absorbance values.
 
-[**!! ALSO GOOD CANDIDATE FOR FUNCTION HEREUNDER !!**]{.underline}
-
 ```{r}
 
-Nmin_corrected <- 
-  Nmin_full |> 
-  # keep only sample data
-  filter(
-    # filter out wells containing Std
-    plate_map != "Std",
-    # filtr out extractant data
-    str_split_i(plate_map, "_", 1) != "extr"
-    ) |> 
-  select(plate_id, well_id, absorbance) |> 
-  # make it wider to have only one row per plate
-  pivot_wider(names_from = well_id, values_from = absorbance) |> 
-  # so that we can add average of extractant that is valid for all wells of the plate concerned
-  left_join(extr_avg_trusted |> select(plate_id, extr_avg)) |> 
-  # relocate extractant for easier manipulation afterwards
-  relocate(extr_avg, .before = 2) |> 
-  # repivot so that computation of corrected absorbance is easy (work with columns)
-  pivot_longer(
-    cols = !c(plate_id, extr_avg),
-    names_to = "well_id",
-    values_to = "absorbance",
-    values_drop_na = TRUE
-  ) |> 
-  # correct absorbance, with the keep = "unused" argument, we prevent the 
-  # probable downstrem miskate of using absorbance instead of corrected absorbance
-  mutate(abs_corrected = absorbance - extr_avg, .keep = "unused") |> 
-  # get the rest of the well and plate data again
-  right_join(Nmin_full) |> 
-  # now we don't need data from std wells or extractant wells, so we can remove them
-  filter(
-    plate_map != "Std",
-    str_split_i(plate_map, "_", 1) != "extr")
+corrected_data <- correct_abs_samples(Nmin_data, QC6 = QC6)
 
 
 ```
