@@ -44,6 +44,7 @@ source("functions/qc4_std_blanc_variation.R")
 source("functions/correct_abs_std.R")
 source("functions/qc5_extr_blanc_variation.R")
 source("functions/qc6_extr_trusted.R")
+source("functions/qc7_std_find_outlier.R")
 ```
 
 Loading data
@@ -312,12 +313,7 @@ First we need to do some quality check of the Standard curve
 -   check that there are no negative values for the corrected absorbance
 
 ```{r}
-# First check: do we have the same number of plates in data and in metadata?
-n_groups(std_corrected) == nrow(Nmin_metadata) # yes :-)
 
-# do we have negative values? (check last column)
-std_corrected |> 
-  arrange(abs_corrected) # no, nice :-)
 ```
 
 -   Is it indeed a curve? If yes –\> proceed. But quite probably that some curves are not monotonous (stricly increasing or decreasing)
@@ -330,57 +326,16 @@ std_corrected |>
 
 ```{r}
 
-# extracted unsorted curves
-unsorted_curves <- std_corrected |> 
-  group_by(plate_id, column) |> 
-  arrange(row) |> 
-  summarise(
-    suspicious = is.unsorted(abs_corrected),
-    .groups = "keep"
-  ) |> 
-  filter(suspicious) |> 
-  mutate(unique_curve_id = paste0(plate_id, "_c", column))
+qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_metadata)
 
-# plot them all
-#i = 1
-file = Nmin_metadata
-plots <- list()
-for (i in 1:nrow(unsorted_curves)) {
-  
-  curve <- std_corrected |> 
-    #filter(unique_curve_id == unsorted_curves$unique_curve_id[i]) |> 
-    filter(plate_id == unsorted_curves$plate_id[i]) 
-  
-  conc <- tibble(
-    conc = extract_curve(file, N_sp = curve$N_sp[1])[2:8],
-    row = pipetting_direction
-  )
-  
-  curve <- curve |> 
-    left_join(conc)
-  nudge <- (max(curve$conc) - min(curve$conc))/30
-  
-  plot <- 
-    curve |> 
-    ggplot(aes(x = abs_corrected, y = conc)) + 
-    theme_minimal() +
-    geom_smooth(
-      method = "lm", se = FALSE, formula = y~x-1,
-      color = "grey70") +
-    geom_point(color = "grey30", alpha = 1) + 
-      annotate(geom = "text", x = curve$abs_corrected, y = curve$conc-nudge,
-               label = curve$well_id, size = 3) +
-    labs(title = curve$plate_id[1]) 
-    
-  plots[[i]] <- plot
-}
-
-wrap_plots(plots,axis_titles = "collect")
+#** Same principle as above: visually identify obvious outliers, and list them in the vector below. !! Only works for one well per plate for now. If several --> work iteratively or update code *
 
 
 ```
 
 Now we can manually encode a vector containing all outlier wells, based on visual appraisal of graphs
+
+[**!!! PUT THIS LITTLE CHUNK IN A FUNCTION**]{.underline}
 
 ```{r}
 
@@ -401,6 +356,9 @@ outlier_curves
 # correct std data
 std_tidy <- std_corrected |> 
   filter(unique_well_id %ni% outlier_curves$unique_well_id)
+
+# Run it once more, approve of wells... evtl re-run previous bit
+qc7_std_find_outlier(std_corrected = std_tidy, metadata = Nmin_metadata)
 
 ```
 
@@ -429,7 +387,7 @@ for (i in 1:nrow(unsorted_curves)) {
   
   conc <- tibble(
     conc = extract_curve(file, N_sp = curve$N_sp[1])[2:8],
-    row = pipetting_direction
+    row = diluted_to_concentrated[2:8]
   )
   
   curve <- curve |> 
