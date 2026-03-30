@@ -101,6 +101,8 @@ In this pipeline we refer to
 >   <a href="#fig-unsorted-curves" class="quarto-xref">Figure 5</a>,
 >   encode identifier of outlier wells
 >   <a href="#lst-outlier-std" class="quarto-xref">Listing 11</a>
+> - adapting path for export of data
+>   (<a href="#lst-export" class="quarto-xref">Listing 12</a>)
 
 # 1 - Set up
 
@@ -989,7 +991,7 @@ transformed data.
 >
 > ### NO3 not final yet
 >
-> The concentration in mg N/L for NO3 is as this stage still a gross
+> The concentration in mg N/L for NO3 is at this stage still a gross
 > measurement that also contains the amouns of NO2 that was present in
 > the sample but was oxidised to NO3. In theory we have to make a
 > substraction (NO3 neat = NO3 gross - NO2). But
@@ -1134,6 +1136,10 @@ data_export
 
 # 5 - Export
 
+<div id="lst-export">
+
+Listing 12: Encode path and file name for export
+
 <details class="code-fold">
 <summary>Code</summary>
 
@@ -1143,5 +1149,7 @@ data_export |> write_rds("output/data/Nmin_conc.rds")
 ```
 
 </details>
+
+</div>
 
 # °<sup>°°°</sup> Milestone : all data ready for downstream analysis °<sup>°°°</sup>

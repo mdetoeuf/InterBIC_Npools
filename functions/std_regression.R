@@ -27,7 +27,7 @@ std_regression <- function(
   pipetting_direction = "top_down",
   max_nb_plots = 16,
   save_pdf = TRUE,
-  filenames = "QC_singles_page", # will save as this + a number: 1, 2, etc.
+  filenames = "QCreg_singles_page", # will save as this + a number: 1, 2, etc.
   filepath = "output/figures/QC/" # where to save files (if save_pdf = TRUE)
   
   ) {

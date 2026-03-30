@@ -53,6 +53,7 @@ The pipeline is highly automated. Nevertheless, as a user, you'll have to take a
 -   Playing around with max acceptable coefficient of variation for extractant (@lst-hist-extr-coeff-var)
 -   Based on observations from @fig-suspicious-plates, thresholds can be set in @lst-cut-threshold-extractant to exclude outlier wells from extractant data
 -   Based on visual appraisal of graphs @fig-unsorted-curves, encode identifier of outlier wells @lst-outlier-std
+-   adapting path for export of data (@lst-export)
 :::
 
 # 1 - Set up
@@ -469,7 +470,7 @@ The function `abs_to_mgN_L` first transforms corrected absorbances into concentr
 ::: {#tip-gross-no3 .callout-tip}
 ## NO3 not final yet
 
-The concentration in mg N/L for NO3 is as this stage still a gross measurement that also contains the amouns of NO2 that was present in the sample but was oxidised to NO3. In theory we have to make a substraction (NO3 neat = NO3 gross - NO2). But
+The concentration in mg N/L for NO3 is at this stage still a gross measurement that also contains the amouns of NO2 that was present in the sample but was oxidised to NO3. In theory we have to make a substraction (NO3 neat = NO3 gross - NO2). But
 
 -   we can only do this once we've agregated data on each sample (so an average of the 4 wells = technical replicates)
 
@@ -542,7 +543,8 @@ data_export
 # 5 - Export
 
 ```{r}
-#| label: export
+#| lst-label: lst-export
+#| lst-cap: "Encode path and file name for export"
 
 std_reg$lm_output |> write_rds("output/data/Nmin_std_curves_lm.rds")
 data_export |> write_rds("output/data/Nmin_conc.rds")
