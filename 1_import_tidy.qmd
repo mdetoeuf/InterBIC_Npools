@@ -1,6 +1,9 @@
 ---
 title: "Import and tidy raw data"
-format: gfm
+format: 
+  gfm:
+    toc: true
+    code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -8,7 +11,6 @@ message: true
 warning: true
 echo: true
 output: true
-toc: true
 ---
 
 # To Do
@@ -31,7 +33,25 @@ toc: true
 
 Unfortunately, absorbance data has been saved in many different formats (txt, csv, xlsx), and files have a diversity of content (how many plates are in 1 file), of naming rules, and of structure (how many rows and columns before the cell A1 appears), ...
 
-So I will have to either record raw data in a new form / rename files, or code multiple ways of importing data. I will first try the latter
+So there are here 2 main ways to import absorbance data & 3 types of data:
+
+1.  Absorbance data stricto sensu = quantitative values for absorbance, data coming from plate reader
+
+    -   either as .TXT (see @fig-txt-screenshot)
+
+    -   or as .csv (see example in @fig-csv-screenshot)
+
+2.  Plate map data, i.e., the map of well attribution to samples, standard curve and extractant (or blanc). Typically, this can have the same format as the .csv absorbance data (see @fig-csv-map-screenshot)
+
+3.  Plate metadata, i.e., additional information that gives information that applies to the whole 96-well plate. Example: plate-id, N species that is dosed, wavelength, date or batch, concentration of the standard curve, nature and concentration of the extractant, etc. (see @fig-metadata-screenshot)
+
+![Typical structure of raw absorbance data as .TXT file as it is given by the spectrophotometer](images/clipboard-120855305.png){#fig-txt-screenshot}
+
+![One example of structure of a .csv file containing absorbance data. This is the basic structure that easily fits into this pipeline. But other formats can often easily be adapted into this format as well. Important in this set up is that plates are displayed on top of each other (empty rows are easy to correct if needed), and that the plate_id is in the top-left cell of each plate. It is also useful that the plate_id start with the N species under study](images/clipboard-2122399435.png){#fig-csv-screenshot width="440"}
+
+![One example of plate map data in the same .csv format as the corresponding absorbance data](images/clipboard-1326132073.png){#fig-csv-map-screenshot width="538"}
+
+![Example of plate metadata. There could be more or less columns, but consistency within one import episode is important as several data frames will be appended, which will only work if they have the same structure. Vital columns are plate_id, std_sp, std_unit, std_conc (with concentrations separated by a "-" and the digit separator a "."](images/clipboard-3285939582.png){#fig-metadata-screenshot}
 
 # Set up
 
@@ -61,8 +81,10 @@ Here we use the import functions to get txt-based data and csv-based data stored
 
 # set file path for data in .TXT format (t1, t2)
 filepath <- "raw_data/Nmin/"
+
 # import csv for data in csv format (t3)
 csv_file <- read_csv("raw_data/Nmin_t3/Nmint3_data.csv", col_names = FALSE)
+csv_file_TDN <- read_csv("raw_data/TDN/TDN_data.csv", col_names = FALSE)
 
 # import & shape data
 # from .txt format
@@ -70,18 +92,30 @@ Nmin_t1t2_abs <- import_abs_txt(filepath)
 
 # from .csv format
 Nmin_t3_abs <- import_abs_csv(csv_file)
+Nmin_TDN <- import_abs_csv(csv_file_TDN)
 
-# look at structure of both data frames
+
+# look at structure of data frames
 Nmin_t1t2_abs$abs_data_df 
 Nmin_t3_abs$abs_data_df
+Nmin_TDN$abs_data_df
 ```
 
 Now that all data is in the same format, we can regroup data in two general data frames: one for the absorbance data, one for the "maps" data.
 
 ```{r}
-# join both data frames
-Nmin_all_abs <- left_join(Nmin_t1t2_abs$abs_data_df, Nmin_t3_abs$abs_data_df)
+# join data frames --> this only works with 2 datavframes, unless you nested --> next bit for more elegant way
+Nmin_all_abs <- left_join(
+  Nmin_t1t2_abs$abs_data_df, 
+  Nmin_t3_abs$abs_data_df)
 Nmin_all_abs
+
+list_data <- list(Nmin_t1t2_abs$abs_data_df, 
+  Nmin_t3_abs$abs_data_df, 
+  Nmin_TDN$abs_data_df)
+
+Nmin_all_abs <- plyr::join_all(list_data) |> as_tibble()
+Nmin_all_abs 
 
 # look at plate maps
 # for Nmin t3
@@ -90,12 +124,28 @@ Nmin_t3_maps <- import_abs_csv(maps_t3_file)
 Nmin_t3_maps$abs_data_df 
 
 # For Nmin t1 and t2
-maps_t1t1_file <- read_csv("raw_data/Nmin/Nmin_maps.csv", col_names = FALSE)
+maps_t1t1_file <- read_csv("raw_data/Nmin/Nmin_maps.csv", col_names = FALSE) 
 Nmin_t1t1_maps <- import_abs_csv(maps_t1t1_file)
 Nmin_t1t1_maps$abs_data_df
 
+# For TDN
+maps_tdn_file <- 
+  read_csv("raw_data/TDN/TDN_maps.csv", col_names = FALSE,col_select = X14:X26) |> 
+  na.omit() |> 
+  rename(X1 = X14)
+TDN_maps <- import_abs_csv(maps_tdn_file)
+
 # join both data frames
 Nmin_all_maps <- left_join(Nmin_t1t1_maps$abs_data_df, Nmin_t3_maps$abs_data_df)
+
+# same for more than 2:
+list_maps <- list(
+  Nmin_t1t1_maps$abs_data_df,
+  Nmin_t3_maps$abs_data_df,
+  TDN_maps$abs_data_df
+)
+
+Nmin_all_maps <- plyr::join_all(list_maps) |> as_tibble()
 Nmin_all_maps
 ```
 
@@ -133,12 +183,14 @@ Additional information can be encoded manually.
 # import csv
 Nmin_t1t2_metadata <- read_csv("raw_data/Nmin/Nmin_metadata.csv")
 Nmin_t3_metadata <- read_csv("raw_data/Nmin_t3/Nmint3_metadata.csv")
+TDN_metadata <- read_csv("raw_data/TDN/TDN_metadata.csv") |> mutate(std_column = as.character(std_column))
 
 # join csv's
-Nmin_all_metadata <- bind_rows(Nmin_t1t2_metadata, Nmin_t3_metadata)
+Nmin_all_metadata <- bind_rows(Nmin_t1t2_metadata, Nmin_t3_metadata, TDN_metadata)
 
 # export it
 Nmin_all_metadata |> write_rds("output/data/Nmin_metadata.rds")
+Nmin_all_metadata
 ```
 
 # 2 - Join absorbance and map data
@@ -150,14 +202,15 @@ The steps for this are recorded into a function `join_maps_abs()`, so we can eas
 ```{r}
 
 Nmin_data <- join_maps_abs(maps_df = Nmin_all_maps, abs_df = Nmin_all_abs)
-Nmin_data
+Nmin_data |> head()
+Nmin_data |> tail()
 
 ```
 
 Now that we have our final raw data frame, we can export it to save it as a document to use for downstream analysis
 
 ```{r}
-write_rds(Nmin_data, file = "output/data/Nmin_tidy.rds")
+write_rds(Nmin_data, file = "output/data/Nmin_TDN_tidy.rds")
 ```
 
 # °°° — Below this, draft, to be picked up — °°°
