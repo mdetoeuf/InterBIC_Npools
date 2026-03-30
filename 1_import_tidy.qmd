@@ -15,19 +15,29 @@ output: true
 
 # To Do
 
+-   There is no input needed from the user –\> turn this into a big function that takes as argument
+
+    -   list of lists
+
+        -   first level list = for one data set: path of file for
+
+            -   abs data
+
+                -   if contain csv –\> csv function
+
+                -   else —\> txt function
+
+            -   metadata
+
+            -   plate data
+
+        -   second level list = several data sets, each named with name of data set
+
+    -   asks where to output and how to name it
+
+    -   
+
 -   For TDN: !! [**If we do the NO2**]{.underline}, then need to deal with the fact that in plate NO2_TDN_18, there is another blanc for some samples (KCl 1M), but that is only in 4 wells...
-
--   TDN:
-
-    -   Then add it to plate info of Nmin
-
--   For raw "spectro-like" txt files:
-
-    -   Harmonize file names, containing plate nb and N sp
-
-    -   encode a table / tables with plate map infos
-
-    -   encode a metadata table: 1 row per plate, info
 
 # Intro
 
