@@ -1,6 +1,13 @@
 ---
 title: "V. Pipeline for Absorbance data"
-format: gfm
+#format: gfm
+ # toc: true
+format: 
+  html:
+    embed-resources: true
+    toc: true
+    toc_float: true
+    code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -8,7 +15,6 @@ message: true
 warning: true
 echo: true
 output: true
-toc: true
 ---
 
 # To Do
@@ -78,7 +84,7 @@ source("functions/std_regression.R")
 source("functions/abs_to_mgN_L.R")
 ```
 
-## 1.2 - Loading data 
+## 1.2 - Loading data
 
 ::: callout-tip
 ## Your input is needed!
@@ -239,8 +245,7 @@ We have to remove outliers manually: it is really a visual appreciation that wor
 
 Based on visual appreciation, here is the list of plates that we want to correct. One way to do it is to impose, for each plate, a threshold value that we can later use to filter out outlier wells (wells above the threshold value).
 
-:::: {#tip-input-threshold-extr .callout-tip}
-::: callout-tip
+::: {#tip-input-threshold-extr .callout-tip}
 ## Manually remove outliers!
 
 In the following chunk, you need to input threshold values as a vector with one number per "suspicious" plate. If you decide to keep all values, you can set a threshold of 1.00.
@@ -249,7 +254,6 @@ In the following chunk, you need to input threshold values as a vector with one 
 
 -   The function call only allows to exclude values above the threshold for now. If your outliers are rather the lower values, you'll need to have a look in the source code of the function `qc6_extr_trusted()`, and update it somehow.
 :::
-::::
 
 **!! In case you want to exclude lower values only, then just change the `>` into `<`. But if you want to exclude some upper values, and some lower values, consider updating the code.**
 
@@ -317,7 +321,6 @@ QC7.1$multiplot + plot_annotation(subtitle = "1st iteration, no outlier removed 
 
 ```
 
-:::: callout-tip
 ::: callout-tip
 ## Manually remove outliers!
 
@@ -329,7 +332,6 @@ In the following chunk, we can manually encode a vector containing all outlier w
 
 -   Currently, you have to encode exactly one value per suspicious curve. If you want to remove 2 wells, proceed either iteratively or go to the source code of the function `qc7_std_find_outlier()`.
 :::
-::::
 
 Once outlier wells are encoded, the following chunk will update input data (`std_tidy` will replace `std_corrected`). You can then look again at the remaining "suspicious" curves and see the improvement, then decide to proceed for one more iteration or keep the tidy data as is.
 
@@ -442,7 +444,7 @@ std_reg <- std_regression(
   metadata = Nmin_metadata,
   std_data = std_tidy,
   pipetting_direction = "top_down",
-  max_nb_plots = 16,
+  max_nb_plots = 9,
   save_pdf = TRUE, 
   filepath = "output/figures/QC/")
 
@@ -462,9 +464,7 @@ Finally, we can transform the data, using the slope obtained above to compute th
 
 The function `abs_to_mgN_L` first transforms corrected absorbances into concentration in mg of N species per L (e.g., mg NH4+/L), which is then converted to the next unit: mg N/L. The output of the function is multiple: it contains the transformed data in the same vertical format as has been used throughout this pipeline. Finally, the function also outputs 2 plot formats to have a rough visualization of the range of the transformed data.
 
-::::: {#tip-gross-no3 .callout-tip}
-:::: callout-tip
-::: callout-tip
+::: {#tip-gross-no3 .callout-tip}
 ## NO3 not final yet
 
 The concentration in mg N/L for NO3 is as this stage still a gross measurement that also contains the amouns of NO2 that was present in the sample but was oxidised to NO3. In theory we have to make a substraction (NO3 neat = NO3 gross - NO2). But
@@ -473,8 +473,6 @@ The concentration in mg N/L for NO3 is as this stage still a gross measurement t
 
 -   in practice we see that concentrations in NO2 are so low that it's ok, in first approximation, to have a look at this value for now.
 :::
-::::
-:::::
 
 To finally convert these numbers from mg N /L into mg N / g dry soil, we need to integrate the 2 variables from external data sets: soil dry matter and the soil:exctractant ratio. This is thus something for another script. We can nevertheless have a first look at plots and see that indeed NO2 is mostly at 0, there is some noise in NH4, and clear variations in NO3.
 
