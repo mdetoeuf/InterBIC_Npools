@@ -1,13 +1,15 @@
 ---
 title: "V. Pipeline for Absorbance data"
-#format: gfm
- # toc: true
 format: 
-  html:
-    embed-resources: true
+  gfm:
     toc: true
-    toc_float: true
     code-fold: true
+# format: 
+#   html:
+#     embed-resources: true
+#     toc: true
+#     toc_float: true
+#     code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
