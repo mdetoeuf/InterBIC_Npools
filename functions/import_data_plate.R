@@ -93,7 +93,7 @@ import_data_plate <- function(
 
   # initiate an empty plate
   # create an empty table with NAs
-  matrix <- matrix(dataset, nrow = 8, ncol = 12)
+  matrix <- matrix(NA, nrow = 8, ncol = 12)
   # give it names 1 to 12
   colnames(matrix) <- as.character(c(1:12))
   
@@ -103,7 +103,9 @@ import_data_plate <- function(
   
   # verticalize and store in a dataframe
   abs_longer <- plate_empty |> 
-    pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "dataset")
+    pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "abs") |> 
+    # remove empty column
+    select(!abs)
     
   
   
@@ -206,11 +208,13 @@ import_data_plate <- function(
     
   } # end of case for txt file
   
+  
   abs_result <- list(plate_metadata, abs_data_list, abs_longer)
   names(abs_result) <- c("plate_metadata", "abs_data_list", "abs_data_df")
   
   return(abs_result)
 }
+
 
 # test_txt <- import_data_plate(format_abs = "txt", filepath = "raw_data/Nmin/", import_metadata = TRUE)
 # test_txt$plate_metadata
