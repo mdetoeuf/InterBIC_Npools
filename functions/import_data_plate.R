@@ -157,7 +157,7 @@ import_data_plate <- function(
         wavelength = character()
       ) #}
     
-    for (i in 1:length(all_files)) {
+    for (i in 1:length(all_txt_files)) {
       # get name of file nb i
       file <- paste0(filepath, all_txt_files[i])
       
