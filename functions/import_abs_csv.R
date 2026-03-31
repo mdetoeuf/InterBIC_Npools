@@ -102,5 +102,5 @@ import_abs_csv <- function(file) {
 } # end of import_abs_csv
 
 
-#file <- read_csv("raw_data/TDN/TDN_data.csv", col_names = FALSE)
+#file <- read_csv("TDN_data.csv", col_names = FALSE)
 #TDN_abs <- import_abs_csv(file)
