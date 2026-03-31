@@ -177,13 +177,18 @@ Should you need any other column, this can be discussed. Bear in mind that downs
 
 ```{r}
 
-N_all_plate <- join_maps_abs(maps_df = N_all_maps, abs_df = N_all_abs)
+N_all_plate <- join_maps_abs(
+  maps_df = N_all_maps, 
+  abs_df = N_all_abs,
+  correct_1000_factor = TRUE)
 
 # have a look
 N_all_plate |> head()
 N_all_plate |> tail()
 
 ```
+
+## 1.5 - Add dataset identifier 
 
 We have a data set that is almost ready. But we lost the information of which plate belongs to which data set. In case that information is not included in the plate names, we can easily retrieve it from previous steps.
 
@@ -204,7 +209,7 @@ N_all_plate_tidy <- N_all_plate |>
   )
 ```
 
-## 1.4 - Export tidy plate data
+## 1.6 - Export tidy plate data
 
 Now that we have our final raw data frame for plate data, we can export it to save it as a document to use for downstream analysis
 

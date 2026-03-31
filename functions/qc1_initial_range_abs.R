@@ -15,7 +15,7 @@
 
 #** Example of parameters  *
 
-#> data <- Nmin_data
+#> data <- N_all_plate
 #> min_abs <- 0.03
 #> max_abs <- 1.1
 #> empty_wells <- "empty"
@@ -26,18 +26,23 @@ qc1_initial_range_abs <- function(
     data,
     min_abs = 0.03,
     max_abs = 1.1,
-    empty_wells = "empty"
-    
+    empty_wells = "empty",
+    correct_1000_factor = FALSE
     ) {
   
   # remove empty wells, marked as "empty" --> keep only "full" wells
-  full <- data |> filter(plate_map != empty_wells)
+  # and remove absorbance with NA
+  full <- data |> 
+    filter(plate_map != empty_wells, !is.na(absorbance))
+  
   
   # initiate data frame that will contain suspicious well ids
+ # i = 1
   suspicious_rows <- c() 
   for (i in 1:nrow(full)) {
-    if (full$absorbance[i] < min_abs || full$absorbance[i] > max_abs) {
-      #print(full$absorbance[i])
+  #  if (full$absorbance[i] < min_abs || full$absorbance[i] > max_abs) {
+      if (full$absorbance[i] < min_abs | full$absorbance[i] > max_abs) {
+        #print(full$absorbance[i])
       suspicious_rows <- append(suspicious_rows, i)
     }
   }
@@ -49,7 +54,7 @@ qc1_initial_range_abs <- function(
       min_abs, 
       "; ",
       max_abs, 
-      "] allowed \nSee table to identify suspicious wells"))
+      "] allowed \nSee table to identify suspicious wells. "))
     
     full |> filter(row_number() %in% suspicious_rows)
   } else {

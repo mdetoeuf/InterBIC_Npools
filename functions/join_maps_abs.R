@@ -16,7 +16,8 @@
 
 join_maps_abs <- function(
     abs_df,
-    maps_df
+    maps_df,
+    correct_1000_factor = FALSE
 ) {
   # pivot absorbance data
   Nmin_abs_longer <- abs_df |> 
@@ -26,6 +27,25 @@ join_maps_abs <- function(
       names_to = "plate_id"
     ) |> 
     mutate(column = as.numeric(column))
+  
+  if (correct_1000_factor) {
+    Nmin_abs_longer <- Nmin_abs_longer |> 
+      mutate(
+        absorbance = case_when(
+          absorbance >= 1000 ~ absorbance/1000,
+          .default = absorbance
+        ))
+  }
+  
+  
+  if (nrow(Nmin_abs_longer |> filter(absorbance > 1000)) > 0) {
+    warning("Some absorbance values are above 1000. There was probably an issue with wrong 
+      interpretation of `,` as separator instead of digit. This is frequent with 
+      raw data that has been copy-pasted into French-speaking Microsoft Excel. 
+      As an absorbance of 1000 is unliekly, you can correct this issue by opting 
+            for `correct_1000_factor = TRUE`.")
+  }
+  
   
   # pivot maps data
   Nmin_maps_longer <- maps_df |> 

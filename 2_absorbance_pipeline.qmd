@@ -107,8 +107,6 @@ The paths in the next chunk should be replaced by your own data, possibly genera
 N_all_plate <- read_rds("output/data/N_all_plate_tidy.rds")
 N_all_metadata <- read_rds("output/data/N_all_metadata.rds")
 
-N_all_plate |> filter(dataset == "TDN")
-?select
 ```
 
 # 2 - preliminary QC : suspicious wells
@@ -134,7 +132,9 @@ If wells are out of range of "acceptable" absorbance values, you'll get a warnin
 ```{r}
 #| lst-label: lst-qc1-initial-range
 #| lst-cap: "Here you can play around with the range of `acceptable` absorbance values"
-qc1_initial_range_abs(N_all_plate, min_abs = 0.03, max_abs = 1.1)
+qc1_initial_range_abs(
+  N_all_plate, min_abs = 0.03, max_abs = 1.1, 
+  correct_1000_factor = TRUE)
 
 #> ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
 #out_of_range <- Nmin_full |> filter(row_number() %in% suspicious_rows) 

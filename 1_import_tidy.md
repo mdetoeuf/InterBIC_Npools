@@ -11,7 +11,8 @@
   - [1.3 - Option: join data sets](#13---option-join-data-sets)
   - [1.4 - Verticalize and join absorbance and maps
     data](#14---verticalize-and-join-absorbance-and-maps-data)
-  - [1.4 - Export tidy plate data](#14---export-tidy-plate-data)
+  - [1.5 - Add dataset identifier](#15---add-dataset-identifier)
+  - [1.6 - Export tidy plate data](#16---export-tidy-plate-data)
 - [2 - Import (and join) plate
   metadata](#2---import-and-join-plate-metadata)
   - [2.1 - Import metadata](#21---import-metadata)
@@ -462,6 +463,8 @@ N_all_plate |> tail()
     5 G         12 G12     NO3_TDN_38_G12 NO3   NO3_TDN_38 empty          0.068
     6 H         12 H12     NO3_TDN_38_H12 NO3   NO3_TDN_38 empty          0.104
 
+## 1.5 - Add dataset identifier
+
 We have a data set that is almost ready. But we lost the information of
 which plate belongs to which data set. In case that information is not
 included in the plate names, we can easily retrieve it from previous
@@ -489,7 +492,7 @@ N_all_plate_tidy <- N_all_plate |>
 
 </details>
 
-## 1.4 - Export tidy plate data
+## 1.6 - Export tidy plate data
 
 Now that we have our final raw data frame for plate data, we can export
 it to save it as a document to use for downstream analysis
