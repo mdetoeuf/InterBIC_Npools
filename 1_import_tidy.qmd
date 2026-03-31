@@ -46,6 +46,10 @@ So there are here 2 main ways to import absorbance data & 3 types of data:
 Load packages
 
 ```{r}
+#| message: false
+#| warning: false
+#| output: false
+
 library(tidyverse)
 library(janitor) # for row_to_names()
 
@@ -68,20 +72,19 @@ The `import_data_plate()` function returns a list, with the first element named 
 ## 1.1 - First, raw absorbance data
 
 ```{r}
+#| message: false
+#| warning: false
 
 # Nmin for t1 and t2
-Nmin_abs <- import_data_plate(format_abs = "txt", filepath = "raw_data/Nmin/")
+Nmin_abs <- import_data_plate(dataset = "Nmint1t2", format_abs = "txt", filepath = "raw_data/Nmin/")
 # have a look
 Nmin_abs$abs_data_df
 
 # Nmin for t3
-Nmint3_abs <- import_data_plate(
-  format_abs = "csv", filepath = "raw_data/Nmin_t3/", filename_csv = "Nmint3_data.csv")
+Nmint3_abs <- import_data_plate(dataset = "Nmint3", format_abs = "csv", filepath = "raw_data/Nmin_t3/", filename_csv = "Nmint3_data.csv")
 
 # TDN
-TDN_abs <- import_data_plate(
-  format_abs = "csv", filepath = "raw_data/TDN/", filename_csv = "TDN_data.csv"
-)
+TDN_abs <- import_data_plate(dataset = "TDN", format_abs = "csv", filepath = "raw_data/TDN/", filename_csv = "TDN_data.csv")
 
 
 ```
@@ -93,21 +96,19 @@ Here, we need to use the tibble option as a format for the TDN data set because 
 ```{r}
 
 # Nmin for t1 and t2
-Nmin_maps <- import_data_plate(
-  format_abs = "csv", filepath = "raw_data/Nmin/", filename_csv = "Nmin_maps.csv")
+Nmin_maps <- import_data_plate(dataset = "Nmint1t2", format_abs = "csv", filepath = "raw_data/Nmin/", filename_csv = "Nmin_maps.csv")
 # have a look
 Nmin_maps$abs_data_df
 
 # Nmin for t3
-Nmint3_maps <- import_data_plate(
+Nmint3_maps <- import_data_plate(dataset = "Nmint3",
   format_abs = "csv", filepath = "raw_data/Nmin_t3/", filename_csv = "Nmint3_maps.csv")
 
 # TDN
-TDN_file <- read_csv("raw_data/TDN/TDN_maps.csv", col_names = FALSE,col_select = X14:X26) |> 
+TDN_file <- read_csv("raw_data/TDN/TDN_maps.csv", col_names = FALSE,col_select = X14:X26, show_col_types = FALSE) |> 
   na.omit() |> 
   rename(X1 = X14)
-TDN_maps <- import_data_plate(format_abs = "tibble", tibble = TDN_file)
-
+TDN_maps <- import_data_plate(dataset = "TDN", format_abs = "tibble", tibble = TDN_file)
 
 ```
 
@@ -137,8 +138,6 @@ N_all_abs
 
 Proceed the same way for maps
 
-[**!! SOLVE ISSUE: MAPS HAVE ONE LESS PLATE THAN ABS DATA !!!**]{.underline}
-
 ```{r}
 # same for more than 2:
 list_maps <- list(
@@ -153,15 +152,52 @@ N_all_maps
 
 So now we have those 2 data frames that have strictly the same structure, with `r nrow(N_all_maps)` rows and `r ncol(N_all_maps)` columns, with 2 columns attributed to the well identifier ("row" and "column"), and the remaining `r ncol(N_all_maps) - 2` columns representing the 96-well plates.
 
-# 2 - Import plate metadata
+## 1.4 - Verticalize and join absorbance and maps data
+
+We use here the home-made function `join_maps_abs()` that first verticalizes separately both data sets (absorbance vs maps data), then joins them in a single data frame.
+
+The target structure for the joined data frame is to have the following columns:
+
+-   "row" (from the plate, i.e., from "A" or "H")
+
+-   "column" (from the plate, i.e., from 1 to 12), here expressed within a single column
+
+-   "well_id" (= concatenation of row and column, i.e., from A1 to H12)
+
+-   "unique_well_id" (= concatenation of plate_id and well_id),
+
+-   "N_sp" (extracted from plate_id as the first block preceding the first "\_". If your plate names are not structured so, we can adapt the code and/or get that information from somewhere else, e.g., the metadata
+
+-   "dataset" (as input in the import function hereabove,
+
+-   "plate_id"
+
+-   "plate_map" (sample name or extractant or std curve),
+
+-   "absorbance" (raw data coming out of the spectrophotometer).
+
+Should you need any other column, this can be discussed. Bear in mind that downstream analysis, including connecting this data to the metadata (imported in next section), will happen in the next script.
+
+```{r}
+
+N_all_plate <- join_maps_abs(maps_df = N_all_maps, abs_df = N_all_abs)
+# have a look
+N_all_plate |> head()
+N_all_plate |> tail()
+
+```
+
+## 1.4 - Export tidy plate data
+
+Now that we have our final raw data frame for plate data, we can export it to save it as a document to use for downstream analysis
+
+```{r}
+write_rds(N_all_plate, file = "output/data/N_all_plate_tidy.rds")
+```
+
+# 2 - Import (and join) plate metadata
 
 This step is to import plate metadata, so data on a per-plate basis.
-
-# 
-
-# °°° !!! START HERE !!! °°°
-
-## 1.1 - Plate metadata
 
 The file containing plate metadata can contain as much information on plates as the user wants.
 
@@ -189,112 +225,37 @@ Additional information can be encoded manually.
 
 **!! I prefered not relying on manual encoding of concentrations for the standard curve because we tend to run big chunks of code without paying attention that modifications are needed. In that sense, such a critical information coming directly from imported files, so that the code bugs when the information is not imported, feels like a good failsafe. As much as possible, I tried to only have moments of manual encoding when either the decision needs to be interactive (e.g., based on a plot) or when valid default values can be relied upon without major issues. !!!**
 
-```{r}
-# import csv
-Nmin_t1t2_metadata <- read_csv("raw_data/Nmin/Nmin_metadata.csv")
-Nmin_t3_metadata <- read_csv("raw_data/Nmin_t3/Nmint3_metadata.csv")
-TDN_metadata <- read_csv("raw_data/TDN/TDN_metadata.csv") |> mutate(std_column = as.character(std_column))
+## 2.1 - Import metadata
 
+The code for import in this case is very straight forward as there is no major pivotting or other data manipulation required.
+
+First, we import all metadata sets.
+
+```{r}
+# import csvs
+Nmin_metadata <- read_csv("raw_data/Nmin/Nmin_metadata.csv", show_col_types = FALSE) |> mutate(dataset = "Nmint1t2")
+Nmin_t3_metadata <- read_csv("raw_data/Nmin_t3/Nmint3_metadata.csv", show_col_types = FALSE) |> mutate(dataset = "Nmint3")
+TDN_metadata <- read_csv("raw_data/TDN/TDN_metadata.csv", show_col_types = FALSE) |> mutate(std_column = as.character(std_column)) |> mutate(dataset = "TDN")
+```
+
+## 2.2 - Option: join metadata
+
+Then we join the imported files. Here as well, joining is optional, you can run all analyses separately / store separate files
+
+```{r}
 # join csv's
-Nmin_all_metadata <- bind_rows(Nmin_t1t2_metadata, Nmin_t3_metadata, TDN_metadata)
+N_all_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata)
+# have a look
+N_all_metadata
+```
+
+## 2.3 - Export metadata
+
+To be used in downstream analyses
+
+```{r}
 
 # export it
-Nmin_all_metadata |> write_rds("output/data/Nmin_metadata.rds")
-Nmin_all_metadata
-```
-
-# 2 - Join absorbance and map data
-
-First we need to use `pivot_longer()` to get absorbance data / plate map data in a single column, before we can join the data in a single data frame. The target structure for the data frame would be to have the following columns: "row" (from the plate), "column" (from the plate), "well_id" (= concatenation of row and column), plate_map (sample name or extractant or std curve), absorbance.
-
-The steps for this are recorded into a function `join_maps_abs()`, so we can easily repeat it
-
-```{r}
-
-Nmin_data <- join_maps_abs(maps_df = Nmin_all_maps, abs_df = Nmin_all_abs)
-Nmin_data |> head()
-Nmin_data |> tail()
+N_all_metadata |> write_rds("output/data/N_all_metadata.rds")
 
 ```
-
-Now that we have our final raw data frame, we can export it to save it as a document to use for downstream analysis
-
-```{r}
-write_rds(Nmin_data, file = "output/data/Nmin_TDN_tidy.rds")
-```
-
-# °°° — Below this, draft, to be picked up — °°°
-
-# 3 - Import TDN data from csv (Sang style)
-
-Actually the original file is an xlsx file. But relevant sheets are saved as csv for easier manipulation.
-
-Everything comes from raw data csv that originates from an xlsx file : /Users/Admin/Nextcloud/PhD/2024_trial/Fab_Mo/1_Data/TDN_data.xlsx
-
-## 2.1 - Import plate absorbance data
-
-Now, working for first plate
-
-```{r}
-tdn_abs_raw <- read_csv("raw_data/TDN/TDN_data.csv", col_names = FALSE)
-
-i = 1
-plate_id <- tdn_abs_raw$X1[i]
-
-plate_abs <- tdn_abs_raw[i:(i+8),] |> 
-  row_to_names(row_number = 1) |> 
-  rename(row = 1)
-
-
-```
-
-## 2.2 - import plate map
-
-From the sample list we can create plate maps. The next chunk does it for one plate. —\> make it a loop or a function or something...
-
-```{r}
-#| eval: false
-#| include: false
-tdn_samples <- read_csv("raw_data/TDN/TDN_tubes.csv")
-
-std_column <- 1
-extractant_column <- 8
-plate_id <- tdn_samples$Plate_id_NO3[11]
-
-# For NO3
-#tubes <- 
- # (tdn_samples |> filter(Plate_id_NO3 == plate_id))$TN_sample_nb
-
-dilution_up <- "2Xdiluted"
-dilution_down <- "nodilution"
-
-tubes_up <- paste0(
-  (tdn_samples |> filter(Plate_id_NO3 == plate_id))$TN_sample_nb, 
-  "_", dilution_up)
-
-tubes_down <- paste0(
-  (tdn_samples |> filter(Plate_id_NO3 == plate_id))$TN_sample_nb, 
-  "_", dilution_down)
-
-plate_map <- rbind(tubes_up, tubes_up, tubes_up, tubes_up, 
-                tubes_down, tubes_down, tubes_down, tubes_down) |>
-  as.matrix() |> as_tibble() |> 
-  mutate(std = rep("std"), .before = std_column) |> 
-  mutate(extr = rep("extractant"), .before = extractant_column) |> 
-  mutate(row = LETTERS[1:8], .before = 1) #|> 
-
-colnames(plate_map) <- c("row", as.character(c(1:12)))
-
-plate_map
-
-```
-
-## 2.3 - import plate metadata
-
-```{r}
-#| eval: false
-#| include: false
-meta_data <- read_csv("raw_data/TDN/TDN_metadata.csv")
-```
-
-# 3 - import student csv (from xlsx)
