@@ -54,8 +54,8 @@ library(tidyverse)
 library(janitor) # for row_to_names()
 
 # load functions
-source("functions/import_abs_txt.R") # see if can be deleted eventually
-source("functions/import_abs_csv.R") # see if can be deleted eventually
+#source("functions/import_abs_txt.R") # see if can be deleted eventually
+#source("functions/import_abs_csv.R") # see if can be deleted eventually
 source("functions/join_maps_abs.R")
 source("functions/import_data_plate.R")
 
@@ -72,8 +72,6 @@ The `import_data_plate()` function returns a list, with the first element named 
 ## 1.1 - First, raw absorbance data
 
 ```{r}
-#| message: false
-#| warning: false
 
 # Nmin for t1 and t2
 Nmin_abs <- import_data_plate(dataset = "Nmint1t2", format_abs = "txt", filepath = "raw_data/Nmin/")
@@ -85,7 +83,6 @@ Nmint3_abs <- import_data_plate(dataset = "Nmint3", format_abs = "csv", filepath
 
 # TDN
 TDN_abs <- import_data_plate(dataset = "TDN", format_abs = "csv", filepath = "raw_data/TDN/", filename_csv = "TDN_data.csv")
-
 
 ```
 
@@ -257,5 +254,4 @@ To be used in downstream analyses
 
 # export it
 N_all_metadata |> write_rds("output/data/N_all_metadata.rds")
-
 ```
