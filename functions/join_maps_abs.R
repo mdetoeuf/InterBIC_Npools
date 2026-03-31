@@ -39,7 +39,7 @@ join_maps_abs <- function(
   # join both
   Nmin_data <- left_join(
     Nmin_maps_longer, Nmin_abs_longer, 
-    by = join_by(row, column, plate_id)
+    by = join_by(row, column, plate_id, dataset)
   ) |> 
     # add well_id column
     # and unique well identifier, i.e. the concatenation of plate_id and well_id

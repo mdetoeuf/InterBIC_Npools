@@ -34,6 +34,7 @@
 
 import_data_plate <- function(
     format_abs, # "csv" or "txt" or "tibble"
+    dataset = "", # adds a column with the name of the data set, to join them later
     filepath = "", # path to folder where files are. finish it with "/" 
     filename_csv = NULL,
     tibble = NULL,
@@ -61,7 +62,7 @@ import_data_plate <- function(
     if (is.null(filename_csv)) {
       stop("filename is missing")
     } else {
-      abs_data_raw = read_csv(paste0(filepath, filename_csv), col_names = FALSE) 
+      abs_data_raw = read_csv(paste0(filepath, filename_csv), col_names = FALSE, show_col_types = FALSE) 
     }
       
   # Third case: a txt is given as input    
@@ -77,13 +78,22 @@ import_data_plate <- function(
   }
   
 
-# 2 - create an empty plate format and initialize an empty absorbance list ----------------------------------------
+# 2 - create an empty plate format and initialize an empty absorbance list and empty metadata list ----------------------------------------
 
   abs_data_list <- list()
   
+  # if (import_metadata == TRUE) { # keep this out of "if" or give a condition to the result section
+  plate_metadata <- tibble(
+    plate_id = character(),
+    protocol = character(),
+    date = date(),
+    time = date(),
+    wavelength = character()
+  ) #}
+
   # initiate an empty plate
   # create an empty table with NAs
-  matrix <- matrix(NA, nrow = 8, ncol = 12)
+  matrix <- matrix(dataset, nrow = 8, ncol = 12)
   # give it names 1 to 12
   colnames(matrix) <- as.character(c(1:12))
   
@@ -93,9 +103,8 @@ import_data_plate <- function(
   
   # verticalize and store in a dataframe
   abs_longer <- plate_empty |> 
-    pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "abs") |> 
-    # then remove the empty values (column "abs")
-    select(!abs)
+    pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "dataset")
+    
   
   
 
@@ -139,8 +148,7 @@ import_data_plate <- function(
       #i = i+1
     } # end of for-loop
     
-    abs_result <- list(abs_data_list, abs_longer)
-    names(abs_result) <- c("abs_data_list", "abs_data_df")
+    
     
     
 
@@ -148,14 +156,6 @@ import_data_plate <- function(
 
   } else if (format_abs == "txt") {
     
-   # if (import_metadata == TRUE) { # keep this out of "if" or give a condition to the result section
-      plate_metadata <- tibble(
-        plate_id = character(),
-        protocol = character(),
-        date = date(),
-        time = date(),
-        wavelength = character()
-      ) #}
     
     for (i in 1:length(all_txt_files)) {
       # get name of file nb i
@@ -166,13 +166,13 @@ import_data_plate <- function(
       
       # extract only absorbance data from file to exploit as a tibble
       plate_abs <- 
-        read_tsv(file, col_names = TRUE, skip = 5, show_col_types = FALSE) |> 
+        read_tsv(file, col_names = TRUE, skip = 5, show_col_types = FALSE, name_repair = "unique_quiet") |> 
         rename(row = `...1`)
       # add it as element i of the list
       abs_data_list[[i]] <- plate_abs
       names(abs_data_list)[i] <- plate_id
     
-    
+    ?read_tsv
     
       if (import_metadata) {
         
@@ -203,13 +203,11 @@ import_data_plate <- function(
       
     } # end of per plate (file) loop
     
-    abs_result <- list(plate_metadata, abs_data_list, abs_longer)
-    names(abs_result) <- c("plate_metadata", "abs_data_list", "abs_data_df")
     
   } # end of case for txt file
   
-  
-  
+  abs_result <- list(plate_metadata, abs_data_list, abs_longer)
+  names(abs_result) <- c("plate_metadata", "abs_data_list", "abs_data_df")
   
   return(abs_result)
 }
