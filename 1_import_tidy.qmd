@@ -15,25 +15,7 @@ output: true
 
 # To Do
 
--   There is no input needed from the user –\> turn this into a big function that takes as argument
-
-    -   list of lists
-
-        -   first level list = for one data set: path of file for
-
-            -   abs data
-
-                -   if contain csv –\> csv function
-
-                -   else —\> txt function
-
-            -   metadata
-
-            -   plate data
-
-        -   second level list = several data sets, each named with name of data set
-
-    -   asks where to output and how to name it
+-   [**!! SOLVE ISSUE: MAPS HAVE ONE LESS PLATE THAN ABS DATA !!!**]{.underline}
 
     -   
 
@@ -72,94 +54,114 @@ library(tidyverse)
 library(janitor) # for row_to_names()
 
 # load functions
-source("functions/import_abs_txt.R")
-source("functions/import_abs_csv.R")
+source("functions/import_abs_txt.R") # see if can be deleted eventually
+source("functions/import_abs_csv.R") # see if can be deleted eventually
 source("functions/join_maps_abs.R")
+source("functions/import_data_plate.R")
 
 ```
 
-# 1 - Import Nmin data (t1, t2, t3)
+# 1 - Import data that is in a plate format
 
-The Nmin absorbance data is in the "raw" format of a txt file as it comes directly from the spectrophotometer
+This takes advantage of a home-made import function that transforms raw data in a plate format into a verticalized format. It takes as input 3 possible formats: tibble, txt or csv.
 
-Here we use the import functions to get txt-based data and csv-based data stored in variables. Because the data set is partly in txt (t1, t2, absorbance data), and partly in csv format (t1, t2 maps + t3 absorbance data and maps), we need to go through import steps separately.
+The tibble option is useful if the original file is not formatted as in the default structure. Then you can previously import the data, reformat it, then run it through the function to take advantage of its verticalization.
+
+The `import_data_plate()` function returns a list, with the first element named `abs_data_df`, containing the verticalized data.
+
+## 1.1 - First, raw absorbance data
 
 ```{r}
-#| warning: false
 
-#** !! Now turned off warnings --> but should check why it gives such a message and if can really be ignored... !! *
+# Nmin for t1 and t2
+Nmin_abs <- import_data_plate(format_abs = "txt", filepath = "raw_data/Nmin/")
+# have a look
+Nmin_abs$abs_data_df
 
-# set file path for data in .TXT format (t1, t2)
-filepath <- "raw_data/Nmin/"
+# Nmin for t3
+Nmint3_abs <- import_data_plate(
+  format_abs = "csv", filepath = "raw_data/Nmin_t3/", filename_csv = "Nmint3_data.csv")
 
-# import csv for data in csv format (t3)
-csv_file <- read_csv("raw_data/Nmin_t3/Nmint3_data.csv", col_names = FALSE)
-csv_file_TDN <- read_csv("raw_data/TDN/TDN_data.csv", col_names = FALSE)
-
-# import & shape data
-# from .txt format
-Nmin_t1t2_abs <- import_abs_txt(filepath)
-
-# from .csv format
-Nmin_t3_abs <- import_abs_csv(csv_file)
-Nmin_TDN <- import_abs_csv(csv_file_TDN)
+# TDN
+TDN_abs <- import_data_plate(
+  format_abs = "csv", filepath = "raw_data/TDN/", filename_csv = "TDN_data.csv"
+)
 
 
-# look at structure of data frames
-Nmin_t1t2_abs$abs_data_df 
-Nmin_t3_abs$abs_data_df
-Nmin_TDN$abs_data_df
 ```
 
-Now that all data is in the same format, we can regroup data in two general data frames: one for the absorbance data, one for the "maps" data.
+## 1.2 - Then, plate maps
+
+Here, we need to use the tibble option as a format for the TDN data set because the csv file for plate maps doesn't respect the default structure.
 
 ```{r}
-# join data frames --> this only works with 2 datavframes, unless you nested --> next bit for more elegant way
-Nmin_all_abs <- left_join(
-  Nmin_t1t2_abs$abs_data_df, 
-  Nmin_t3_abs$abs_data_df)
-Nmin_all_abs
 
-list_data <- list(Nmin_t1t2_abs$abs_data_df, 
-  Nmin_t3_abs$abs_data_df, 
-  Nmin_TDN$abs_data_df)
+# Nmin for t1 and t2
+Nmin_maps <- import_data_plate(
+  format_abs = "csv", filepath = "raw_data/Nmin/", filename_csv = "Nmin_maps.csv")
+# have a look
+Nmin_maps$abs_data_df
 
-Nmin_all_abs <- plyr::join_all(list_data) |> as_tibble()
-Nmin_all_abs 
+# Nmin for t3
+Nmint3_maps <- import_data_plate(
+  format_abs = "csv", filepath = "raw_data/Nmin_t3/", filename_csv = "Nmint3_maps.csv")
 
-# look at plate maps
-# for Nmin t3
-maps_t3_file <- read_csv("raw_data/Nmin_t3/Nmint3_maps.csv", col_names = FALSE)
-Nmin_t3_maps <- import_abs_csv(maps_t3_file)
-Nmin_t3_maps$abs_data_df 
-
-# For Nmin t1 and t2
-maps_t1t1_file <- read_csv("raw_data/Nmin/Nmin_maps.csv", col_names = FALSE) 
-Nmin_t1t1_maps <- import_abs_csv(maps_t1t1_file)
-Nmin_t1t1_maps$abs_data_df
-
-# For TDN
-maps_tdn_file <- 
-  read_csv("raw_data/TDN/TDN_maps.csv", col_names = FALSE,col_select = X14:X26) |> 
+# TDN
+TDN_file <- read_csv("raw_data/TDN/TDN_maps.csv", col_names = FALSE,col_select = X14:X26) |> 
   na.omit() |> 
   rename(X1 = X14)
-TDN_maps <- import_abs_csv(maps_tdn_file)
+TDN_maps <- import_data_plate(format_abs = "tibble", tibble = TDN_file)
+```
 
-# join both data frames
-Nmin_all_maps <- left_join(Nmin_t1t1_maps$abs_data_df, Nmin_t3_maps$abs_data_df)
+## 1.3 - Option: join data sets
 
+It can be relevant to join data sets, or to keep them separate to export them. I personally like joining data sets, and filter subsets when needed, so that I reduce the number of saved files. Whichever, up to the user.
+
+2 Options. The first works only with 2 data frames. The second works with multiple data frames.
+
+```{r}
+# firts option, only 2 data frames (possible to nest)
+N_all_abs <- left_join(
+  Nmin_abs$abs_data_df, 
+  Nmint3_abs$abs_data_df)
+N_all_abs
+
+# Second option, multiple data frames. 
+## First create a list
+list_data <- list(Nmin_abs$abs_data_df, 
+  Nmint3_abs$abs_data_df, 
+  TDN_abs$abs_data_df)
+
+## Then join from the list
+N_all_abs <- plyr::join_all(list_data) |> as_tibble()
+N_all_abs 
+```
+
+Proceed the same way for maps
+
+[**!! SOLVE ISSUE: MAPS HAVE ONE LESS PLATE THAN ABS DATA !!!**]{.underline}
+
+```{r}
 # same for more than 2:
 list_maps <- list(
-  Nmin_t1t1_maps$abs_data_df,
-  Nmin_t3_maps$abs_data_df,
+  Nmin_maps$abs_data_df,
+  Nmint3_maps$abs_data_df,
   TDN_maps$abs_data_df
 )
 
-Nmin_all_maps <- plyr::join_all(list_maps) |> as_tibble()
-Nmin_all_maps
+N_all_maps <- plyr::join_all(list_maps) |> as_tibble()
+N_all_maps
 ```
 
-So now we have those 2 data frames that have strictly the same structure, with `r nrow(Nmin_all_maps)` rows and `r ncol(Nmin_all_maps)` columns, with 2 columns attributed to the well identifier ("row" and "column"), and the remaining `r ncol(Nmin_all_maps) - 2` columns representing the 96-well plates.
+So now we have those 2 data frames that have strictly the same structure, with `r nrow(N_all_maps)` rows and `r ncol(N_all_maps)` columns, with 2 columns attributed to the well identifier ("row" and "column"), and the remaining `r ncol(N_all_maps) - 2` columns representing the 96-well plates.
+
+# 2 - Import plate metadata
+
+This step is to import plate metadata, so data on a per-plate basis.
+
+# 
+
+# °°° !!! START HERE !!! °°°
 
 ## 1.1 - Plate metadata
 
