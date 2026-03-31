@@ -21,7 +21,7 @@ output: true
 
 # To Do
 
--   [**!!! FIND OUT WHY THERE ARE 2 STD CURVES PER PLATE. THIS SHOULD NOT BE THE CASE FOR TDN !!!**]{.underline}
+-   [**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**]{.underline}
 -   Improve visualization for multiple plots –\> make a loop to produce several pages?
 -   improve rendering of @lst-qc4
     -   have the table(s) called in successive chunks with labels –\> can call them in comments above
@@ -115,6 +115,8 @@ The ideal range for absorbance readings (Beer-Lambert in linear range of relatio
 
 The following chunk filters out only rows where absorbance is out of range, and returns either a warning (when there are out-of-range values) or a happy message (when there are none). In case of a warning, it also shares the table with suspicious wells, so that the user can take an informed decision.
 
+The min and max need to be adapted also because some manips may allow more open numbers or protocol testing would not want to exclude them...
+
 ::: callout-tip
 ## To be thought through
 
@@ -133,8 +135,7 @@ If wells are out of range of "acceptable" absorbance values, you'll get a warnin
 #| lst-label: lst-qc1-initial-range
 #| lst-cap: "Here you can play around with the range of `acceptable` absorbance values"
 qc1_initial_range_abs(
-  N_all_plate, min_abs = 0.03, max_abs = 1.1, 
-  correct_1000_factor = TRUE)
+  N_all_plate, min_abs = 0.03, max_abs = 2.5)
 
 #> ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
 #out_of_range <- Nmin_full |> filter(row_number() %in% suspicious_rows) 
@@ -177,8 +178,6 @@ With this information, for example, we can exclude wells where the first row sho
 Once we disregard those suspicious wells, we can compute the average blanc values.
 
 First, we check that we indeed have 2 columns with std curve on every plate
-
-[**!!! FIND OUT WHY THERE ARE 2 STD CURVES PER PLATE. THIS SHOULD NOT BE THE CASE FOR TDN !!!**]{.underline}
 
 ```{r}
 
@@ -268,6 +267,8 @@ In the following chunk, you need to input threshold values as a vector with one 
 
 **!! In case you want to exclude lower values only, then just change the `>` into `<`. But if you want to exclude some upper values, and some lower values, consider updating the code.**
 
+[**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**]{.underline}
+
 ```{r}
 #| lst-label: lst-cut-threshold-extractant
 #| lst-cap: "Set up threshold and remove outlier wells for absorbance of extractant"
@@ -278,7 +279,11 @@ In the following chunk, you need to input threshold values as a vector with one 
 # suspicious_plates
 
 # Or manual input
-cut_threshold <- c(0.040, 0.041, 0.039, 0.038, 0.038, 0.041, 0.042, 0.072, 0.09, 0.09)
+cut_threshold <- c(
+  0.040, 0.041, 0.039, 0.038, 
+  0.038, 0.041, 0.042, 0.037,
+  0.072, 0.09, 0.09, 1.00,
+  2.00, 1.00, 1.00, 0.08)
 
 
 QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
@@ -324,7 +329,7 @@ Then, it will look for curves that are not monotonous, i.e., not strictly increa
 #| label: fig-unsorted-curves
 #| fig-cap: "Non-monotonous curves - helps to identify potential outliers"
 
-QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_metadata)
+QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = N_all_metadata)
 
 #** Same principle as above: visually identify obvious outliers, and list them in the vector below. !! Only works for one well per plate for now. If several --> work iteratively or update code *
 
@@ -375,7 +380,7 @@ std_tidy <- std_corrected |>
   filter(unique_well_id %ni% outlier_curves$unique_well_id)
 
 # Run it once more, approve of wells... evtl re-run previous bit
-QC7.2 <- qc7_std_find_outlier(std_corrected = std_tidy, metadata = Nmin_metadata)
+QC7.2 <- qc7_std_find_outlier(std_corrected = std_tidy, metadata = N_all_metadata)
 
 # Look at plos and decide if happy
 QC7.2$multiplot + plot_annotation(subtitle = "2nd iteration, outliers removed. Curves satisfactory now")
@@ -388,11 +393,11 @@ At this stage, we should be satisfied with the curves.
 
 We can visualize all curves for a given N species, to have an idea of inter-curve variability.
 
-The next chunk works, but it produces a very difficult to read plot with multiple panels (`r nrow(Nmin_metadata)` actually).
+The next chunk works, but it produces a very difficult to read plot with multiple panels (`r nrow(N_all_metadata)` actually).
 
 ```{r}
 
-plot_qc_std_multiple(metadata = Nmin_metadata, std_data = std_tidy)
+plot_qc_std_multiple(metadata = N_all_metadata, std_data = std_tidy)
 
 ```
 
@@ -414,7 +419,7 @@ names(color_time) <- c("t1", "t2", "t3")
 
 plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NH4"),
-  metadata = Nmin_metadata |> filter(std_sp == "NH4"),
+  metadata = N_all_metadata |> filter(std_sp == "NH4"),
   color_time = color_time,
   pipetting_direction = "top_down")
 
@@ -427,7 +432,7 @@ plot_qc_std_all(
 
 plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NO2"),
-  metadata = Nmin_metadata |> filter(std_sp == "NO2"),
+  metadata = N_all_metadata |> filter(std_sp == "NO2"),
   color_time = color_time,
   pipetting_direction = "top_down")
 ```
@@ -439,7 +444,7 @@ plot_qc_std_all(
 
 plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NO3"),
-  metadata = Nmin_metadata |> filter(std_sp == "NO3"),
+  metadata = N_all_metadata |> filter(std_sp == "NO3"),
   color_time = color_time,
   pipetting_direction = "top_down")
 ```
@@ -452,9 +457,11 @@ The next chunk computes the regression on the data from the standard curve, to o
 
 std_reg <- std_regression(
   data = corrected_data, 
-  metadata = Nmin_metadata,
+  metadata = N_all_metadata,
   std_data = std_tidy,
   pipetting_direction = "top_down",
+  include_density = TRUE,
+  signif_p_val = 0.05,
   max_nb_plots = 9,
   save_pdf = TRUE, 
   filepath = "output/figures/QC/")
@@ -462,8 +469,12 @@ std_reg <- std_regression(
 # Here we have the simplified output of the linear model
 std_reg$lm_output
 
-# plots are saved as pdf. But just for illustration, let's look at one
+# plots of all regressions are saved as pdf. But just for illustration, let's look at one
 std_reg$multi_plots[[1]]
+
+# we can also see a density curve for the p-values
+std_reg$density_p_val + 
+  labs(title = "Density curve of p-values from all regression curves from all plates")
 
 ```
 
@@ -491,7 +502,7 @@ To finally convert these numbers from mg N /L into mg N / g dry soil, we need to
 
 data_transformed <- abs_to_mgN_L(
   data = corrected_data,
-  metadata = Nmin_metadata,
+  metadata = N_all_metadata,
   lm_output = std_reg$lm_output)
 
 # check out the first result

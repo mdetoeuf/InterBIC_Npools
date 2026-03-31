@@ -25,6 +25,8 @@ std_regression <- function(
   metadata,
   std_data,
   pipetting_direction = "top_down",
+  include_density = TRUE,
+  signif_p_val = 0.05,
   max_nb_plots = 16,
   save_pdf = TRUE,
   filenames = "QCreg_singles_page", # will save as this + a number: 1, 2, etc.
@@ -182,8 +184,22 @@ std_regression <- function(
     ))
   }
   
+  if (include_density) {
+  density_p_val <- lm_output |> 
+    ggplot(aes(x = -log(p_val_slope))) + 
+    theme_minimal() +
+   # geom_histogram() +
+    geom_density() +
+    geom_vline(aes(xintercept = -log(signif_p_val))) +
+    annotate(
+      geom = "label", label = paste0("p_val = ", signif_p_val),
+      x = -log(signif_p_val), y = -0.001 ) +
+    xlim(0,max(-log(lm_output$p_val_slope)))
+  } else {density_p_val <- NULL}
+  
   return(list(
     "lm_output" = lm_output,
-    "multi_plots" = multi_plots
+    "multi_plots" = multi_plots,
+    "density_p_val" = density_p_val
   ))
 }

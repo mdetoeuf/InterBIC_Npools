@@ -26,8 +26,7 @@ qc1_initial_range_abs <- function(
     data,
     min_abs = 0.03,
     max_abs = 1.1,
-    empty_wells = "empty",
-    correct_1000_factor = FALSE
+    empty_wells = "empty"
     ) {
   
   # remove empty wells, marked as "empty" --> keep only "full" wells

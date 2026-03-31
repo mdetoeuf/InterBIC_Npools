@@ -33,6 +33,8 @@
 
 # To Do
 
+- <u>**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO
+  UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**</u>
 - Improve visualization for multiple plots –\> make a loop to produce
   several pages?
 - improve rendering of
@@ -154,8 +156,11 @@ Listing 1: Load data (possibly generated in previous pipeline)
 
 ``` r
 # import tidy data and metadata
-Nmin_data <- read_rds("output/data/Nmin_tidy.rds")
-Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
+#Nmin_data <- read_rds("output/data/Nmin_tidy.rds")
+#Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
+
+N_all_plate <- read_rds("output/data/N_all_plate_tidy.rds")
+N_all_metadata <- read_rds("output/data/N_all_metadata.rds")
 ```
 
 </details>
@@ -176,6 +181,9 @@ range, and returns either a warning (when there are out-of-range values)
 or a happy message (when there are none). In case of a warning, it also
 shares the table with suspicious wells, so that the user can take an
 informed decision.
+
+The min and max need to be adapted also because some manips may allow
+more open numbers or protocol testing would not want to exclude them…
 
 > [!TIP]
 >
@@ -204,14 +212,32 @@ absorbance values
 <summary>Code</summary>
 
 ``` r
-qc1_initial_range_abs(Nmin_data, min_abs = 0.03, max_abs = 1.1)
+qc1_initial_range_abs(
+  N_all_plate, min_abs = 0.03, max_abs = 2.5)
 ```
 
 </details>
 
 </div>
 
-    °^° !! YAY !! °^° All wells are in range for absorbance between 0.03 and 1.1
+    Warning in qc1_initial_range_abs(N_all_plate, min_abs = 0.03, max_abs = 2.5): Some wells are out of range for absorbance, i.e., not in [0.03; 2.5] allowed 
+    See table to identify suspicious wells. 
+
+    # A tibble: 31 × 9
+       row   column well_id unique_well_id N_sp  plate_id   plate_map absorbance
+       <chr>  <dbl> <chr>   <chr>          <chr> <chr>      <chr>          <dbl>
+     1 H          1 H1      NO3_TDN_09_H1  NO3   NO3_TDN_09 Std             2.94
+     2 H          1 H1      NO3_TDN_10_H1  NO3   NO3_TDN_10 Std             2.80
+     3 H          1 H1      NO3_TDN_11_H1  NO3   NO3_TDN_11 Std             2.79
+     4 H          1 H1      NO3_TDN_12_H1  NO3   NO3_TDN_12 Std             2.86
+     5 H          1 H1      NO3_TDN_13_H1  NO3   NO3_TDN_13 Std             2.74
+     6 H          1 H1      NO3_TDN_14_H1  NO3   NO3_TDN_14 Std             2.75
+     7 H          1 H1      NO3_TDN_15_H1  NO3   NO3_TDN_15 Std             2.62
+     8 H          1 H1      NO3_TDN_16_H1  NO3   NO3_TDN_16 Std             2.71
+     9 G          1 G1      NO3_TDN_17_G1  NO3   NO3_TDN_17 Std             2.65
+    10 H          1 H1      NO3_TDN_17_H1  NO3   NO3_TDN_17 Std             3.61
+    # ℹ 21 more rows
+    # ℹ 1 more variable: dataset <chr>
 
 <div id="lst-qc1-initial-range">
 
@@ -239,11 +265,14 @@ absorbance values
 <summary>Code</summary>
 
 ``` r
-qc2_plot_range_abs(Nmin_data) +
+qc2_plot_range_abs(N_all_plate) +
   labs(subtitle = "Many low values, especially for NH4+ and NO2-")
 ```
 
 </details>
+
+    Warning: Removed 30 rows containing non-finite outside the scale range
+    (`stat_bin()`).
 
 <div id="fig-plot_QC_wells">
 
@@ -320,12 +349,10 @@ plate
 
 ``` r
 # check that we have 2 columns with Std per plate --> option to remove suspicious blancs
-qc3_nb_curve_per_plate(Nmin_data, nb_std = 2)
+qc3_nb_curve_per_plate(N_all_plate, nb_std = 2)
 ```
 
 </details>
-
-    !! YAY !! There is/are indeed on average exactly 2 standard curves per plate. It is very likely that there are exactly 2 curves per plate. To be sure, check the distribution of number of standard curves per plate. If there is only 1 value at 2, then it is confirmed.
 
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-3-1.png)
 
@@ -340,18 +367,18 @@ Listing 4: QC 4 - Variation of Standard blanc
 <summary>Code</summary>
 
 ``` r
-QC4 <- qc4_std_blanc_variation(Nmin_data, nb_std = 2)
+QC4 <- qc4_std_blanc_variation(N_all_plate, nb_std = 2)
 ```
 
 </details>
 
 </div>
 
-    Warning in qc4_std_blanc_variation(Nmin_data, nb_std = 2): There are 270 standard curves in this data set, thus in theory also 270 wells containing the blanc for those curves. 
-    Of those 270, 4 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  
-    We are thus a priori trusting 266 wells out of 270.
+    Warning in qc4_std_blanc_variation(N_all_plate, nb_std = 2): There are 386 standard curves in this data set, thus in theory also 386 wells containing the blanc for those curves. 
+    Of those 386, 62 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  
+    We are thus a priori trusting 324 wells out of 386.
 
-    Warning in qc4_std_blanc_variation(Nmin_data, nb_std = 2): Even after removal of untrusted wells, there are plates showing a big variation in absorbance values for the blanc of the standard curve (more than 5%).
+    Warning in qc4_std_blanc_variation(N_all_plate, nb_std = 2): Even after removal of untrusted wells, there are plates showing a big variation in absorbance values for the blanc of the standard curve (more than 5%).
     Pick the most likely values / remove outliers manually.
     See table to judge on values and find suspicious wells
 
@@ -370,7 +397,7 @@ lapply(QC4, print)
 
 </div>
 
-    [1] "There are 270 standard curves in this data set, thus in theory also 270 wells containing the blanc for those curves. \nOf those 270, 4 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  \nWe are thus a priori trusting 266 wells out of 270."
+    [1] "There are 386 standard curves in this data set, thus in theory also 386 wells containing the blanc for those curves. \nOf those 386, 62 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  \nWe are thus a priori trusting 324 wells out of 386."
     [1] "Even after removal of untrusted wells, there are plates showing a big variation in absorbance values for the blanc of the standard curve (more than 5%).\nPick the most likely values / remove outliers manually.\nSee table to judge on values and find suspicious wells"
 
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-4-1.png)
@@ -378,7 +405,7 @@ lapply(QC4, print)
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-4-2.png)
 
     $untrusted_msg
-    [1] "There are 270 standard curves in this data set, thus in theory also 270 wells containing the blanc for those curves. \nOf those 270, 4 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  \nWe are thus a priori trusting 266 wells out of 270."
+    [1] "There are 386 standard curves in this data set, thus in theory also 386 wells containing the blanc for those curves. \nOf those 386, 62 are untrusted (see comments in the function definition for details on untrusted wells). Try ?qc4_std_blanc_variation().  \nWe are thus a priori trusting 324 wells out of 386."
 
     $outlier_warning
     [1] "Even after removal of untrusted wells, there are plates showing a big variation in absorbance values for the blanc of the standard curve (more than 5%).\nPick the most likely values / remove outliers manually.\nSee table to judge on values and find suspicious wells"
@@ -427,7 +454,7 @@ curves.
 <summary>Code</summary>
 
 ``` r
-std_corrected <- correct_abs_std(Nmin_data)
+std_corrected <- correct_abs_std(N_all_plate)
 ```
 
 </details>
@@ -466,7 +493,7 @@ variation for the absorbance of extractant (blanc)
 
 ``` r
 #** Look at this (and the next chunk) iteratively a couple of times to decide where to put the threshold. *
-  QC5 <- qc5_extr_blanc_variation(Nmin_data,max_coeff = 3)
+  QC5 <- qc5_extr_blanc_variation(N_all_plate,max_coeff = 3)
 ```
 
 </details>
@@ -476,7 +503,7 @@ variation for the absorbance of extractant (blanc)
     `summarise()` has grouped output by 'plate_id'. You can override using the
     `.groups` argument.
 
-    Warning in qc5_extr_blanc_variation(Nmin_data, max_coeff = 3): There is a big variation in absorbance values for the blanc  (more than 3%).
+    Warning in qc5_extr_blanc_variation(N_all_plate, max_coeff = 3): There is a big variation in absorbance values for the blanc  (more than 3%).
     Remove the most unlikely values / remove outliers manually.
     See table above to judge on values. 
     Suspicious plates are stored in vector called suspicious_plate_id
@@ -497,6 +524,9 @@ variation for the absorbance of extractant (blanc)
 </details>
 
 </div>
+
+    Warning: Removed 2 rows containing non-finite outside the scale range
+    (`stat_bin()`).
 
 <div id="fig-hist-extr-coeff-var">
 
@@ -520,6 +550,12 @@ QC5$multiple_plot
 
 </details>
 
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
@@ -581,6 +617,9 @@ threshold value).
 `>` into `<`. But if you want to exclude some upper values, and some
 lower values, consider updating the code.**
 
+<u>**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO
+UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**</u>
+
 <div id="lst-cut-threshold-extractant">
 
 Listing 9: Set up threshold and remove outlier wells for absorbance of
@@ -596,7 +635,11 @@ extractant
 # suspicious_plates
 
 # Or manual input
-cut_threshold <- c(0.040, 0.041, 0.039, 0.038, 0.038, 0.041, 0.042, 0.072, 0.09, 0.09)
+cut_threshold <- c(
+  0.040, 0.041, 0.039, 0.038, 
+  0.038, 0.041, 0.042, 0.037,
+  0.072, 0.09, 0.09, 1.00,
+  2.00, 1.00, 1.00, 0.08)
 
 
 QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
@@ -606,8 +649,8 @@ QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
 
 </div>
 
-    Warning in qc6_extr_trusted(QC5, cut_threshold = cut_threshold): From 1272 wells in total for extractant, 11 have been removed because their absorbance value appeared to be an outlier from a within-plate perspective. 
-    This amounts to a removal of 0.9% of extractant wells based on an intervention tolerance threshold of 3% for the intra-plate coefficient of variation
+    Warning in qc6_extr_trusted(QC5, cut_threshold = cut_threshold): From 1756 wells in total for extractant, 13 have been removed because their absorbance value appeared to be an outlier from a within-plate perspective. 
+    This amounts to a removal of 0.7% of extractant wells based on an intervention tolerance threshold of 3% for the intra-plate coefficient of variation
 
 Now we can use the list of untrusted wells to filter them out of the
 extractant data, and look at the improved distribution of intra-plate
@@ -622,6 +665,9 @@ QC6$extr_distrib_coeff +
 ```
 
 </details>
+
+    Warning: Removed 2 rows containing non-finite outside the scale range
+    (`stat_bin()`).
 
 <div id="fig-distrib-variation-extr-improved">
 
@@ -639,7 +685,7 @@ per plate per “blanc”, we can correct sample absorbance values.
 <summary>Code</summary>
 
 ``` r
-corrected_data <- correct_abs_samples(Nmin_data, QC6 = QC6)
+corrected_data <- correct_abs_samples(N_all_plate, QC6 = QC6)
 ```
 
 </details>
@@ -673,7 +719,7 @@ non-monotony can be spotted on the plots in
 <summary>Code</summary>
 
 ``` r
-QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = Nmin_metadata)
+QC7.1 <- qc7_std_find_outlier(std_corrected = std_corrected, metadata = N_all_metadata)
 ```
 
 </details>
@@ -761,7 +807,7 @@ std_tidy <- std_corrected |>
   filter(unique_well_id %ni% outlier_curves$unique_well_id)
 
 # Run it once more, approve of wells... evtl re-run previous bit
-QC7.2 <- qc7_std_find_outlier(std_corrected = std_tidy, metadata = Nmin_metadata)
+QC7.2 <- qc7_std_find_outlier(std_corrected = std_tidy, metadata = N_all_metadata)
 ```
 
 </details>
@@ -799,13 +845,13 @@ We can visualize all curves for a given N species, to have an idea of
 inter-curve variability.
 
 The next chunk works, but it produces a very difficult to read plot with
-multiple panels (135 actually).
+multiple panels (193 actually).
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-plot_qc_std_multiple(metadata = Nmin_metadata, std_data = std_tidy)
+plot_qc_std_multiple(metadata = N_all_metadata, std_data = std_tidy)
 ```
 
 </details>
@@ -840,7 +886,7 @@ names(color_time) <- c("t1", "t2", "t3")
 
 plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NH4"),
-  metadata = Nmin_metadata |> filter(std_sp == "NH4"),
+  metadata = N_all_metadata |> filter(std_sp == "NH4"),
   color_time = color_time,
   pipetting_direction = "top_down")
 ```
@@ -863,7 +909,7 @@ increasing incubation time or concentrations: absorbance is very low
 ``` r
 plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NO2"),
-  metadata = Nmin_metadata |> filter(std_sp == "NO2"),
+  metadata = N_all_metadata |> filter(std_sp == "NO2"),
   color_time = color_time,
   pipetting_direction = "top_down")
 ```
@@ -886,7 +932,7 @@ incubation time or concentrations: absorbance is very low
 ``` r
 plot_qc_std_all(
   data = std_tidy |> filter(N_sp == "NO3"),
-  metadata = Nmin_metadata |> filter(std_sp == "NO3"),
+  metadata = N_all_metadata |> filter(std_sp == "NO3"),
   color_time = color_time,
   pipetting_direction = "top_down")
 ```
@@ -920,9 +966,11 @@ default).
 ``` r
 std_reg <- std_regression(
   data = corrected_data, 
-  metadata = Nmin_metadata,
+  metadata = N_all_metadata,
   std_data = std_tidy,
   pipetting_direction = "top_down",
+  include_density = TRUE,
+  signif_p_val = 0.05,
   max_nb_plots = 9,
   save_pdf = TRUE, 
   filepath = "output/figures/QC/")
@@ -943,7 +991,7 @@ std_reg$lm_output
 
 </details>
 
-    # A tibble: 135 × 4
+    # A tibble: 193 × 4
        plate_id  slope p_val_slope r_squared_mult
        <chr>     <dbl>       <dbl>          <dbl>
      1 NH4_1F1     123    4.93e-16          0.994
@@ -956,19 +1004,32 @@ std_reg$lm_output
      8 NH4_1G2     162    4.73e-18          0.998
      9 NH4_1G3     149    9.35e-20          0.999
     10 NH4_1G4     154    1.4 e-15          0.993
-    # ℹ 125 more rows
+    # ℹ 183 more rows
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-# plots are saved as pdf. But just for illustration, let's look at one
+# plots of all regressions are saved as pdf. But just for illustration, let's look at one
 std_reg$multi_plots[[1]]
 ```
 
 </details>
 
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-10-1.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# we can also see a density curve for the p-values
+std_reg$density_p_val + 
+  labs(title = "Density curve of p-values from all regression curves from all plates")
+```
+
+</details>
+
+![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-10-2.png)
 
 ## 4.3 - Compute concentrations in N species
 
@@ -1015,7 +1076,7 @@ variations in NO3.
 ``` r
 data_transformed <- abs_to_mgN_L(
   data = corrected_data,
-  metadata = Nmin_metadata,
+  metadata = N_all_metadata,
   lm_output = std_reg$lm_output)
 
 # check out the first result
@@ -1024,8 +1085,8 @@ data_transformed$data
 
 </details>
 
-    # A tibble: 4,868 × 11
-    # Groups:   plate_id [135]
+    # A tibble: 9,555 × 12
+    # Groups:   plate_id [193]
        plate_id extr_avg well_id abs_corrected row   column unique_well_id N_sp 
        <chr>       <dbl> <chr>           <dbl> <chr>  <dbl> <chr>          <chr>
      1 NH4_1F1     0.039 A2            0.007   A          2 NH4_1F1_A2     NH4  
@@ -1038,8 +1099,9 @@ data_transformed$data
      8 NH4_1F1     0.039 H2            0.00300 H          2 NH4_1F1_H2     NH4  
      9 NH4_1F1     0.039 A3            0.01    A          3 NH4_1F1_A3     NH4  
     10 NH4_1F1     0.039 B3            0.009   B          3 NH4_1F1_B3     NH4  
-    # ℹ 4,858 more rows
-    # ℹ 3 more variables: plate_map <chr>, conc_mgNsp_L <dbl>, conc_N_L <dbl>
+    # ℹ 9,545 more rows
+    # ℹ 4 more variables: plate_map <chr>, dataset <chr>, conc_mgNsp_L <dbl>,
+    #   conc_N_L <dbl>
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1062,6 +1124,9 @@ data_transformed$boxplot
 
 </details>
 
+    Warning: Removed 54 rows containing non-finite outside the scale range
+    (`stat_boxplot()`).
+
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-12-1.png)
 
 <details class="code-fold">
@@ -1075,6 +1140,9 @@ data_transformed$density
 ```
 
 </details>
+
+    Warning: Removed 54 rows containing non-finite outside the scale range
+    (`stat_density()`).
 
 ![](2_absorbance_pipeline_files/figure-commonmark/unnamed-chunk-13-1.png)
 
@@ -1113,26 +1181,44 @@ We could find a way to fuse it probably…
       names_prefix = "conc_N_L"
       
     )
+```
+
+</details>
+
+    Warning: Values from `conc_N_L` are not uniquely identified; output will contain
+    list-cols.
+    • Use `values_fn = list` to suppress this warning.
+    • Use `values_fn = {summary_fun}` to summarise duplicates.
+    • Use the following dplyr code to identify duplicates.
+      {data} |>
+      dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map,
+      rep_tech)) |>
+      dplyr::filter(n > 1L)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
 data_export
 ```
 
 </details>
 
-    # A tibble: 1,217 × 7
-    # Groups:   plate_id [135]
+    # A tibble: 2,357 × 7
+    # Groups:   plate_id [193]
        plate_id N_sp  plate_map conc_N_Lrt1 conc_N_Lrt2 conc_N_Lrt3 conc_N_Lrt4
-       <chr>    <chr> <chr>           <dbl>       <dbl>       <dbl>       <dbl>
-     1 NH4_1F1  NH4   81_t1_z2       0.334       0.334       0.287       0.764 
-     2 NH4_1F1  NH4   89_t1_z1       0.0955      0.191       0.143       0.143 
-     3 NH4_1F1  NH4   82_t1_z2       0.478       0.430       0.478       0.430 
-     4 NH4_1F1  NH4   90_t1_z2       0.143       0.143       0.143       0.143 
-     5 NH4_1F1  NH4   83_t1_z2       0.143       0.143       0.143       0.143 
-     6 NH4_1F1  NH4   91_t1_z2       0.0955      0.239       0.0955      0.0955
-     7 NH4_1F1  NH4   84_t1_z1       0.143       0.143       0.0955      0.143 
-     8 NH4_1F1  NH4   92_t1_z3       0.0955      0.0955      0.0955      0.143 
-     9 NH4_1F1  NH4   85_t1_z1       0.0955      0.0955      0.0478      0.0955
-    10 NH4_1F1  NH4   93_t1_z1       0.334       0.287       0.287       0.287 
-    # ℹ 1,207 more rows
+       <chr>    <chr> <chr>     <list>      <list>      <list>      <list>     
+     1 NH4_1F1  NH4   81_t1_z2  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     2 NH4_1F1  NH4   89_t1_z1  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     3 NH4_1F1  NH4   82_t1_z2  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     4 NH4_1F1  NH4   90_t1_z2  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     5 NH4_1F1  NH4   83_t1_z2  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     6 NH4_1F1  NH4   91_t1_z2  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     7 NH4_1F1  NH4   84_t1_z1  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     8 NH4_1F1  NH4   92_t1_z3  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+     9 NH4_1F1  NH4   85_t1_z1  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+    10 NH4_1F1  NH4   93_t1_z1  <dbl [1]>   <dbl [1]>   <dbl [1]>   <dbl [1]>  
+    # ℹ 2,347 more rows
 
 # 5 - Export
 
