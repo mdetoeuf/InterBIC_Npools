@@ -15,10 +15,6 @@ output: true
 
 # To Do
 
--   [**!! SOLVE ISSUE: MAPS HAVE ONE LESS PLATE THAN ABS DATA !!!**]{.underline}
-
-    -   
-
 -   For TDN: !! [**If we do the NO2**]{.underline}, then need to deal with the fact that in plate NO2_TDN_18, there is another blanc for some samples (KCl 1M), but that is only in 4 wells...
 
 # Intro
@@ -111,6 +107,8 @@ TDN_file <- read_csv("raw_data/TDN/TDN_maps.csv", col_names = FALSE,col_select =
   na.omit() |> 
   rename(X1 = X14)
 TDN_maps <- import_data_plate(format_abs = "tibble", tibble = TDN_file)
+
+
 ```
 
 ## 1.3 - Option: join data sets
