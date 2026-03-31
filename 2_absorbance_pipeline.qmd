@@ -21,6 +21,7 @@ output: true
 
 # To Do
 
+-   [**!!! FIND OUT WHY THERE ARE 2 STD CURVES PER PLATE. THIS SHOULD NOT BE THE CASE FOR TDN !!!**]{.underline}
 -   Improve visualization for multiple plots –\> make a loop to produce several pages?
 -   improve rendering of @lst-qc4
     -   have the table(s) called in successive chunks with labels –\> can call them in comments above
@@ -100,9 +101,14 @@ The paths in the next chunk should be replaced by your own data, possibly genera
 #| lst-cap: "Load data (possibly generated in previous pipeline)"
 
 # import tidy data and metadata
-Nmin_data <- read_rds("output/data/Nmin_tidy.rds")
-Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
+#Nmin_data <- read_rds("output/data/Nmin_tidy.rds")
+#Nmin_metadata <- read_rds("output/data/Nmin_metadata.rds")
 
+N_all_plate <- read_rds("output/data/N_all_plate_tidy.rds")
+N_all_metadata <- read_rds("output/data/N_all_metadata.rds")
+
+N_all_plate |> filter(dataset == "TDN")
+?select
 ```
 
 # 2 - preliminary QC : suspicious wells
@@ -128,7 +134,7 @@ If wells are out of range of "acceptable" absorbance values, you'll get a warnin
 ```{r}
 #| lst-label: lst-qc1-initial-range
 #| lst-cap: "Here you can play around with the range of `acceptable` absorbance values"
-qc1_initial_range_abs(Nmin_data, min_abs = 0.03, max_abs = 1.1)
+qc1_initial_range_abs(N_all_plate, min_abs = 0.03, max_abs = 1.1)
 
 #> ok with a threshold min of 0.03, but more than 4000 when threshold of 0.05
 #out_of_range <- Nmin_full |> filter(row_number() %in% suspicious_rows) 
@@ -144,7 +150,7 @@ qc1_initial_range_abs(Nmin_data, min_abs = 0.03, max_abs = 1.1)
 #| fig-cap: "QC of Suspicious wells - Distribution of raw absorbance per N species"
 #| fig-subcap: "This figures shows raw numbers of uncorrected absorbance (no blanc correction). It contains all values, including values of blanc wells and values of the standard curve. Low values are expected for NO2-, less so for NH4+"
 
-qc2_plot_range_abs(Nmin_data) +
+qc2_plot_range_abs(N_all_plate) +
   labs(subtitle = "Many low values, especially for NH4+ and NO2-")
 ```
 
@@ -172,10 +178,12 @@ Once we disregard those suspicious wells, we can compute the average blanc value
 
 First, we check that we indeed have 2 columns with std curve on every plate
 
+[**!!! FIND OUT WHY THERE ARE 2 STD CURVES PER PLATE. THIS SHOULD NOT BE THE CASE FOR TDN !!!**]{.underline}
+
 ```{r}
 
 # check that we have 2 columns with Std per plate --> option to remove suspicious blancs
-qc3_nb_curve_per_plate(Nmin_data, nb_std = 2)
+qc3_nb_curve_per_plate(N_all_plate, nb_std = 2)
 
 ```
 
@@ -185,7 +193,7 @@ Second, we can take a subset of `std_data` that contains only the rows with blan
 #| lst-label: lst-qc4
 #| lst-cap: "QC 4 - Variation of Standard blanc"
 
-QC4 <- qc4_std_blanc_variation(Nmin_data, nb_std = 2)
+QC4 <- qc4_std_blanc_variation(N_all_plate, nb_std = 2)
 lapply(QC4, print)
 
 
@@ -201,7 +209,7 @@ We can look at suspicious blancs in their full plate context to decide how bad t
 Now we can blanc-correct the absorbance values for the whole standard curves.
 
 ```{r}
-std_corrected <- correct_abs_std(Nmin_data)
+std_corrected <- correct_abs_std(N_all_plate)
 ```
 
 We could add those corrected values back into the main data table, but actually those numbers are only useful to compute the regression equation between corrected absorbance and concentration. For thematic clarity purpose, this will be done in a later section (to keep all work on blancs in one place). So we have now just save the output into the object `std_corrected` so we can get back to it later.
@@ -221,7 +229,7 @@ Looking at the distribution of the coefficient of variation per plate, it appear
 #| fig-cap: "Distribution of coefficient of variation of absorbance of extractant (blanc)"
 
 #** Look at this (and the next chunk) iteratively a couple of times to decide where to put the threshold. *
-  QC5 <- qc5_extr_blanc_variation(Nmin_data,max_coeff = 3)
+  QC5 <- qc5_extr_blanc_variation(N_all_plate,max_coeff = 3)
   
   QC5$distrib_coeff +
   labs(subtitle = "anything above 5% seems to be an outlier (even above 3%)")
@@ -291,7 +299,7 @@ Now that we have computed a trusted version of the average of absorbance per pla
 
 ```{r}
 
-corrected_data <- correct_abs_samples(Nmin_data, QC6 = QC6)
+corrected_data <- correct_abs_samples(N_all_plate, QC6 = QC6)
 
 
 ```

@@ -112,8 +112,8 @@ library(tidyverse)
 library(janitor) # for row_to_names()
 
 # load functions
-source("functions/import_abs_txt.R") # see if can be deleted eventually
-source("functions/import_abs_csv.R") # see if can be deleted eventually
+#source("functions/import_abs_txt.R") # see if can be deleted eventually
+#source("functions/import_abs_csv.R") # see if can be deleted eventually
 source("functions/join_maps_abs.R")
 source("functions/import_data_plate.R")
 ```
@@ -142,32 +142,51 @@ element named `abs_data_df`, containing the verticalized data.
 ``` r
 # Nmin for t1 and t2
 Nmin_abs <- import_data_plate(dataset = "Nmint1t2", format_abs = "txt", filepath = "raw_data/Nmin/")
+```
+
+</details>
+
+
+    Attaching package: 'roperators'
+
+    The following object is masked from 'package:tibble':
+
+        num
+
+    The following object is masked from 'package:ggplot2':
+
+        %+%
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
 # have a look
 Nmin_abs$abs_data_df
 ```
 
 </details>
 
-    # A tibble: 96 × 102
-       row   column dataset  NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5
-       <chr> <chr>  <chr>      <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>
-     1 A     1      Nmint1t2   0.039     0.039     0.039   0.038   0.039   0.039
-     2 A     2      Nmint1t2   0.046     0.042     0.042   0.042   0.046   0.062
-     3 A     3      Nmint1t2   0.049     0.041     0.041   0.042   0.041   0.042
-     4 A     4      Nmint1t2   0.042     0.041     0.041   0.042   0.042   0.04 
-     5 A     5      Nmint1t2   0.042     0.042     0.042   0.043   0.042   0.041
-     6 A     6      Nmint1t2   0.041     0.041     0.041   0.043   0.042   0.043
-     7 A     7      Nmint1t2   0.042     0.041     0.041   0.044   0.041   0.043
-     8 A     8      Nmint1t2   0.039     0.038     0.038   0.039   0.039   0.039
-     9 A     9      Nmint1t2   0.043     0.042     0.042   0.042   0.043   0.041
-    10 A     10     Nmint1t2   0.042     0.041     0.041   0.042   0.042   0.046
+    # A tibble: 96 × 101
+       row   column NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5 NH4_1G1
+       <chr> <chr>    <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>   <dbl>
+     1 A     1        0.039     0.039     0.039   0.038   0.039   0.039   0.039
+     2 A     2        0.046     0.042     0.042   0.042   0.046   0.062   0.04 
+     3 A     3        0.049     0.041     0.041   0.042   0.041   0.042   0.039
+     4 A     4        0.042     0.041     0.041   0.042   0.042   0.04    0.039
+     5 A     5        0.042     0.042     0.042   0.043   0.042   0.041   0.04 
+     6 A     6        0.041     0.041     0.041   0.043   0.042   0.043   0.041
+     7 A     7        0.042     0.041     0.041   0.044   0.041   0.043   0.04 
+     8 A     8        0.039     0.038     0.038   0.039   0.039   0.039   0.039
+     9 A     9        0.043     0.042     0.042   0.042   0.043   0.041   0.039
+    10 A     10       0.042     0.041     0.041   0.042   0.042   0.046   0.04 
     # ℹ 86 more rows
-    # ℹ 93 more variables: NH4_1G1 <dbl>, NH4_1G2 <dbl>, NH4_1G3 <dbl>,
-    #   NH4_1G4 <dbl>, NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>,
-    #   NH4_2F2_1 <dbl>, NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>,
-    #   NH4_2F4_1 <dbl>, NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>,
-    #   NH4_2F6_1 <dbl>, NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>,
-    #   NH4_2P3 <dbl>, NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, …
+    # ℹ 92 more variables: NH4_1G2 <dbl>, NH4_1G3 <dbl>, NH4_1G4 <dbl>,
+    #   NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>, NH4_2F2_1 <dbl>,
+    #   NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>, NH4_2F4_1 <dbl>,
+    #   NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>, NH4_2F6_1 <dbl>,
+    #   NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>, NH4_2P3 <dbl>,
+    #   NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, NH4_2P6_2 <dbl>, …
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -178,6 +197,7 @@ Nmint3_abs <- import_data_plate(dataset = "Nmint3", format_abs = "csv", filepath
 
 # TDN
 TDN_abs <- import_data_plate(dataset = "TDN", format_abs = "csv", filepath = "raw_data/TDN/", filename_csv = "TDN_data.csv")
+#TDN_abs$abs_data_df |> filter(dataset == "TDN")
 ```
 
 </details>
@@ -200,26 +220,26 @@ Nmin_maps$abs_data_df
 
 </details>
 
-    # A tibble: 96 × 102
-       row   column dataset  NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5 
-       <chr> <chr>  <chr>    <chr>    <chr>     <chr>     <chr>    <chr>    <chr>   
-     1 A     1      Nmint1t2 Std      Std       Std       Std      Std      Std     
-     2 A     2      Nmint1t2 81_t1_z2 97_t1_z1  empty     89_t1_z3 81_t1_z1 Std_3_t1
-     3 A     3      Nmint1t2 82_t1_z2 98_t1_z1  empty     90_t1_z3 82_t1_z3 98_t1_z3
-     4 A     4      Nmint1t2 83_t1_z2 99_t1_z1  empty     91_t1_z1 83_t1_z3 99_t1_z…
-     5 A     5      Nmint1t2 84_t1_z1 100_t1_z1 empty     92_t1_z2 84_t1_z2 100_t1_…
-     6 A     6      Nmint1t2 85_t1_z1 101_t1_z3 empty     93_t1_z2 85_t1_z2 101_t1_…
-     7 A     7      Nmint1t2 86_t1_z3 102_t1_z3 empty     94_t1_z3 86_t1_z1 102_t1_…
-     8 A     8      Nmint1t2 extr     extr      empty     extr     extr     extr    
-     9 A     9      Nmint1t2 87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_…
-    10 A     10     Nmint1t2 88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_…
+    # A tibble: 96 × 101
+       row   column NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5   NH4_1G1
+       <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>     <chr>  
+     1 A     1      Std      Std       Std       Std      Std      Std       Std    
+     2 A     2      81_t1_z2 97_t1_z1  empty     89_t1_z3 81_t1_z1 Std_3_t1  1_t1   
+     3 A     3      82_t1_z2 98_t1_z1  empty     90_t1_z3 82_t1_z3 98_t1_z3  2_t1   
+     4 A     4      83_t1_z2 99_t1_z1  empty     91_t1_z1 83_t1_z3 99_t1_z3… 3_t1   
+     5 A     5      84_t1_z1 100_t1_z1 empty     92_t1_z2 84_t1_z2 100_t1_z2 4_t1   
+     6 A     6      85_t1_z1 101_t1_z3 empty     93_t1_z2 85_t1_z2 101_t1_z2 5_t1   
+     7 A     7      86_t1_z3 102_t1_z3 empty     94_t1_z3 86_t1_z1 102_t1_z1 6_t1   
+     8 A     8      extr     extr      empty     extr     extr     extr      extr   
+     9 A     9      87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_z3 empty  
+    10 A     10     88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_z3 8_t1   
     # ℹ 86 more rows
-    # ℹ 93 more variables: NH4_1G1 <chr>, NH4_1G2 <chr>, NH4_1G3 <chr>,
-    #   NH4_1G4 <chr>, NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>,
-    #   NO2_1F2_2 <chr>, NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>,
-    #   NO2_1G1 <chr>, NO2_1G2 <chr>, NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>,
-    #   NO3_1F1 <chr>, NO3_1F2_1 <chr>, NO3_1F2_2 <chr>, NO3_1F3 <chr>,
-    #   NO3_1F4 <chr>, NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, …
+    # ℹ 92 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
+    #   NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>, NO2_1F2_2 <chr>,
+    #   NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>, NO2_1G1 <chr>, NO2_1G2 <chr>,
+    #   NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>, NO3_1F1 <chr>,
+    #   NO3_1F2_1 <chr>, NO3_1F2_2 <chr>, NO3_1F3 <chr>, NO3_1F4 <chr>,
+    #   NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, NO3_1G3 <chr>, …
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -260,7 +280,7 @@ N_all_abs <- left_join(
 
 </details>
 
-    Joining with `by = join_by(row, column, dataset)`
+    Joining with `by = join_by(row, column)`
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -271,26 +291,26 @@ N_all_abs
 
 </details>
 
-    # A tibble: 96 × 138
-       row   column dataset  NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5
-       <chr> <chr>  <chr>      <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>
-     1 A     1      Nmint1t2   0.039     0.039     0.039   0.038   0.039   0.039
-     2 A     2      Nmint1t2   0.046     0.042     0.042   0.042   0.046   0.062
-     3 A     3      Nmint1t2   0.049     0.041     0.041   0.042   0.041   0.042
-     4 A     4      Nmint1t2   0.042     0.041     0.041   0.042   0.042   0.04 
-     5 A     5      Nmint1t2   0.042     0.042     0.042   0.043   0.042   0.041
-     6 A     6      Nmint1t2   0.041     0.041     0.041   0.043   0.042   0.043
-     7 A     7      Nmint1t2   0.042     0.041     0.041   0.044   0.041   0.043
-     8 A     8      Nmint1t2   0.039     0.038     0.038   0.039   0.039   0.039
-     9 A     9      Nmint1t2   0.043     0.042     0.042   0.042   0.043   0.041
-    10 A     10     Nmint1t2   0.042     0.041     0.041   0.042   0.042   0.046
+    # A tibble: 96 × 137
+       row   column NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5 NH4_1G1
+       <chr> <chr>    <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>   <dbl>
+     1 A     1        0.039     0.039     0.039   0.038   0.039   0.039   0.039
+     2 A     2        0.046     0.042     0.042   0.042   0.046   0.062   0.04 
+     3 A     3        0.049     0.041     0.041   0.042   0.041   0.042   0.039
+     4 A     4        0.042     0.041     0.041   0.042   0.042   0.04    0.039
+     5 A     5        0.042     0.042     0.042   0.043   0.042   0.041   0.04 
+     6 A     6        0.041     0.041     0.041   0.043   0.042   0.043   0.041
+     7 A     7        0.042     0.041     0.041   0.044   0.041   0.043   0.04 
+     8 A     8        0.039     0.038     0.038   0.039   0.039   0.039   0.039
+     9 A     9        0.043     0.042     0.042   0.042   0.043   0.041   0.039
+    10 A     10       0.042     0.041     0.041   0.042   0.042   0.046   0.04 
     # ℹ 86 more rows
-    # ℹ 129 more variables: NH4_1G1 <dbl>, NH4_1G2 <dbl>, NH4_1G3 <dbl>,
-    #   NH4_1G4 <dbl>, NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>,
-    #   NH4_2F2_1 <dbl>, NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>,
-    #   NH4_2F4_1 <dbl>, NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>,
-    #   NH4_2F6_1 <dbl>, NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>,
-    #   NH4_2P3 <dbl>, NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, …
+    # ℹ 128 more variables: NH4_1G2 <dbl>, NH4_1G3 <dbl>, NH4_1G4 <dbl>,
+    #   NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>, NH4_2F2_1 <dbl>,
+    #   NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>, NH4_2F4_1 <dbl>,
+    #   NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>, NH4_2F6_1 <dbl>,
+    #   NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>, NH4_2P3 <dbl>,
+    #   NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, NH4_2P6_2 <dbl>, …
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -308,38 +328,8 @@ N_all_abs <- plyr::join_all(list_data) |> as_tibble()
 
 </details>
 
-    Joining by: row, column, dataset
-    Joining by: row, column, dataset
-
-<details class="code-fold">
-<summary>Code</summary>
-
-``` r
-N_all_abs 
-```
-
-</details>
-
-    # A tibble: 96 × 196
-       row   column dataset  NH4_1F1 NH4_1F2_1 NH4_1F2_2 NH4_1F3 NH4_1F4 NH4_1F5
-       <chr> <chr>  <chr>      <dbl>     <dbl>     <dbl>   <dbl>   <dbl>   <dbl>
-     1 A     1      Nmint1t2   0.039     0.039     0.039   0.038   0.039   0.039
-     2 A     2      Nmint1t2   0.046     0.042     0.042   0.042   0.046   0.062
-     3 A     3      Nmint1t2   0.049     0.041     0.041   0.042   0.041   0.042
-     4 A     4      Nmint1t2   0.042     0.041     0.041   0.042   0.042   0.04 
-     5 A     5      Nmint1t2   0.042     0.042     0.042   0.043   0.042   0.041
-     6 A     6      Nmint1t2   0.041     0.041     0.041   0.043   0.042   0.043
-     7 A     7      Nmint1t2   0.042     0.041     0.041   0.044   0.041   0.043
-     8 A     8      Nmint1t2   0.039     0.038     0.038   0.039   0.039   0.039
-     9 A     9      Nmint1t2   0.043     0.042     0.042   0.042   0.043   0.041
-    10 A     10     Nmint1t2   0.042     0.041     0.041   0.042   0.042   0.046
-    # ℹ 86 more rows
-    # ℹ 187 more variables: NH4_1G1 <dbl>, NH4_1G2 <dbl>, NH4_1G3 <dbl>,
-    #   NH4_1G4 <dbl>, NH4_1G5 <dbl>, NH4_2F1_1 <dbl>, NH4_2F1_2 <dbl>,
-    #   NH4_2F2_1 <dbl>, NH4_2F2_2 <dbl>, NH4_2F3_1 <dbl>, NH4_2F3_2 <dbl>,
-    #   NH4_2F4_1 <dbl>, NH4_2F4_2 <dbl>, NH4_2F5_1 <dbl>, NH4_2F5_2 <dbl>,
-    #   NH4_2F6_1 <dbl>, NH4_2F6_2 <dbl>, NH4_2P1 <dbl>, NH4_2P2 <dbl>,
-    #   NH4_2P3 <dbl>, NH4_2P4 <dbl>, NH4_2P5 <dbl>, NH4_2P6_1 <dbl>, …
+    Joining by: row, column
+    Joining by: row, column
 
 Proceed the same way for maps
 
@@ -359,8 +349,8 @@ N_all_maps <- plyr::join_all(list_maps) |> as_tibble()
 
 </details>
 
-    Joining by: row, column, dataset
-    Joining by: row, column, dataset
+    Joining by: row, column
+    Joining by: row, column
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -371,30 +361,30 @@ N_all_maps
 
 </details>
 
-    # A tibble: 96 × 196
-       row   column dataset  NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5 
-       <chr> <chr>  <chr>    <chr>    <chr>     <chr>     <chr>    <chr>    <chr>   
-     1 A     1      Nmint1t2 Std      Std       Std       Std      Std      Std     
-     2 A     2      Nmint1t2 81_t1_z2 97_t1_z1  empty     89_t1_z3 81_t1_z1 Std_3_t1
-     3 A     3      Nmint1t2 82_t1_z2 98_t1_z1  empty     90_t1_z3 82_t1_z3 98_t1_z3
-     4 A     4      Nmint1t2 83_t1_z2 99_t1_z1  empty     91_t1_z1 83_t1_z3 99_t1_z…
-     5 A     5      Nmint1t2 84_t1_z1 100_t1_z1 empty     92_t1_z2 84_t1_z2 100_t1_…
-     6 A     6      Nmint1t2 85_t1_z1 101_t1_z3 empty     93_t1_z2 85_t1_z2 101_t1_…
-     7 A     7      Nmint1t2 86_t1_z3 102_t1_z3 empty     94_t1_z3 86_t1_z1 102_t1_…
-     8 A     8      Nmint1t2 extr     extr      empty     extr     extr     extr    
-     9 A     9      Nmint1t2 87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_…
-    10 A     10     Nmint1t2 88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_…
+    # A tibble: 96 × 195
+       row   column NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5   NH4_1G1
+       <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>     <chr>  
+     1 A     1      Std      Std       Std       Std      Std      Std       Std    
+     2 A     2      81_t1_z2 97_t1_z1  empty     89_t1_z3 81_t1_z1 Std_3_t1  1_t1   
+     3 A     3      82_t1_z2 98_t1_z1  empty     90_t1_z3 82_t1_z3 98_t1_z3  2_t1   
+     4 A     4      83_t1_z2 99_t1_z1  empty     91_t1_z1 83_t1_z3 99_t1_z3… 3_t1   
+     5 A     5      84_t1_z1 100_t1_z1 empty     92_t1_z2 84_t1_z2 100_t1_z2 4_t1   
+     6 A     6      85_t1_z1 101_t1_z3 empty     93_t1_z2 85_t1_z2 101_t1_z2 5_t1   
+     7 A     7      86_t1_z3 102_t1_z3 empty     94_t1_z3 86_t1_z1 102_t1_z1 6_t1   
+     8 A     8      extr     extr      empty     extr     extr     extr      extr   
+     9 A     9      87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_z3 empty  
+    10 A     10     88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_z3 8_t1   
     # ℹ 86 more rows
-    # ℹ 187 more variables: NH4_1G1 <chr>, NH4_1G2 <chr>, NH4_1G3 <chr>,
-    #   NH4_1G4 <chr>, NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>,
-    #   NO2_1F2_2 <chr>, NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>,
-    #   NO2_1G1 <chr>, NO2_1G2 <chr>, NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>,
-    #   NO3_1F1 <chr>, NO3_1F2_1 <chr>, NO3_1F2_2 <chr>, NO3_1F3 <chr>,
-    #   NO3_1F4 <chr>, NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, …
+    # ℹ 186 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
+    #   NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>, NO2_1F2_2 <chr>,
+    #   NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>, NO2_1G1 <chr>, NO2_1G2 <chr>,
+    #   NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>, NO3_1F1 <chr>,
+    #   NO3_1F2_1 <chr>, NO3_1F2_2 <chr>, NO3_1F3 <chr>, NO3_1F4 <chr>,
+    #   NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, NO3_1G3 <chr>, …
 
 So now we have those 2 data frames that have strictly the same
-structure, with 96 rows and 196 columns, with 2 columns attributed to
-the well identifier (“row” and “column”), and the remaining 194 columns
+structure, with 96 rows and 195 columns, with 2 columns attributed to
+the well identifier (“row” and “column”), and the remaining 193 columns
 representing the 96-well plates.
 
 ## 1.4 - Verticalize and join absorbance and maps data
@@ -436,22 +426,22 @@ that downstream analysis, including connecting this data to the metadata
 
 ``` r
 N_all_plate <- join_maps_abs(maps_df = N_all_maps, abs_df = N_all_abs)
+
 # have a look
 N_all_plate |> head()
 ```
 
 </details>
 
-    # A tibble: 6 × 9
-      row   column well_id unique_well_id N_sp  dataset  plate_id plate_map
-      <chr>  <dbl> <chr>   <chr>          <chr> <chr>    <chr>    <chr>    
-    1 A          1 A1      NH4_1F1_A1     NH4   Nmint1t2 NH4_1F1  Std      
-    2 B          1 B1      NH4_1F1_B1     NH4   Nmint1t2 NH4_1F1  Std      
-    3 C          1 C1      NH4_1F1_C1     NH4   Nmint1t2 NH4_1F1  Std      
-    4 D          1 D1      NH4_1F1_D1     NH4   Nmint1t2 NH4_1F1  Std      
-    5 E          1 E1      NH4_1F1_E1     NH4   Nmint1t2 NH4_1F1  Std      
-    6 F          1 F1      NH4_1F1_F1     NH4   Nmint1t2 NH4_1F1  Std      
-    # ℹ 1 more variable: absorbance <dbl>
+    # A tibble: 6 × 8
+      row   column well_id unique_well_id N_sp  plate_id plate_map absorbance
+      <chr>  <dbl> <chr>   <chr>          <chr> <chr>    <chr>          <dbl>
+    1 A          1 A1      NH4_1F1_A1     NH4   NH4_1F1  Std            0.039
+    2 B          1 B1      NH4_1F1_B1     NH4   NH4_1F1  Std            0.043
+    3 C          1 C1      NH4_1F1_C1     NH4   NH4_1F1  Std            0.047
+    4 D          1 D1      NH4_1F1_D1     NH4   NH4_1F1  Std            0.053
+    5 E          1 E1      NH4_1F1_E1     NH4   NH4_1F1  Std            0.059
+    6 F          1 F1      NH4_1F1_F1     NH4   NH4_1F1  Std            0.067
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -462,16 +452,42 @@ N_all_plate |> tail()
 
 </details>
 
-    # A tibble: 6 × 9
-      row   column well_id unique_well_id N_sp  dataset  plate_id   plate_map
-      <chr>  <dbl> <chr>   <chr>          <chr> <chr>    <chr>      <chr>    
-    1 C         12 C12     NO3_TDN_38_C12 NO3   Nmint1t2 NO3_TDN_38 <NA>     
-    2 D         12 D12     NO3_TDN_38_D12 NO3   Nmint1t2 NO3_TDN_38 <NA>     
-    3 E         12 E12     NO3_TDN_38_E12 NO3   Nmint1t2 NO3_TDN_38 <NA>     
-    4 F         12 F12     NO3_TDN_38_F12 NO3   Nmint1t2 NO3_TDN_38 <NA>     
-    5 G         12 G12     NO3_TDN_38_G12 NO3   Nmint1t2 NO3_TDN_38 <NA>     
-    6 H         12 H12     NO3_TDN_38_H12 NO3   Nmint1t2 NO3_TDN_38 <NA>     
-    # ℹ 1 more variable: absorbance <dbl>
+    # A tibble: 6 × 8
+      row   column well_id unique_well_id N_sp  plate_id   plate_map absorbance
+      <chr>  <dbl> <chr>   <chr>          <chr> <chr>      <chr>          <dbl>
+    1 C         12 C12     NO3_TDN_38_C12 NO3   NO3_TDN_38 empty          0.069
+    2 D         12 D12     NO3_TDN_38_D12 NO3   NO3_TDN_38 empty          0.069
+    3 E         12 E12     NO3_TDN_38_E12 NO3   NO3_TDN_38 empty          0.069
+    4 F         12 F12     NO3_TDN_38_F12 NO3   NO3_TDN_38 empty          0.068
+    5 G         12 G12     NO3_TDN_38_G12 NO3   NO3_TDN_38 empty          0.068
+    6 H         12 H12     NO3_TDN_38_H12 NO3   NO3_TDN_38 empty          0.104
+
+We have a data set that is almost ready. But we lost the information of
+which plate belongs to which data set. In case that information is not
+included in the plate names, we can easily retrieve it from previous
+steps.
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+plate_names_all <- 
+  Nmin_abs$plate_names |> 
+  append(Nmint3_abs$plate_names) |> 
+  append(TDN_abs$plate_names)
+
+N_all_plate_tidy <- N_all_plate |> 
+  mutate(
+    dataset = case_when(
+      plate_id %in% colnames(Nmin_abs$abs_data_df) ~ "Nmint1t2",
+      plate_id %in% colnames(Nmint3_abs$abs_data_df) ~ "Nmint3",
+      plate_id %in% colnames(TDN_abs$abs_data_df) ~ "TDN",
+      .default = "unspecified"
+    )
+  )
+```
+
+</details>
 
 ## 1.4 - Export tidy plate data
 
@@ -482,7 +498,7 @@ it to save it as a document to use for downstream analysis
 <summary>Code</summary>
 
 ``` r
-write_rds(N_all_plate, file = "output/data/N_all_plate_tidy.rds")
+write_rds(N_all_plate_tidy, file = "output/data/N_all_plate_tidy.rds")
 ```
 
 </details>

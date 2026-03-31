@@ -83,7 +83,7 @@ Nmint3_abs <- import_data_plate(dataset = "Nmint3", format_abs = "csv", filepath
 
 # TDN
 TDN_abs <- import_data_plate(dataset = "TDN", format_abs = "csv", filepath = "raw_data/TDN/", filename_csv = "TDN_data.csv")
-
+#TDN_abs$abs_data_df |> filter(dataset == "TDN")
 ```
 
 ## 1.2 - Then, plate maps
@@ -130,7 +130,7 @@ list_data <- list(Nmin_abs$abs_data_df,
 
 ## Then join from the list
 N_all_abs <- plyr::join_all(list_data) |> as_tibble()
-N_all_abs 
+
 ```
 
 Proceed the same way for maps
@@ -178,10 +178,30 @@ Should you need any other column, this can be discussed. Bear in mind that downs
 ```{r}
 
 N_all_plate <- join_maps_abs(maps_df = N_all_maps, abs_df = N_all_abs)
+
 # have a look
 N_all_plate |> head()
 N_all_plate |> tail()
 
+```
+
+We have a data set that is almost ready. But we lost the information of which plate belongs to which data set. In case that information is not included in the plate names, we can easily retrieve it from previous steps.
+
+```{r}
+plate_names_all <- 
+  Nmin_abs$plate_names |> 
+  append(Nmint3_abs$plate_names) |> 
+  append(TDN_abs$plate_names)
+
+N_all_plate_tidy <- N_all_plate |> 
+  mutate(
+    dataset = case_when(
+      plate_id %in% colnames(Nmin_abs$abs_data_df) ~ "Nmint1t2",
+      plate_id %in% colnames(Nmint3_abs$abs_data_df) ~ "Nmint3",
+      plate_id %in% colnames(TDN_abs$abs_data_df) ~ "TDN",
+      .default = "unspecified"
+    )
+  )
 ```
 
 ## 1.4 - Export tidy plate data
@@ -189,7 +209,7 @@ N_all_plate |> tail()
 Now that we have our final raw data frame for plate data, we can export it to save it as a document to use for downstream analysis
 
 ```{r}
-write_rds(N_all_plate, file = "output/data/N_all_plate_tidy.rds")
+write_rds(N_all_plate_tidy, file = "output/data/N_all_plate_tidy.rds")
 ```
 
 # 2 - Import (and join) plate metadata
