@@ -22,6 +22,7 @@ output: true
 # To Do
 
 -   [**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**]{.underline}
+-   !! Figure out wh[**y some final concentrations are equal to zero!**]{.underline}
 -   Improve visualization for multiple plots –\> make a loop to produce several pages?
 -   improve rendering of @lst-qc4
     -   have the table(s) called in successive chunks with labels –\> can call them in comments above

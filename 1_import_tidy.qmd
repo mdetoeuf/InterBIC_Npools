@@ -188,7 +188,7 @@ N_all_plate |> tail()
 
 ```
 
-## 1.5 - Add dataset identifier 
+## 1.5 - Add dataset identifier
 
 We have a data set that is almost ready. But we lost the information of which plate belongs to which data set. In case that information is not included in the plate names, we can easily retrieve it from previous steps.
 
