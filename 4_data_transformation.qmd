@@ -100,6 +100,7 @@ Nmin_tfo <- Nmin |>
     conc_N_ppm_rt4 = unlist(conc_N_Lrt4) / (ratio*dm)
     ) |> 
   rowwise() |> 
+  # compute mean between technical replicates 
   mutate(
     conc_N_ppm_avg = mean(c_across(c("conc_N_ppm_rt1", "conc_N_ppm_rt2", "conc_N_ppm_rt3", "conc_N_ppm_rt4")))
   ) |> 
@@ -112,10 +113,22 @@ Nmin_tfo <- Nmin |>
 
 ```
 
+Then, we update format of variables
+
+```{r}
+Nmin_export <- Nmin_tfo |> 
+  mutate(
+    soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC")),
+    crop_diversity = factor(crop_diversity, levels = c("SC", "IC")),
+    cs = factor(cs, levels = c("F", "IC", "W")),
+    bloc = as.factor(bloc)
+  )
+```
+
 ## 1.3 - Export
 
 ```{r}
-Nmin_tfo |> write_rds("output/data/4_Nmin_tfo.rds")
+Nmin_export |> write_rds("output/data/4_Nmin_tfo.rds")
 ```
 
 # 2 - TDN
