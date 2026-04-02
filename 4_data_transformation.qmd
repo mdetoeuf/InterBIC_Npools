@@ -98,12 +98,17 @@ Nmin_tfo <- Nmin |>
     conc_N_ppm_rt2 = unlist(conc_N_Lrt2) / (ratio*dm),
     conc_N_ppm_rt3 = unlist(conc_N_Lrt3) / (ratio*dm),
     conc_N_ppm_rt4 = unlist(conc_N_Lrt4) / (ratio*dm)
+    ) |> 
+  rowwise() |> 
+  mutate(
+    conc_N_ppm_avg = mean(c_across(c("conc_N_ppm_rt1", "conc_N_ppm_rt2", "conc_N_ppm_rt3", "conc_N_ppm_rt4")))
   ) |> 
  # select(!starts_with("flush")) |> 
   select(
     expe, sample_short, sd_c, soil, crop_diversity, cs, bloc, sampling_time, 
     plate_id, N_sp, dataset, std_sp, 
-    wc, dm, starts_with("conc"), !contains("N_L"))
+    wc, dm, starts_with("conc")) |> 
+  select(!contains("N_L"))
 
 ```
 
