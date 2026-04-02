@@ -72,6 +72,7 @@ The `import_data_plate()` function returns a list, with the first element named 
 ## 1.1 - First, raw absorbance data
 
 ```{r}
+setwd("InterBIC_Npools_code")
 
 # Nmin for t1 and t2
 Nmin_abs <- import_data_plate(dataset = "Nmint1t2", format_abs = "txt", filepath = "raw_data/Nmin/")
