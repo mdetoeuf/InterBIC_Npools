@@ -20,7 +20,7 @@ Imported data is presented in the shape of a 96-well plate. Thse script transfor
 Metadata is imported from a file containing one row per 96-well plate that characterizes plates
 Both types of data sets are exported again in a more convenient format than the original one
 
-** 2_absorbance_pipeline.qmd **
+** 2.1_absorbance_pipeline.qmd **
 Starts from the clean, vectorized data sets that were produced in the previous script (containing raw absorbances and sample id / standard curve / blank).
 It operates a series of transformations and quality checks to transform the raw absorbance data into concentrations of N [mg N / L]. This dosage is in a raw form, it does not account for any dilution or correction.
 Steps are:
@@ -35,6 +35,10 @@ Steps are:
 - apply regression equation to all blank-corrected absorbance values to transform data into concentration of N species
 - convert concentrations in mg N / L (correction on molar masses of N species and N)
 - export data
+
+** 2.2_raw_data_pipeline.qmd **
+This is the place to compute new variables that will be needed for several downstream analyses (several data sets or several analyses)
+--> TBD: detail steps !!
 
 ** 3_data_tidying.qmd **
 Tidies data sets into the shape that we need for data transformation and following analysis and visualization
