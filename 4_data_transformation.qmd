@@ -160,5 +160,12 @@ Nmin_tfo2 |> write_rds("output/data/4_Nmin_tfo2.rds")
 ## 2.1 - Import tidy data set
 
 ```{r}
-TDN <- read_rds("output/data/TDN_tidy.rds")
+TDN <- read_rds("output/data/TDN_tidy.rds") |> 
+  select(
+    !starts_with(c("yd", "whc", "nod", "pmn", "dna", "zone", "incub")))
+
 ```
+
+## 2.2 - Compute new variables
+
+### 2.2.1 - dry matter content

@@ -77,30 +77,13 @@ library(RColorBrewer)
 <summary>Code</summary>
 
 ``` r
-Nmin_tfo <- read_rds("output/data/4_Nmin_tfo.rds")
-Nmin_tfo
+Nmin_tfo1 <- read_rds("output/data/4_Nmin_tfo1.rds")
+Nmin_tfo2 <- read_rds("output/data/4_Nmin_tfo2.rds")
+
+#Nmin_tfo1
 ```
 
 </details>
-
-    # A tibble: 180 × 19
-    # Rowwise: 
-       expe  sample_short sd_c  soil  crop_diversity cs    bloc  sampling_time
-       <chr> <chr>        <chr> <fct> <fct>          <fct> <fct> <chr>        
-     1 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
-     2 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
-     3 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
-     4 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
-     5 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
-     6 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
-     7 Pot   3_t2         Conv  Conv  IC             IC    B1    t2           
-     8 Pot   3_t2         Conv  Conv  IC             IC    B1    t2           
-     9 Pot   3_t2         Conv  Conv  IC             IC    B1    t2           
-    10 Pot   5_t2         SdC1  Ref   SC             F     B1    t2           
-    # ℹ 170 more rows
-    # ℹ 11 more variables: plate_id <chr>, N_sp <chr>, dataset <chr>, std_sp <chr>,
-    #   wc <dbl>, dm <dbl>, conc_N_ppm_rt1 <dbl>, conc_N_ppm_rt2 <dbl>,
-    #   conc_N_ppm_rt3 <dbl>, conc_N_ppm_rt4 <dbl>, conc_N_ppm_avg <dbl>
 
 ## 1.2 - plots
 
@@ -116,14 +99,15 @@ average) per N species
 
 ``` r
 # need to pivot to get 4 tech rep in one column. But !! also average will be taken
-Nmin_tfo_longer <- Nmin_tfo |> pivot_longer(
+#** °°°°° Pivot according to rep tech °°°°° *
+Nmin_rep_tech_longer <- Nmin_tfo1 |> pivot_longer(
   cols = starts_with("conc"),
   values_to = "conc_N_ppm",
   names_to = "rep_tech"
 ) 
 
 # plot with all rep techs
-Nmin_tfo_longer |> 
+Nmin_rep_tech_longer |> 
   # filter out the average
   filter(rep_tech != "conc_N_ppm_avg") |> 
   ggplot(aes(x = conc_N_ppm)) +
@@ -143,7 +127,7 @@ Nmin_tfo_longer |>
 
 ``` r
 # plot with averages
-Nmin_tfo_longer |> 
+Nmin_rep_tech_longer |> 
   # filter out the average
   filter(rep_tech == "conc_N_ppm_avg") |> 
   ggplot(aes(x = conc_N_ppm)) +
@@ -164,63 +148,47 @@ Nmin_tfo_longer |>
 <summary>Code</summary>
 
 ``` r
-# To correct NO3, we need to pivot wider so that different N_sp are in different columns
-Nmin_tfo_wider <- Nmin_tfo |> 
-  select(expe:sampling_time, N_sp, conc_N_ppm_avg) |> 
-  pivot_wider(
-    names_from = N_sp,
-    names_prefix = "conc_",
-    values_from = conc_N_ppm_avg
-  ) |> 
-  mutate(
-    conc_NO3_neat = conc_NO3-conc_NO2,
-    conc_Nmin = conc_NO3 + conc_NH4, # NO2 not included here bc it is already included in NO3
-    conc_NO3_Nmin = conc_NO3_neat / conc_Nmin,
-    conc_NH4_NO3 = conc_NH4 / conc_NO3_neat) |> 
-  # remove NO3 so no mistake is made, and rename NO3_neat
-  select(!conc_NO3) |> 
-  rename(conc_NO3 = conc_NO3_neat) 
-
-Nmin_tfo_corrected <- Nmin_tfo_wider |> 
-  # then we re-pivot so plotting with wrap is easy (and without also --° use filter)
+Nmin_N_variable_longer <- Nmin_tfo2 |> 
+  # then we re-pivot so plotting will wrap is easily (and without also --° use filter)
+  #** °°°°° Pivot according to N_variable
   pivot_longer(
     cols = starts_with("conc"),
-    names_to = "N_sp",
+    names_to = "N_variable",
     names_prefix = "conc_",
     values_to = "conc_N_ppm") |> 
   # make N_sp a factor with correct order
-  mutate(N_sp = factor(N_sp, levels = c("NO2", "NH4", "NO3", "Nmin", "NO3_Nmin", "NH4_NO3")))
+  mutate(N_variable = factor(N_variable, levels = c("NO2", "NH4", "NO3", "Nmin", "NO3_Nmin", "NH4_NO3")))
 
-Nmin_tfo_corrected  
+Nmin_N_variable_longer  
 ```
 
 </details>
 
     # A tibble: 360 × 10
-       expe  sample_short sd_c  soil  crop_diversity cs    bloc  sampling_time N_sp 
-       <chr> <chr>        <chr> <fct> <fct>          <fct> <fct> <chr>         <fct>
-     1 Pot   1_t2         Conv  Conv  SC             F     B1    t2            NH4  
-     2 Pot   1_t2         Conv  Conv  SC             F     B1    t2            NO2  
-     3 Pot   1_t2         Conv  Conv  SC             F     B1    t2            NO3  
-     4 Pot   1_t2         Conv  Conv  SC             F     B1    t2            Nmin 
-     5 Pot   1_t2         Conv  Conv  SC             F     B1    t2            NO3_…
-     6 Pot   1_t2         Conv  Conv  SC             F     B1    t2            NH4_…
-     7 Pot   2_t2         Conv  Conv  SC             W     B1    t2            NH4  
-     8 Pot   2_t2         Conv  Conv  SC             W     B1    t2            NO2  
-     9 Pot   2_t2         Conv  Conv  SC             W     B1    t2            NO3  
-    10 Pot   2_t2         Conv  Conv  SC             W     B1    t2            Nmin 
+       expe  sample_short sd_c  soil  crop_diversity cs    bloc  sampling_time
+       <chr> <chr>        <chr> <fct> <fct>          <fct> <fct> <chr>        
+     1 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
+     2 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
+     3 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
+     4 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
+     5 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
+     6 Pot   1_t2         Conv  Conv  SC             F     B1    t2           
+     7 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
+     8 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
+     9 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
+    10 Pot   2_t2         Conv  Conv  SC             W     B1    t2           
     # ℹ 350 more rows
-    # ℹ 1 more variable: conc_N_ppm <dbl>
+    # ℹ 2 more variables: N_variable <fct>, conc_N_ppm <dbl>
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-Nmin_tfo_corrected |> 
-  filter(N_sp %ni% c("NO2", "NO3_Nmin", "NH4_NO3")) |> # comment this line to add NO2 again
+Nmin_N_variable_longer |> 
+  filter(N_variable %ni% c("NO2", "NO3_Nmin", "NH4_NO3")) |> # comment this line to add NO2 again
   ggplot(aes(x = conc_N_ppm)) +
   theme_minimal() +
-  geom_density(aes(color = N_sp, fill = N_sp), alpha = 0.2) #+
+  geom_density(aes(color = N_variable, fill = N_variable), alpha = 0.2) #+
 ```
 
 </details>
@@ -244,12 +212,12 @@ Look at NO3 and NH4
 <summary>Code</summary>
 
 ``` r
-Nmin_tfo_corrected |> 
-  filter(N_sp %in% c("NH4", "NO3")) |> 
+Nmin_N_variable_longer |> 
+  filter(N_variable %in% c("NH4", "NO3")) |> 
   ggplot(aes(x = soil, y = conc_N_ppm)) +
   theme_minimal() +
   geom_boxplot(aes(fill = cs)) +
-  facet_wrap(~N_sp, nrow = 2, scales = "free_y") +
+  facet_wrap(~N_variable, nrow = 2, scales = "free_y") +
   scale_fill_discrete(palette = "Accent")
 ```
 
@@ -263,12 +231,12 @@ Look at Nmin and ratios
 <summary>Code</summary>
 
 ``` r
-Nmin_tfo_corrected |> 
-  filter(N_sp %in% c("Nmin", "NO3_Nmin")) |> 
+Nmin_N_variable_longer |> 
+  filter(N_variable %in% c("Nmin", "NO3_Nmin")) |> 
   ggplot(aes(x = soil, y = conc_N_ppm)) +
   theme_minimal() +
   geom_boxplot(aes(fill = cs)) +
-  facet_wrap(~N_sp, nrow = 2, scales = "free_y") +
+  facet_wrap(~N_variable, nrow = 2, scales = "free_y") +
   scale_fill_discrete(palette = "Accent")
 ```
 
@@ -282,7 +250,7 @@ Look at relationship between NO3 and NH4
 <summary>Code</summary>
 
 ``` r
-Nmin_tfo_wider |>
+Nmin_tfo2 |>
   ggplot(aes(x = conc_NH4, y = conc_NO3)) +
   theme_minimal() +
   geom_point() #+
@@ -307,7 +275,7 @@ And between NO3 and Nmin
 <summary>Code</summary>
 
 ``` r
-Nmin_tfo_wider |>
+Nmin_tfo2 |>
   ggplot(aes(x = conc_NO3, y = conc_Nmin)) +
   theme_minimal() +
   geom_point() #+
