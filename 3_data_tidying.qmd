@@ -24,11 +24,7 @@ library(tidyverse)
 library(janitor)
 ```
 
-# 1 - Greenhouse, t2
-
-We first focus on data from the greenhouse trial at t2. It follows a complete randomized block design, with modalities: 4 soils x 3 crop stands x 5 blocs
-
-## 1.1 - Import data
+# 1 - Import data
 
 ```{r}
 #lm_output <- read_rds("output/data/Nmin_std_curves_lm.rds")
@@ -46,10 +42,17 @@ N_metadata <- read_rds("output/data/N_all_metadata.rds")
 # import other "wet lab" raw data
 raw_data <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clean_names() |> 
   rename(sample_short = short) 
-
 ```
 
-## 1.2 - Extract subsets: Nmin, TDN (incl. MBN)
+# 2 - Compute new variables on per-sample basis
+
+This is the place to compute new variables that will be needed for several downstream analyses
+
+# 2 - Greenhouse, t2
+
+We first focus on data from the greenhouse trial at t2. It follows a complete randomized block design, with modalities: 4 soils x 3 crop stands x 5 blocs
+
+## 1.1 - Extract subsets of data: Nmin, TDN (incl. MBN)
 
 ### 1.2.1 - Retrieve dataset information into absorbance dataframe
 
