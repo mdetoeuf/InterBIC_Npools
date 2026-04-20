@@ -52,7 +52,7 @@ abs_to_mgN_L <- function(
       filter(plate_id == plate) |> 
       mutate(
         conc_mgNsp_L = slope * abs_corrected,
-        conc_N_L = conc_mgNsp_L * molar_masses["N"] / molar_masses[N_sp]
+        conc_N_L = unname(conc_mgNsp_L * molar_masses["N"] / molar_masses[N_sp])
       )
     data_transformed <- bind_rows(data_transformed, plate_data)
     #i = i+1

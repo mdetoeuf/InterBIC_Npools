@@ -207,6 +207,10 @@ N_all_plate_tidy <- N_all_plate |>
       .default = "unspecified"
     )
   )
+
+# N_all_plate_tidy |> 
+#     filter(plate_map %in% c(1,2,3,4,5,6,7,8,9,10))
+
 ```
 
 ## 1.6 - Export tidy plate data

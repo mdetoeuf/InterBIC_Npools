@@ -36,8 +36,8 @@ N_data <- read_rds("output/data/Nmin_conc.rds") |>
     dataset = NA,
     sampling_time = NA) |> 
   rename(sample_short = plate_map)
-N_metadata <- read_rds("output/data/N_all_metadata.rds")
 
+N_metadata <- read_rds("output/data/N_all_metadata.rds")
 
 # import other "wet lab" raw data
 lab_data <- read_rds("output/data/2_lab_data.rds") 
@@ -89,7 +89,7 @@ Nmin_metadata <- N_metadata |>
   filter(dataset == "Nmint1t2", sampling_time == "t2")
 
 # raw data
-Nmin_raw <- lab_data |> 
+Nmin_lab <- lab_data |> 
   # keep only t2 and pot, remove bare soil
   filter(sampling_time == "t2", expe == "Pot", cs != "B") |> 
   # tidy: 
@@ -108,7 +108,7 @@ Now we join those tables in one big data set
 
 # join
 Nmin <- left_join(
-  Nmin_raw, Nmin_plate_data, 
+  Nmin_lab, Nmin_plate_data, 
   by = join_by(sample_short, sampling_time)) |>
   left_join(
     Nmin_metadata,
@@ -127,7 +127,36 @@ TDN_plate_data <- N_data |>
   filter(dataset == "TDN", sampling_time == "t2")
 TDN_metadata <- N_metadata |> 
   filter(dataset == "TDN", sampling_time == "t2")
-TDN_raw <- Nmin_raw
+TDN_lab <- Nmin_lab
+
+```
+
+But here, we need to pivot wider NF and CFE. At the moment, measurements for NF and CFE for a single sample constitute separate rows. The same goes for 1x and 2x dilutions.
+
+```{r}
+
+# first, extract dilution and NF/CFE info in separate column
+TDN_plate_data_clean <- TDN_plate_data |> 
+  #** Separate info on dilution and fumigation and clean sample names *
+  mutate(
+    fumigation = str_extract(sample_short, "NF|CFE"),
+    dilution = str_extract(sample_short, "1x|2x"),
+    sample_short = str_replace(sample_short, "_NF.1x|_CFE.1x|_NF.2x|_CFE.2x", "")
+  ) 
+
+TDN_plate_data_clean 
+TDN_plate_data
+N_data
+
+# then pivot table
+TDN_plate_data_clean |> ungroup() |> 
+  pivot_wider(
+    names_from = c(fumigation, dilution),
+    values_from = starts_with("conc"), 
+    names_sep = ".",
+   # values_fn = mean
+  )
+?pivot_wider
 
 ```
 
@@ -136,7 +165,7 @@ Then join
 ```{r}
 # join
 TDN <- left_join(
-  TDN_raw, TDN_plate_data, 
+  TDN_lab, TDN_plate_data, 
   by = join_by(sample_short, sampling_time)) |>
   left_join(
     TDN_metadata,
@@ -146,6 +175,6 @@ TDN <- left_join(
 ## 1.3 - Export
 
 ```{r}
-Nmin |>  write_rds("output/data/Nmin_tidy.rds")
+Nmin |>  write_rds("output/data/3_Nmin_tidy.rds")
 TDN |> write_rds("output/data/TDN_tidy.rds")
 ```

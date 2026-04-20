@@ -26,7 +26,7 @@ library(tidyverse)
 ## 1.1 - Import tidy data set
 
 ```{r}
-Nmin <- read_rds("output/data/Nmin_tidy.rds") |> 
+Nmin <- read_rds("output/data/3_Nmin_tidy.rds") |> 
   select(
     !starts_with(c("yd", "whc", "nod", "pmn", "dna", "zone", "incub")))
 #Nmin |> str()
@@ -37,8 +37,6 @@ Nmin <- read_rds("output/data/Nmin_tidy.rds") |>
 ### 1.2.1 - dry matter content
 
 ```{r}
-# Volume of extractant used in the K2SO4 extraction
-vol_extr <- 20
 
 # 
 Nmin_tfo1 <- Nmin |> 
@@ -50,31 +48,6 @@ Nmin_tfo1 <- Nmin |>
     cs = factor(cs, levels = c("F", "IC", "W")),
     bloc = as.factor(bloc)
   ) |> 
-  #** °°°°° Compute dm °°°°° *
-  # mutate(
-  #   # subtract tare from gross fresh weight
-  #   flush_dm_neat_fw_tr1 = flush_dm_g_fw_tr1 - flush_dm_tare_tr1,
-  #   flush_dm_neat_fw_tr2 = flush_dm_g_fw_tr2 - flush_dm_tare_tr2,
-  #   flush_dm_neat_fw_tr3 = flush_dm_g_fw_tr3 - flush_dm_tare_tr3,
-  #   # subtract tare from gross dry weight
-  #   flush_dm_neat_dw_tr1 = flush_dm_g_dw_tr1 - flush_dm_tare_tr1,
-  #   flush_dm_neat_dw_tr2 = flush_dm_g_dw_tr2 - flush_dm_tare_tr2,
-  #   flush_dm_neat_dw_tr3 = flush_dm_g_dw_tr3 - flush_dm_tare_tr3,
-  #   # compute average fresh and dry weight
-  #   flush_dm_avg_fw = (
-  #     flush_dm_neat_fw_tr1 + flush_dm_neat_fw_tr2 + flush_dm_neat_fw_tr3
-  #     ) / 3,
-  #   flush_dm_avg_dw = (
-  #     flush_dm_neat_dw_tr1 + flush_dm_neat_dw_tr2 + flush_dm_neat_dw_tr3) / 3,
-  #   # compute dry matter content
-  #   dm = flush_dm_avg_dw / flush_dm_avg_fw,
-  #   # compute water content
-  #   wc = 1- dm,
-  #   
-  #   #** °°°°° compute each sample's individual ratio (~10g moist per 20 ml) °°°°° *
-  #   ratio = flush_fw_nf_g / vol_extr,
-  #   .keep = "unused"
-  # ) |> 
   #** °°°°° Convert concentrations in mg/L to mg/kg °°°°° *
   mutate(
     conc_N_ppm_rt1 = unlist(conc_N_Lrt1) / (ratio_nf*dm),
