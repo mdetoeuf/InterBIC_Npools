@@ -1,26 +1,116 @@
 ---
 title: "II.2 Raw data pipeline"
-format: html
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+# format: 
+#   html:
+#     embed-resources: true
+#     toc: true
+#     toc_float: true
+#     code-fold: true
 editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+# Set up
 
 ```{r}
-1 + 1
+library(tidyverse)
 ```
 
-You can add options to executable code like this
+# 1 - import data
 
 ```{r}
-#| echo: false
-2 * 2
+# import other "wet lab" raw data
+raw_data <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clean_names() |> 
+  rename(sample_short = short) 
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+# 2 - Compute new variables
+
+## 2.1 - dry matter content
+
+In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is still encoded, in separate columns `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
+
+-   FW~neat~ = FW~gross~ - tare; DW~neat~ = DW~gross~ - tare
+
+-   average (FW, then DW) = sum(3 technical replicates) / 3
+
+-   DM = avg~DW~ / avg~FW~
+
+-   WC = 1 - DM
+
+-   With
+
+    -   FW = fresh weight \[g\]
+
+    -   DW = dry weight \[g\],
+
+    -   DM = dry matter content \[g dry soil / g fresh soil\],
+
+    -   WC = water content \[g water / g [**fresh**]{.underline} soil\]
+
+-   ratio = fresh wait of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
+
+Then, we can finally convert concentrations in mg/L into concentrations in ppm (mg/kg dry soil)
+
+-   see <https://mycloud.ulb.be/index.php/f/30359374> for equation
+
+```{r}
+# Volume of extractant used in the K2SO4 extraction
+vol_extr <- 20
+
+# 
+lab_data <- raw_data |> 
+  
+  #** °°°°° first, update format of variables °°°°° *
+  # mutate(
+  #   soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC")),
+  #   crop_diversity = factor(crop_diversity, levels = c("SC", "IC")),
+  #   cs = factor(cs, levels = c("F", "IC", "W")),
+  #   bloc = as.factor(bloc)
+  # ) |> 
+  #** °°°°° Compute dm °°°°° *
+  mutate(
+    # subtract tare from gross fresh weight
+    flush_dm_neat_fw_tr1 = flush_dm_g_fw_tr1 - flush_dm_tare_tr1,
+    flush_dm_neat_fw_tr2 = flush_dm_g_fw_tr2 - flush_dm_tare_tr2,
+    flush_dm_neat_fw_tr3 = flush_dm_g_fw_tr3 - flush_dm_tare_tr3,
+    # subtract tare from gross dry weight
+    flush_dm_neat_dw_tr1 = flush_dm_g_dw_tr1 - flush_dm_tare_tr1,
+    flush_dm_neat_dw_tr2 = flush_dm_g_dw_tr2 - flush_dm_tare_tr2,
+    flush_dm_neat_dw_tr3 = flush_dm_g_dw_tr3 - flush_dm_tare_tr3,
+    # compute average fresh and dry weight
+    flush_dm_avg_fw = (
+      flush_dm_neat_fw_tr1 + flush_dm_neat_fw_tr2 + flush_dm_neat_fw_tr3
+      ) / 3,
+    flush_dm_avg_dw = (
+      flush_dm_neat_dw_tr1 + flush_dm_neat_dw_tr2 + flush_dm_neat_dw_tr3) / 3,
+    # compute dry matter content
+    dm = flush_dm_avg_dw / flush_dm_avg_fw,
+    # compute water content
+    wc = 1- dm,
+    
+    #** °°°°° compute each sample's individual ratio (~10g moist per 20 ml) °°°°° *
+    ratio_nf = flush_fw_nf_g / vol_extr,
+    ratio_cfe = flush_fw_cfe_g / vol_extr,
+    .keep = "unused"
+  ) 
+ 
+
+```
+
+!! For t0, for PMN, water content can only be obtained from the WHC experiment (CHECK!)
+
+# 3 - Export
+
+```{r}
+lab_data |> write_rds("output/data/2_lab_data.rds")
+```

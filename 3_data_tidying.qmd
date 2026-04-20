@@ -40,8 +40,7 @@ N_metadata <- read_rds("output/data/N_all_metadata.rds")
 
 
 # import other "wet lab" raw data
-raw_data <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clean_names() |> 
-  rename(sample_short = short) 
+lab_data <- read_rds("output/data/2_lab_data.rds") 
 ```
 
 # 2 - Compute new variables on per-sample basis
@@ -90,7 +89,7 @@ Nmin_metadata <- N_metadata |>
   filter(dataset == "Nmint1t2", sampling_time == "t2")
 
 # raw data
-Nmin_raw <- raw_data |> 
+Nmin_raw <- lab_data |> 
   # keep only t2 and pot, remove bare soil
   filter(sampling_time == "t2", expe == "Pot", cs != "B") |> 
   # tidy: 
