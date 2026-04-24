@@ -289,6 +289,7 @@ cut_threshold <- c(
 
 QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
 
+
 ```
 
 Now we can use the list of untrusted wells to filter them out of the extractant data, and look at the improved distribution of intra-plate variation.
@@ -304,11 +305,11 @@ QC6$extr_distrib_coeff +
 Now that we have computed a trusted version of the average of absorbance per plate per "blanc", we can correct sample absorbance values.
 
 ```{r}
-N_all_plate |> filter(plate_map == "16_t2_CFE.1x")
+#N_all_plate |> filter(plate_map == "16_t2_CFE.1x")
 #QC6$extr_avg_trusted
 
 corrected_data <- correct_abs_samples(N_all_plate, QC6 = QC6)
-corrected_data |> filter(plate_map == "16_t2_CFE.1x")
+
 ```
 
 # °^°°°^ Milestone : blanc-corrected data °^°°°^
@@ -533,35 +534,21 @@ Let us now format then export the table for later use. We will need the last ste
 
 ```{r}
 
- # data_transformed$data |>
- #   filter(plate_map == "16_t2_CFE.1x")
-# N_all_plate |> arrange(plate_map) |> head()
-
-# str(data_transformed$data$conc_mgNsp_L)
+# test <- data_transformed$data |>
+#     mutate(
+#       rep_tech = case_when(
+#         row %in% c("A", "E") ~ "rt1",
+#         row %in% c("B", "F") ~ "rt2",
+#         row %in% c("C", "G") ~ "rt3",
+#         row %in% c("D", "H") ~ "rt4"
+#       )
+#     ) |>
+#     #filter(plate_id == "NH4_1F1") |>
+#     select(!(c(well_id:unique_well_id, conc_mgNsp_L)))
 # 
-# for (i in 1:length(data_transformed$data$conc_N_L)) {
-#   cell = data_transformed$data$conc_N_L[i]
-#   unname(cell)
-# }
-# data_transformed$data$conc_N_L
-# data_transformed$data |> view()
-
-
-test <- data_transformed$data |>
-    mutate(
-      rep_tech = case_when(
-        row %in% c("A", "E") ~ "rt1",
-        row %in% c("B", "F") ~ "rt2",
-        row %in% c("C", "G") ~ "rt3",
-        row %in% c("D", "H") ~ "rt4"
-      )
-    ) |>
-    #filter(plate_id == "NH4_1F1") |>
-    select(!(c(well_id:unique_well_id, conc_mgNsp_L)))
-
-bad <- test |> ungroup() |>
-  dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map, rep_tech)) |>
-  dplyr::filter(n > 1L) |> arrange(plate_map)
+# bad <- test |> ungroup() |>
+#   dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map, rep_tech)) |>
+#   dplyr::filter(n > 1L) |> arrange(plate_map)
 
 # pivot for export
   data_export <- data_transformed$data |> 
@@ -588,8 +575,8 @@ bad <- test |> ungroup() |>
       names_prefix = "conc_N_L"
       
     )
-data_export
-data_export |> ungroup() |> select(N_sp) |> unique()
+#data_export
+#data_export |> ungroup() |> select(N_sp) |> unique()
 
 ```
 

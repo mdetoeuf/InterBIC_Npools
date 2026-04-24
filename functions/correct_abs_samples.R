@@ -16,6 +16,9 @@
 #> QC6 <- qc6_extr_trusted(QC5, cut_threshold = cut_threshold)
 #> QC5 <- qc5_extr_blanc_variation(Nmin_data)
 #> data <- Nmin_data
+# data <- N_all_plate |> filter(plate_map == "16_t2_CFE.1x")
+# data
+# QC6$extr_avg_trusted |> filter(plate_id == "NO2_TDN_18")
 
 correct_abs_samples <- function(
     data,
