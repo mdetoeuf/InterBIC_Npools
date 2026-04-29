@@ -15,7 +15,9 @@ output: true
 
 In this script we tidy data sets into the shape that we need for data transformation and following analysis and visualization
 
-# Set up
+# 1 - Set up
+
+## 1.1 - Load packages and functions
 
 ```{r}
 rm(list = ls())
@@ -24,7 +26,7 @@ library(tidyverse)
 library(janitor)
 ```
 
-# 1 - Import data
+## 1.2 - Import data
 
 ```{r}
 #lm_output <- read_rds("output/data/Nmin_std_curves_lm.rds")
@@ -43,17 +45,7 @@ N_metadata <- read_rds("output/data/N_all_metadata.rds")
 lab_data <- read_rds("output/data/2_lab_data.rds") 
 ```
 
-# 2 - Compute new variables on per-sample basis
-
-This is the place to compute new variables that will be needed for several downstream analyses
-
-# 2 - Greenhouse, t2
-
-We first focus on data from the greenhouse trial at t2. It follows a complete randomized block design, with modalities: 4 soils x 3 crop stands x 5 blocs
-
-## 1.1 - Extract subsets of data: Nmin, TDN (incl. MBN)
-
-### 1.2.1 - Retrieve dataset information into absorbance dataframe
+## 1.3 - Retrieve dataset information into absorbance dataframe
 
 ```{r}
 
@@ -71,25 +63,90 @@ N_data$dataset |> unique()
 N_data$sampling_time |> unique()
 ```
 
-### 1.2.2 - Store subsets in new objects
+# 2 - Compute new variables on per-sample basis
 
-Now that each row has been given the corresponding dataset, we can take a subset based on dataset
+This is the place to compute new variables that will be needed for several downstream analyses
 
-#### Nmin
+## 2.1 - Means of concentrations (across 4 wells)
 
-For Nmin --\> we don't take t3 for now, we'll still have to filter based on sampling_time
+First, it makes no sense to compute new variables based on all 4 wells of the plate attributed to a single sample (e.g., rep tech 1 of non-fumigated does not related to rep tech 1 of fumigated). So we start by computing the mean of each concentration of N species on a per sample / per plate basis.
 
 ```{r}
-# plate data
-Nmin_plate_data <- N_data |> 
-  filter(dataset == "Nmint1t2", sampling_time == "t2")
+conc_columns <- N_data |> 
+  select(starts_with("conc")) |> 
+  names()
 
-# metadata
-Nmin_metadata <- N_metadata |> 
-  filter(dataset == "Nmint1t2", sampling_time == "t2")
+N_data_avg <- N_data |> 
+  rowwise() |> 
+  mutate(
+    conc_N_L_avg = mean(c_across(conc_columns)),
+    conc_N_L_stdev = sd(c_across(conc_columns)),
+    conc_N_coefvar = 100 * conc_N_L_stdev / conc_N_L_avg
+  ) |> 
+  arrange(desc(conc_N_coefvar))
+```
 
+Then, we have a look. Actually, datasets are a bit too diverse, so it would be probably best to look at them separately. But for now, general observation:
+
+-   for NO3: the vast majority of samples present coefficient of variation below 10%, acceptable.
+
+-   In general: extreme coefficient of variation occur not so much from high stdev but from very low averages. This is extreme for NO2 and NH4, which score at virtually zero for most samples
+
+The question then remains: how to spot and remove outliers? This is maybe something to do on a per data set basis.
+
+```{r}
+
+N_data_avg |> 
+  ggplot(aes(x = log(conc_N_coefvar))) +
+  theme_minimal() +
+  #geom_histogram() +
+  geom_density() +
+  geom_vline(xintercept = log(c(1,10,100)), colour = "red") +
+  annotate(geom = "text", x = log(1) + 0.2, y = 0.5, colour = "red", label = "1%") +
+  annotate(geom = "text", x = log(10) + 0.2, y = 0.5, colour = "red", label = "10%") +
+  annotate(geom = "text", x = log(100) + 0.2, y = 0.5, colour = "red", label = "100%") +
+  facet_wrap(~N_sp, nrow = 3) 
+  
+N_data_avg |> 
+  ggplot(aes(x = sample_short, y = conc_N_L_avg)) +
+  geom_boxplot() +
+ # ylim(c(-3,))
+  facet_grid(N_sp~dataset, scales = "free_y")
+
+N_data_avg |> 
+  ggplot(aes(x = conc_N_L_avg, y = log(conc_N_coefvar), colour = N_sp)) +
+  theme_minimal() +
+  geom_hline(yintercept = log(c(1,10,100)), colour = "red", alpha = 0.4) +
+  geom_point(alpha = 0.2) +
+  annotate(geom = "text", y = log(1) + 0.2, x = 0, colour = "red", label = "1%") +
+  annotate(geom = "text", y = log(10) + 0.2, x = 0, colour = "red", label = "10%") +
+  annotate(geom = "text", y = log(100) + 0.2, x = 0, colour = "red", label = "100%") +
+  facet_grid(dataset~N_sp, scales = "free_x")
+```
+
+# 3 - Greenhouse, t2
+
+We first focus on data from the greenhouse trial at t2. It follows a complete randomized block design, with modalities: 4 soils x 3 crop stands x 5 blocs
+
+## 3.1 - Extract subsets of data
+
+The N_data does not contain explicitly the info on experiment (greenhouse vs field), although it is contained in most plate names (but not for TDN). So we start by subsetting t2 and single datasets, filtering for the greenhouse will be possible when all data is joined in one data frame.
+
+### 3.1.1 - Lab data (non absorbance data)
+
+First, raw data (lab_data): this will apply to all datasets. We subset based on t2 and pot experiment, then clean a little but:
+
+-   exclude bare soil (only for t2!)
+
+-   exclude soil and sand standards for now (select only experimental soils)
+
+-   correct sample number
+
+-   remove clutter (amf and root data)
+
+```{r}
 # raw data
-Nmin_lab <- lab_data |> 
+lab_data_t2_pot <- lab_data |> 
   # keep only t2 and pot, remove bare soil
   filter(sampling_time == "t2", expe == "Pot", cs != "B") |> 
   # tidy: 
@@ -102,79 +159,189 @@ Nmin_lab <- lab_data |>
   select(!starts_with(c("amf", "rt")))
 ```
 
-Now we join those tables in one big data set
+### 3.1.2 - Absorbance data
+
+#### Nmin
 
 ```{r}
+# Nmin: plate data
+Nmin_plate_data <- N_data_avg |> 
+  filter(dataset == "Nmint1t2", sampling_time == "t2")
 
-# join
-Nmin <- left_join(
-  Nmin_lab, Nmin_plate_data, 
-  by = join_by(sample_short, sampling_time)) |>
-  left_join(
-    Nmin_metadata,
-    by = join_by(sampling_time, plate_id, dataset)) 
+# Nmin: metadata
+Nmin_metadata <- N_metadata |> 
+  filter(dataset == "Nmint1t2", sampling_time == "t2")
+
 
 ```
 
 #### TDN
 
-Same principle. First subset
-
 ```{r}
-
-# For TDN and MBN
-TDN_plate_data <- N_data |> 
+# For TDN and MBN: plate data
+TDN_plate_data <- N_data_avg |> 
   filter(dataset == "TDN", sampling_time == "t2")
+# For TDN and MBN: metadata
 TDN_metadata <- N_metadata |> 
   filter(dataset == "TDN", sampling_time == "t2")
-TDN_lab <- Nmin_lab
-
 ```
 
-But here, we need to pivot wider NF and CFE. At the moment, measurements for NF and CFE for a single sample constitute separate rows. The same goes for 1x and 2x dilutions.
+## 3.2 - Re-format tables
+
+We want to have only one row per sample per N_sp.
+
+### TDN
+
+For TDN, we need to pivot wider NF and CFE. At the moment, measurements for NF and CFE for a single sample constitute separate rows. The same goes for 1x and 2x dilutions. Because the analytical replicates (wells) of NF, CFE, and different dilutions do not relate to each other, it makes no sense to compute any downstream variable from each replicate. Therefore, from this pivot on, we do not include the replicates, only the average value.
+
+[**--\> If there is additional QC to be done (exclusion of outlier wells), this should be done earlier in the pipeline)**]{.underline}
+
+### 3.2.1 - TDN: extract fumigation and dilution information in new variables
+
+first, extract dilution and NF/CFE info in separate column
 
 ```{r}
-
-# first, extract dilution and NF/CFE info in separate column
 TDN_plate_data_clean <- TDN_plate_data |> 
   #** Separate info on dilution and fumigation and clean sample names *
   mutate(
     fumigation = str_extract(sample_short, "NF|CFE"),
     dilution = str_extract(sample_short, "1x|2x"),
     sample_short = str_replace(sample_short, "_NF.1x|_CFE.1x|_NF.2x|_CFE.2x", "")
-  ) 
+  ) |> 
+  # some samples do not have the info on fumigation: they are the glycine etc. tests on TDN --> to be studied separately
+  filter(!is.na(fumigation)) 
+```
 
-TDN_plate_data_clean 
-TDN_plate_data
-N_data
+Then, we pivot the table
+
+```{r}
 
 # then pivot table
-TDN_plate_data_clean |> ungroup() |> 
+
+TDN_plate_data_wider <- TDN_plate_data_clean |> ungroup() |> 
   pivot_wider(
     names_from = c(fumigation, dilution),
-    values_from = starts_with("conc"), 
-    names_sep = ".",
+    values_from = contains("avg"), 
+    names_prefix = "conc.N.L.avg_",
+    names_sort = TRUE,
+    names_sep = "_",
+    id_cols = c(sample_short, dataset, sampling_time, N_sp)
    # values_fn = mean
-  )
-?pivot_wider
+  ) |> arrange(sample_short) 
+
+TDN_plate_data_wider
+
+# version to pivot on all analytical replicates
+# TDN_plate_data_clean |> ungroup() |> 
+#   pivot_wider(
+#     names_from = c(N_sp, fumigation, dilution),
+#     values_from = starts_with("conc"),   
+#     names_sort = TRUE,
+#     names_vary = "slowest", 
+#     names_sep = ".",
+#     id_cols = sample_short:sampling_time
+#    # values_fn = mean
+#   ) |> arrange(sample_short) |> view()
 
 ```
 
-Then join
+Nmin is already in the desired format of one row per sample per N sp. But here, we just reduce and rename columns to have the same format as the TDN table (only required information). For the sake of coherent variable names, we call the new table "Nmin_plate_data_wider", although there is no pivotting involved.
 
 ```{r}
-# join
-TDN <- left_join(
-  TDN_lab, TDN_plate_data, 
-  by = join_by(sample_short, sampling_time)) |>
-  left_join(
-    TDN_metadata,
-    by = join_by(sampling_time, plate_id, dataset)) 
+Nmin_plate_data_wider <- Nmin_plate_data |> 
+  select(sample_short, dataset, sampling_time, N_sp, conc_N_L_avg) |> 
+  rename(conc.N.L.avg_Nmin = conc_N_L_avg)
+Nmin_plate_data_wider
+
+### version with Nmin stored in NF_1x
+# Nmin_plate_data_wider <- Nmin_plate_data |> 
+#   select(sample_short, dataset, sampling_time, N_sp, conc_N_L_avg) |> 
+#   rename(conc.N.L.avg_NF_1x = conc_N_L_avg) |> 
+#   mutate(
+#     conc.N.L.avg_CFE_1x = NA,
+#     conc.N.L.avg_CFE_2x = NA, 
+#     conc.N.L.avg_NF_2x = NA
+#   ) |> 
+#   relocate(conc.N.L.avg_NF_1x, .before = conc.N.L.avg_NF_2x)
 ```
 
-## 1.3 - Export
+## 3.3 - Join tables for each data set
 
 ```{r}
-Nmin |>  write_rds("output/data/3_Nmin_tidy.rds")
-TDN |> write_rds("output/data/TDN_tidy.rds")
+
+```
+
+### 3.3.1 - Option: re-append several datasets in one
+
+First, metadata.
+
+[**--\> At this stage, we have lost the info on plate_id. This means that we cannot re-link samples to plate. Indeed, one sample will appear on several plates (CFE, NF, NO2, NO3, NH4...).**]{.underline}
+
+[**--\> This also means that from here on, the metadata is relatively useless. However, it still contains informations on units of concentration. If this info needs to be found, then we can go back to metadata**]{.underline}
+
+We join the data anyway just to check that there is no red flag.
+
+Here we see that, with one exception of a single plate with KCl as an extractant (test for Elsa), all parameters are the same, so probably we will not need metadata anymore
+
+```{r}
+# check how many column names are different in metadata
+sum(names(TDN_metadata) != names(Nmin_metadata))
+
+#all_metadata <- bind_rows(list(Nmin = Nmin_metadata, TDN = TDN_metadata), .id = "dataset")
+all_metadata <- bind_rows(Nmin_metadata, TDN_metadata)
+
+all_metadata |> 
+  group_by(std_unit, extractant_sp, extractant_conc, extractant_unit) |> 
+  summarise(n = n())
+```
+
+Then, absorbance data. I keep this here for now, but I think that we don't need this. This would end up in multiplied rows again. We want 1 row per sample per N sp, this means that Nmin should have its own column, separate from NF and CFE
+
+The next chunk only works with an old version of Nmin_plate_data_wider (see above)
+
+```{r}
+# check how many column names are different in metadata
+# sum(names(TDN_plate_data_wider) != names(Nmin_plate_data_wider))
+# 
+# all_plate_data <- bind_rows(Nmin_plate_data_wider, TDN_plate_data_wider)
+```
+
+### 3.3.2 - Join absorbance data
+
+Here we loose the explicit info on data set (TDN and Nmin compressed on one line), but it is implicit in variable names (TDN: CFE or NF)
+
+```{r}
+Nmin_plate_data_wider
+TDN_plate_data_wider
+
+all_plate_data <- full_join(
+  Nmin_plate_data_wider |> select(!dataset), 
+  TDN_plate_data_wider |> select(!dataset),
+  by = join_by(sample_short, sampling_time, N_sp))
+
+all_plate_data
+
+```
+
+### 3.3.3 - Join lab data and absorbance data
+
+[**--\> For now, I don't extract Field data, because I am unsure that it was kept throughout all steps of this pipeline.**]{.underline}
+
+```{r}
+all_plate_data
+lab_data_t2_pot
+
+all_data <- full_join(lab_data_t2_pot, all_plate_data)
+all_data_pot <- all_data |> filter(expe == "Pot")
+```
+
+Now we join those tables in one big table per data set (done separately because the logic is different (pivot necessary for TDN)
+
+## 3.4 - Export
+
+```{r}
+# Nmin |>  write_rds("output/data/3_Nmin_tidy.rds")
+# TDN |> write_rds("output/data/TDN_tidy.rds")
+
+all_data_pot |> write_rds("output/data/3_Ndata_tidy.rds")
 ```
