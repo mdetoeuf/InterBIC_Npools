@@ -537,22 +537,6 @@ Let us now format then export the table for later use. We will need the last ste
 
 ```{r}
 
-# test <- data_transformed$data |>
-#     mutate(
-#       rep_tech = case_when(
-#         row %in% c("A", "E") ~ "rt1",
-#         row %in% c("B", "F") ~ "rt2",
-#         row %in% c("C", "G") ~ "rt3",
-#         row %in% c("D", "H") ~ "rt4"
-#       )
-#     ) |>
-#     #filter(plate_id == "NH4_1F1") |>
-#     select(!(c(well_id:unique_well_id, conc_mgNsp_L)))
-# 
-# bad <- test |> ungroup() |>
-#   dplyr::summarise(n = dplyr::n(), .by = c(plate_id, N_sp, plate_map, rep_tech)) |>
-#   dplyr::filter(n > 1L) |> arrange(plate_map)
-
 # pivot for export
   data_export <- data_transformed$data |> 
     mutate(

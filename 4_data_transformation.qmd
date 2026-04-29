@@ -26,9 +26,12 @@ library(tidyverse)
 ## 1.1 - Import tidy data set
 
 ```{r}
-Nmin <- read_rds("output/data/3_Nmin_tidy.rds") |> 
-  select(
-    !starts_with(c("yd", "whc", "nod", "pmn", "dna", "zone", "incub")))
+# Nmin <- read_rds("output/data/3_Nmin_tidy.rds") |> 
+#   select(
+#     !starts_with(c("yd", "whc", "nod", "pmn", "dna", "zone", "incub")))
+
+Ndata <- read_rds("output/data/3_Ndata_tidy.rds")
+
 #Nmin |> str()
 ```
 
@@ -58,6 +61,7 @@ Nmin_tfo1 <- Nmin |>
   rowwise() |> 
   # compute mean between technical replicates 
   mutate(
+   # conc_N_ppm_avg = mean(c_across(c("conc_N_ppm_rt1", "conc_N_ppm_rt2", "conc_N_ppm_rt3", "conc_N_ppm_rt4")))
     conc_N_ppm_avg = mean(c_across(c("conc_N_ppm_rt1", "conc_N_ppm_rt2", "conc_N_ppm_rt3", "conc_N_ppm_rt4")))
   ) |> 
  # select(!starts_with("flush")) |> 
