@@ -21,9 +21,7 @@
 
 # To Do
 
-- For TDN: !! <u>**If we do the NO2**</u>, then need to deal with the
-  fact that in plate NO2_TDN_18, there is another blanc for some samples
-  (KCl 1M), but that is only in 4 wells…
+- 
 
 # Intro
 
@@ -362,7 +360,7 @@ N_all_maps
 
 </details>
 
-    # A tibble: 96 × 195
+    # A tibble: 96 × 196
        row   column NH4_1F1  NH4_1F2_1 NH4_1F2_2 NH4_1F3  NH4_1F4  NH4_1F5   NH4_1G1
        <chr> <chr>  <chr>    <chr>     <chr>     <chr>    <chr>    <chr>     <chr>  
      1 A     1      Std      Std       Std       Std      Std      Std       Std    
@@ -376,7 +374,7 @@ N_all_maps
      9 A     9      87_t1_z3 103_t1_z1 empty     95_t1_z2 87_t1_z1 103_t1_z3 empty  
     10 A     10     88_t1_z3 104_t1_z1 empty     96_t1_z3 88_t1_z1 104_t1_z3 8_t1   
     # ℹ 86 more rows
-    # ℹ 186 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
+    # ℹ 187 more variables: NH4_1G2 <chr>, NH4_1G3 <chr>, NH4_1G4 <chr>,
     #   NH4_1G5 <chr>, NO2_1F1 <chr>, NO2_1F2_1 <chr>, NO2_1F2_2 <chr>,
     #   NO2_1F3 <chr>, NO2_1F4 <chr>, NO2_1F5 <chr>, NO2_1G1 <chr>, NO2_1G2 <chr>,
     #   NO2_1G3 <chr>, NO2_1G4 <chr>, NO2_1G5 <chr>, NO3_1F1 <chr>,
@@ -384,8 +382,8 @@ N_all_maps
     #   NO3_1F5 <chr>, NO3_1G1 <chr>, NO3_1G2 <chr>, NO3_1G3 <chr>, …
 
 So now we have those 2 data frames that have strictly the same
-structure, with 96 rows and 195 columns, with 2 columns attributed to
-the well identifier (“row” and “column”), and the remaining 193 columns
+structure, with 96 rows and 196 columns, with 2 columns attributed to
+the well identifier (“row” and “column”), and the remaining 194 columns
 representing the 96-well plates.
 
 ## 1.4 - Verticalize and join absorbance and maps data
@@ -426,7 +424,10 @@ that downstream analysis, including connecting this data to the metadata
 <summary>Code</summary>
 
 ``` r
-N_all_plate <- join_maps_abs(maps_df = N_all_maps, abs_df = N_all_abs)
+N_all_plate <- join_maps_abs(
+  maps_df = N_all_maps, 
+  abs_df = N_all_abs,
+  correct_1000_factor = TRUE)
 
 # have a look
 N_all_plate |> head()
@@ -488,6 +489,9 @@ N_all_plate_tidy <- N_all_plate |>
       .default = "unspecified"
     )
   )
+
+# N_all_plate_tidy |> 
+#     filter(plate_map %in% c(1,2,3,4,5,6,7,8,9,10))
 ```
 
 </details>
@@ -586,7 +590,7 @@ N_all_metadata
 
 </details>
 
-    # A tibble: 193 × 18
+    # A tibble: 194 × 18
        plate_id  date  time  sampling_time std_column std_sp std_unit    std_prep
        <chr>     <chr> <lgl> <chr>         <chr>      <chr>  <chr>       <chr>   
      1 NH4_1F1   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
@@ -599,7 +603,7 @@ N_all_metadata
      8 NH4_1G2   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
      9 NH4_1G3   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
     10 NH4_1G4   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
-    # ℹ 183 more rows
+    # ℹ 184 more rows
     # ℹ 10 more variables: std_conc <chr>, sample_dilution <chr>,
     #   extractant_column <dbl>, extractant_sp <chr>, extractant_unit <chr>,
     #   extractant_conc <dbl>, empty_column <chr>, wait_min <chr>, dataset <chr>,

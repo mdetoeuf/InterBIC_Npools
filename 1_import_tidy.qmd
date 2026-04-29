@@ -15,7 +15,7 @@ output: true
 
 # To Do
 
--   For TDN: !! [**If we do the NO2**]{.underline}, then need to deal with the fact that in plate NO2_TDN_18, there is another blanc for some samples (KCl 1M), but that is only in 4 wells...
+-   
 
 # Intro
 
