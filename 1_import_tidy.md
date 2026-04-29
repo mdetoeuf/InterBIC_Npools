@@ -107,6 +107,8 @@ Load packages
 <summary>Code</summary>
 
 ``` r
+rm(list = ls())
+
 library(tidyverse)
 library(janitor) # for row_to_names()
 

@@ -67,6 +67,9 @@ The pipeline is highly automated. Nevertheless, as a user, you'll have to take a
 #| message: false
 #| warning: false
 #| output: false
+
+rm(list = ls())
+
 library(tidyverse)
 library(roperators) # to be able to add %ni% for "not in"
 library(patchwork) # for wrap_plots and wrap_tables

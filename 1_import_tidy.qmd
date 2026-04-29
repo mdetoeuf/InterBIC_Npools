@@ -50,6 +50,8 @@ Load packages
 #| warning: false
 #| output: false
 
+rm(list = ls())
+
 library(tidyverse)
 library(janitor) # for row_to_names()
 
