@@ -22,7 +22,11 @@ output: true
 # Set up
 
 ```{r}
+
+rm(list = ls())
+
 library(tidyverse)
+library(janitor)
 ```
 
 # 1 - import data
