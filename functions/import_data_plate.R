@@ -10,7 +10,7 @@
 #>               
 #** To Do: specify particularities *
 #*
-#** -  For absorbance data, 3 format options as input*
+#** -  For absorbance data, 4 format options as input*
 #**     1) give path to folder where files in .TXT format are found. *
 #**        In that case: !! the only "." allowed in the filename *
 #**        is the one before the TXT extension *
@@ -19,6 +19,8 @@
 #**     3) give as input a tibble, coming from previous import, for example *
 #**        using read_csv(). In that case, make sure the tibble has been shaped *
 #**        into the correct format *
+#**     4) give a path to folder + filename of file with Skanit format *
+#**        (which is a csv structured in a specific way, see example file) *
 #** -  *
 #*
 
@@ -31,15 +33,18 @@
 #> csv_file_TDN <- read_csv("raw_data/TDN/TDN_data.csv", col_names = FALSE)
 #> tibble = csv_file_TDN
 #> tibble = "test no tibble"
+#> skanit_csv <- "raw_data/Skanit_example/MR_R1_t0.csv"
+
 
 import_data_plate <- function(
-    format_abs, # "csv" or "txt" or "tibble"
+    format_abs, # "csv" or "txt" or "tibble" or "skanit"
     dataset = "", # adds a column with the name of the data set, to join them later
     filepath = "", # path to folder where files are. finish it with "/" 
     filename_csv = NULL,
     tibble = NULL,
-    import_metadata = FALSE # change to TRUE if txt and want to obtain plate metadata from txt file
-    
+    skanit_csv = NULL,
+    import_metadata = FALSE, # change to TRUE if txt and want to obtain plate metadata from txt file
+    skanit_abs_or_map = "abs" # other option = "maps"
 ) {
   library(tidyverse)
   library(roperators)
@@ -47,9 +52,17 @@ import_data_plate <- function(
   
 
 # 1 - Import raw absorbance data (csv, tibble) or list raw files ( --------
+  
+  # New case: a skanit csv is given as input
+  if(format_abs == "skanit") {
+    if(skanit_abs_or_map == "abs") {
+      abs_data_raw <- skanit_to_csv(paste0(filepath, skanit_csv))$abs_data
+    } else {
+      abs_data_raw <- skanit_to_csv(paste0(filepath, skanit_csv))$map_data
+    }
+  } else if (format_abs == "tibble") {
 
   # First case: a tibble is given as input
-  if (format_abs == "tibble") {
     if (is.null(tibble)) { 
       stop("absorbance data as a tibble is missing")
     } else if (!is_tibble(tibble)) {
@@ -74,7 +87,7 @@ import_data_plate <- function(
       full.names = FALSE)
   # Last case: unvalid format given as input  
   } else {
-    stop("invalid format. Accepted values for format_abs are `csv`, `txt` or `tibble`")
+    stop("invalid format. Accepted values for format_abs are `csv`, `txt`, `tibble` or 'skanit'")
   }
   
 
@@ -108,11 +121,9 @@ import_data_plate <- function(
     select(!abs)
     
   
-  
-
 # 3 - For csv & tibble format --> verticalize in loop per plate -----------
   
-  if (format_abs %in% c("csv", "tibble")) {
+  if (format_abs %in% c("csv", "tibble", "skanit")) {
     
     # extract header rows for each plate: contain plate_id and column nb (1 to 12)
     # to get to the plate_ids
@@ -228,3 +239,6 @@ import_data_plate <- function(
 # test_tibble <- import_data_plate(format_abs = "tibble", tibble = read_csv("raw_data/TDN/TDN_data.csv", col_names = FALSE))
 # test_tibble$abs_data_df
 # test_tibble$abs_data_list$NO3_TDN_01
+
+# test_skanit <- import_data_plate(format_abs = "skanit", skanit_csv = "raw_data/Skanit_example/MR_R1_t0.csv")
+
