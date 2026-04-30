@@ -15,7 +15,7 @@ output: true
 
 # To Do
 
--   
+-   Incorporate the case of import from a Skanit-stuctured csv (function already exists: skanit_to_csv)
 
 # Intro
 
