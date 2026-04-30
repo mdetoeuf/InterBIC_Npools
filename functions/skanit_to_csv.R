@@ -8,43 +8,72 @@
 #>               - map_data = same, but will only be correct if the user encoded 
 #>               the plate map into Skanit
 #>               
-#** 
+#** Function arguments *
+#**
+#**   skanit_csv    path to the csv of skanit-generated data *
+#**   delim         The delimiter of values in the csv file *
+#**                 default: "," for "normal" csv format. Accepts the value ";" * 
 
 
-# skanit_csv <- "raw_data/Skanit_example/MR_R1_t0.csv"
+#skanit_csv <- "raw_data/Skanit_example/MR_R1_t0.csv"
+#delim <- ","
 
-skanit_to_csv <- function(skanit_csv) {
-  file <- read_csv(
-    skanit_csv, 
-    comment = "Wavelength",
-    skip = 6, 
-    #skip_empty_rows = TRUE,
-    col_names = FALSE, 
-    show_col_types = FALSE
-  ) |> 
-    drop_na(X1)
+skanit_to_csv <- function(
+    skanit_csv,
+    delim = ","
+    ) {
+  
+  if (delim == ",") {
+    file <- read_csv(
+      skanit_csv, 
+      comment = "Wavelength",
+      skip = 6, 
+      #skip_empty_rows = TRUE,
+      col_names = FALSE, 
+      show_col_types = FALSE
+    ) |> 
+      drop_na(X1)
+  } else {
+    file <- read_csv2(
+      skanit_csv, 
+      comment = "Wavelength",
+      skip = 6, 
+      #skip_empty_rows = TRUE,
+      col_names = FALSE, 
+      show_col_types = FALSE
+    ) |> 
+      drop_na(X1)
+    
+    warning(
+      "Warning: your csv has values separated by a semi-colon (';') instead of a comma (','). 
+      This probably means that your numerical data uses the comma instead of the dot as a digit separator. 
+      This could generate issues in downstream steps, but should not generate errors in this function call.")
+  }
   
   # Remove last row if contains something like "Autoloading..."
   if (str_split_i(file$X1[nrow(file)], pattern = " ", i = 1) == "Autoloading") {
     file <- file[1:(nrow(file)-1),]
   }
   
-  
+  # extract first column
   file_col1 <- file[[1]]
   #file_col1
   
-  # Replace cells with "Abs" by plate name
+  # Replace cells with "Abs" by plate name, then erase original cell containing that plate name
   for (cell in 2:(length(file_col1)-1)) {
-    if (file_col1[cell] == "Abs") file_col1[cell] <- file_col1[cell-1]
+    if (file_col1[cell] == "Abs") {
+      file_col1[cell] <- file_col1[cell-1]
+      file_col1[cell-1] <- NA
+      }
   }
   
   # create new version of file where only absorbance data and map data is kept
   file_plate_ids <- file |> 
     mutate(X1 = file_col1) |> 
     # remove useless NA rows (where plate id was stored)
-    drop_na() #|> 
-  
-  # find rownumber where cells contain "Sample" (indicates the start of plate map)
+    drop_na(X1) 
+
+    # find rownumber where cells contain "Sample" (indicates the start of plate map)
   nrow_sample <- which(file_plate_ids$X1 == "Sample")
   
   # create a vector with all indices of rows containing map data
@@ -72,7 +101,13 @@ skanit_to_csv <- function(skanit_csv) {
   ))
 }
 
+#> Call the function
+#> 
 # raw_data <- skanit_to_csv(skanit_csv)
+# raw_data <- skanit_to_csv("raw_data/Skanit_example/MR_R1_t0.csv")
+
+#> Access it's elements
+#> 
 # raw_data$abs_data
 # raw_data$map_data
 
