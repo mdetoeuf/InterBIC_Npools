@@ -39,8 +39,19 @@ data:
     - either as .TXT (see
       <a href="#fig-txt-screenshot" class="quarto-xref">Figure 1</a>)
 
-    - or as .csv (see example in
+    - or as .csv (see
       <a href="#fig-csv-screenshot" class="quarto-xref">Figure 2</a>)
+
+> [!TIP]
+>
+> ### Adapt the structure of your CSV!
+>
+> The structure of the file proposed for the csv format is not that of
+> the file provided by the SkanIt software, but a “cleaned” format (see
+> example in
+> <a href="#fig-csv-screenshot" class="quarto-xref">Figure 2</a>). You
+> may need to bring your raw data into a structure that fits the one
+> proposed here.
 
 2.  Plate map data, i.e., the map of well attribution to samples,
     standard curve and extractant (or blanc). Typically, this can have
@@ -70,10 +81,10 @@ given by the spectrophotometer
 Figure 2: One example of structure of a .csv file containing absorbance
 data. This is the basic structure that easily fits into this pipeline.
 But other formats can often easily be adapted into this format as well.
-Important in this set up is that plates are displayed on top of each
+**Important in this set up is that plates are displayed on top of each
 other (empty rows are easy to correct if needed), and that the plate_id
 is in the top-left cell of each plate. It is also useful that the
-plate_id start with the N species under study
+plate_id start with the N species under study**
 
 </div>
 
@@ -93,9 +104,9 @@ corresponding absorbance data
 Figure 4: Example of plate metadata. There could be more or less
 columns, but consistency within one import episode is important as
 several data frames will be appended, which will only work if they have
-the same structure. Vital columns are plate_id, std_sp, std_unit,
-std_conc (with concentrations separated by a “-” and the digit separator
-a “.”
+the same structure. Vital columns are <u>**plate_id, std_sp, std_unit,
+std_conc**</u> (with concentrations separated by a “-” and the digit
+separator a “.”
 
 </div>
 

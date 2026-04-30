@@ -23,20 +23,8 @@ toc: true
 
     -   run after Morgan
 
--   Finish DMP first draft
-
-    -   send to Fabienne.
-
-    -   When feedback –\> Morgan & co?
-
 # Detailed To Do
 
 ## 1. mineral N pools
-
-! 2 different types: t1 and t2: txt files from spectro. t3: xlsx file.
-
--   adapt import pipeline, including loop
-
--   export data table with raw data
 
 ## 2. PMN
