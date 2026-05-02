@@ -15,7 +15,7 @@ output: true
 
 # To Do
 
--   Incorporate the case of import from a Skanit-stuctured csv (function already exists: skanit_to_csv)
+- Incorporate the case of import from a Skanit-stuctured csv (function already exists: skanit_to_csv)
 
 # Intro
 
@@ -25,11 +25,11 @@ So there are here 2 main ways to import absorbance data & 3 types of data:
 
 1.  Absorbance data stricto sensu = quantitative values for absorbance, data coming from plate reader
 
-    -   either as .TXT (see @fig-txt-screenshot)
+    - either as .TXT (see @fig-txt-screenshot)
 
-    -   as homemade .csv (see @fig-csv-screenshot)
+    - as homemade .csv (see @fig-csv-screenshot)
 
-    -   or as a skanit-structured csv[^1] (see @fig-skanit-csv)
+    - or as a skanit-structured csv[^1] (see @fig-skanit-csv)
 
 [^1]: Skanit is the software that collects absorbance data on your computer if you connect it to the plate-reader that is available at the Agroecology Lab
 
@@ -83,6 +83,20 @@ This takes advantage of a home-made import function that transforms raw data in 
 The tibble option is useful if the original file is not formatted as in the default structure. Then you can previously import the data, reformat it, then run it through the function to take advantage of its verticalization.
 
 The `import_data_plate()` function returns a list, with the first element named `abs_data_df`, containing the verticalized data.
+
+## 1.0 - parallel test with new package
+
+Only has one function for now: skanit_to_plate()
+
+```{r}
+library(plate2N)
+
+plate_data <- skanit_to_plate("raw_data/Skanit_example/MR_R1_t0.csv")
+
+plate_data$abs_data
+
+plate_data$map_data
+```
 
 ## 1.1 - First, raw absorbance data
 
@@ -187,23 +201,23 @@ We use here the home-made function `join_maps_abs()` that first verticalizes sep
 
 The target structure for the joined data frame is to have the following columns:
 
--   "row" (from the plate, i.e., from "A" or "H")
+- "row" (from the plate, i.e., from "A" or "H")
 
--   "column" (from the plate, i.e., from 1 to 12), here expressed within a single column
+- "column" (from the plate, i.e., from 1 to 12), here expressed within a single column
 
--   "well_id" (= concatenation of row and column, i.e., from A1 to H12)
+- "well_id" (= concatenation of row and column, i.e., from A1 to H12)
 
--   "unique_well_id" (= concatenation of plate_id and well_id),
+- "unique_well_id" (= concatenation of plate_id and well_id),
 
--   "N_sp" (extracted from plate_id as the first block preceding the first "\_". If your plate names are not structured so, we can adapt the code and/or get that information from somewhere else, e.g., the metadata
+- "N_sp" (extracted from plate_id as the first block preceding the first "\_". If your plate names are not structured so, we can adapt the code and/or get that information from somewhere else, e.g., the metadata
 
--   "dataset" (as input in the import function hereabove,
+- "dataset" (as input in the import function hereabove,
 
--   "plate_id"
+- "plate_id"
 
--   "plate_map" (sample name or extractant or std curve),
+- "plate_map" (sample name or extractant or std curve),
 
--   "absorbance" (raw data coming out of the spectrophotometer).
+- "absorbance" (raw data coming out of the spectrophotometer).
 
 Should you need any other column, this can be discussed. Bear in mind that downstream analysis, including connecting this data to the metadata (imported in next section), will happen in the next script.
 
@@ -261,23 +275,23 @@ The file containing plate metadata can contain as much information on plates as 
 
 Absolutely necessary columns are:
 
--   plate_id
+- plate_id
 
-    -   ideally one row per plate id, corrections to the code may be needed otherwise
+  - ideally one row per plate id, corrections to the code may be needed otherwise
 
--   std_unit
+- std_unit
 
--   std_conc
+- std_conc
 
-    -   this contains a succession of all concentrations of the standard curve, expressed in the unit above
+  - this contains a succession of all concentrations of the standard curve, expressed in the unit above
 
-    -   one cell is used for all concentrations, ideally in ascending order (or tweak the code)
+  - one cell is used for all concentrations, ideally in ascending order (or tweak the code)
 
-    -   concentrations should be separated by "-" and digits expressed with ".", not with ","
+  - concentrations should be separated by "-" and digits expressed with ".", not with ","
 
 In the proposed code, N species can be deducted from plate names. Should that not be the case, then an additional column would be a good place to store that information:
 
--   N_sp
+- N_sp
 
 Additional information can be encoded manually.
 
