@@ -1,0 +1,137 @@
+---
+title: "Import and tidy with plate2N"
+author: "Morgane de Toeuf"
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# Set up
+
+```{r}
+#| message: false
+#| warning: false
+#| output: false
+
+rm(list = ls())
+
+# once in a while, redownload
+#pak::pak("mdetoeuf/plate2N”) # if doesn't work --> try pak::pak_cleanup()
+library(plate2N)
+library(tidyverse)
+#library(janitor) # for row_to_names()
+```
+
+# 1 - Import data
+
+All object names ending with "abs" contain absorbance data, all object names ending with "map" contain the mapping of the equivalent abs data
+
+```{r}
+# Nmin for t1 and t2
+(Nmin_t1t2_abs <- txt_to_tibble("raw_data/Nmin/"))
+(Nmin_t1t2_map <- csv_to_tibble("raw_data/Nmin/Nmin_maps.csv"))
+
+# Nmin for t3
+Nmin_t3_abs <- csv_to_tibble("raw_data/Nmin_t3/Nmint3_data.csv")
+Nmin_t3_map <- csv_to_tibble("raw_data/Nmin_t3/Nmint3_maps.csv")
+
+# TDN (map csv not in the right format --> back to import_csv)
+TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
+(TDN_map <- 
+    read_csv(
+      "raw_data/TDN/TDN_maps.csv", 
+      col_names = FALSE, col_select = X14:X26, show_col_types = FALSE) |> 
+    na.omit() |> 
+    rename_with(~c("row", paste0("X", seq(1:12)))))
+
+# Example for Skanit-formatted csv
+(Skanit_abs <- skanit_to_tibble("raw_data/Skanit_example/MR_R1_t0.csv")$abs)
+(Skanit_map <- skanit_to_tibble("raw_data/Skanit_example/MR_R1_t0.csv")$map)
+
+```
+
+::: callout-tip
+## For users of the Skanit file format
+
+The previous chunk (absorbance and plate map data) demonstrate the usage of the Skanit format version of the import function, but the rest of this pipeline does not require the Skanit data, so it is no longer used passed this import step. However, the output format should, in theory, be strictly identical to other format options, so that the object `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or `Nmin_abs`. Please reach out if you encounter any difficulty.
+:::
+
+# 2 - Verticalize plates
+
+We do this separately for each data set. Because those distinct data sets will be combined eventually, we add a prefix to column names to reflect dataset + whether it is abs or map.
+
+```{r}
+# Nmint1t2
+Nmin_t1t2_vert <- join_abs_map(Nmin_t1t2_abs, Nmin_t1t2_map, dataset = "Nmint1t2-")
+
+# Nmint3
+Nmin_t3_vert <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
+
+# TDN
+TDN_vert <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
+
+## Check them out
+Nmin_t1t2_vert; Nmin_t3_vert; TDN_vert
+```
+
+Then, we use the `dplyr::left_join()` function to join all plate data in a single data table. Note the distinct column names with their dataset and abs/map-related prefixes
+
+```{r}
+# join all 3 in a single table with all "plate data"
+all_vert <- Nmin_t1t2_vert |> 
+  left_join(Nmin_t3_vert, by = join_by(row, column)) |> 
+  left_join(TDN_vert, by = join_by(row, column))
+
+# check it out + look at variable names
+all_vert; names(all_vert)
+```
+
+# 3 - tidy table
+
+The vertical format is practical for manual handling, with an easy-to-handle nb of rows (96), and individual plates are easy to select based on plate name (e.g., here is an easy way to subset some plates).
+
+But this format is not ideal for bulk computing and transformations. So we use pivot longer to get columns in a more compacted way. In the end, we will need to separate again absorbance data (numerical) from mapping data (strings), that will come in the next step
+
+```{r}
+all_vert_too_long <- all_vert |> 
+  pivot_longer(
+    cols = !any_of(c("row", "column")),
+    names_to = c("dataset", "abs_map", "plate_id"),
+    names_sep = "-",
+    values_to = "value"
+    )
+all_vert_too_long
+```
+
+This went a bit too far. What we want, is to have one column for absorbance data, another one for the mapping. This is what we do with the call to `pivot_wider()`\`in the next chunk. The next steps in the pipeline (`relocate()` and `mutate()`) serve to improve the table, with additional columns that will prove useful later (well_id and unique_well_id).
+
+```{r}
+all_raw_abs_tidy <- all_vert_too_long |> 
+  pivot_wider(
+    names_from = "abs_map",
+    values_from = "value"
+  ) |> 
+  relocate(map, .before = "abs" ) |> 
+  mutate(
+    well_id = paste0(row, column),
+    unique_well_id = paste0(well_id, "_", plate_id),
+    .before = 3
+  ) 
+all_raw_abs_tidy
+```
+
+Now we have a tidy table that is ready for export
+
+# 4 - Export
+
+```{r}
+all_raw_abs_tidy |> write_rds("output/data/1.1_all_raw_abs_tidy.rds")
+```

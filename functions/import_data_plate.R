@@ -23,8 +23,16 @@
 #**        (which is a csv structured in a specific way, see example file) *
 #** -  *
 #*
+#** Workflow *
+#** - txt --> list --> tibble *
+#** - csv --> tibble (--> list?) *
+#** - skanit --> tibble (--> list?) *
+#** - tibble *
+#** - tibble --> verticalize *
+#**
 
 #** Example of parameters  *
+
 
 #> format_abs <- "tibble" or "txt" or "csv
 # filepath <- "raw_data/Nmin_t3/" # path to folder where files are. finish it with "/" 
@@ -111,11 +119,11 @@ import_data_plate <- function(
   colnames(matrix) <- as.character(c(1:12))
   
   # turn it into a tibble and add column with letters
-  plate_empty <- as_tibble(matrix) |> 
+  empty_plate <- as_tibble(matrix) |> 
     mutate(row = LETTERS[1:8], .before = 1)
   
   # verticalize and store in a dataframe
-  abs_longer <- plate_empty |> 
+  abs_longer <- empty_plate |> 
     pivot_longer(cols = `1`:`12`, names_to = "column", values_to = "abs") |> 
     # remove empty column
     select(!abs)
@@ -185,7 +193,7 @@ import_data_plate <- function(
       abs_data_list[[i]] <- plate_abs
       names(abs_data_list)[i] <- plate_id
     
-    ?read_tsv
+    #?read_tsv
     
       if (import_metadata) {
         

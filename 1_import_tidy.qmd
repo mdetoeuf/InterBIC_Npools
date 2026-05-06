@@ -92,6 +92,7 @@ Only has one function for now: skanit_to_plate()
 library(plate2N)
 
 plate_data <- skanit_to_plate("raw_data/Skanit_example/MR_R1_t0.csv")
+?skanit_to_plate
 
 plate_data$abs_data
 
