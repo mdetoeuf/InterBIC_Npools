@@ -91,7 +91,7 @@ all_vert <- Nmin_t1t2_vert |>
   left_join(TDN_vert, by = join_by(row, column))
 
 # check it out + look at variable names
-all_vert; names(all_vert)
+all_vert; names(all_vert)[1:100]
 ```
 
 # 3 - tidy table
@@ -111,7 +111,7 @@ all_vert_too_long <- all_vert |>
 all_vert_too_long
 ```
 
-This went a bit too far. What we want, is to have one column for absorbance data, another one for the mapping. This is what we do with the call to `pivot_wider()`\`in the next chunk. The next steps in the pipeline (`relocate()` and `mutate()`) serve to improve the table, with additional columns that will prove useful later (well_id and unique_well_id).
+This went a bit too far. What we want, is to have one column for absorbance data, another one for the mapping. This is what we do with the call to `pivot_wider()` in the next chunk. The next steps in the pipeline (`relocate()` and `mutate()`) serve to improve the table, with additional columns that will prove useful later (well_id and unique_well_id).
 
 ```{r}
 all_raw_abs_tidy <- all_vert_too_long |> 
