@@ -4,7 +4,7 @@ author: "Morgane de Toeuf"
 format: 
   gfm:
     toc: true
-    code-fold: true
+    #code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -33,6 +33,8 @@ library(tidyverse)
 # 1 - Import data
 
 All object names ending with "abs" contain absorbance data, all object names ending with "map" contain the mapping of the equivalent abs data
+
+Here we import all our datasets, with various functions from the package `plate2N`. The output is displayed each time a new function is used.
 
 ```{r}
 # Nmin for t1 and t2
@@ -96,9 +98,7 @@ all_vert; names(all_vert)[1:100]
 
 # 3 - tidy table
 
-The vertical format is practical for manual handling, with an easy-to-handle nb of rows (96), and individual plates are easy to select based on plate name (e.g., here is an easy way to subset some plates).
-
-But this format is not ideal for bulk computing and transformations. So we use pivot longer to get columns in a more compacted way. In the end, we will need to separate again absorbance data (numerical) from mapping data (strings), that will come in the next step
+We use pivot longer to get columns in a more compacted way. In the end, we will need to separate again absorbance data (numerical) from mapping data (strings), that will come in the next step
 
 ```{r}
 all_vert_too_long <- all_vert |> 
