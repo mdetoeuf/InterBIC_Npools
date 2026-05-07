@@ -128,10 +128,44 @@ all_raw_abs_tidy <- all_vert_too_long |>
 all_raw_abs_tidy
 ```
 
-Now we have a tidy table that is ready for export
+# 4 - Add plate metadata
 
-# 4 - Export
+Now we have a tidy table that is, in theory, ready for export. In real life, this data cannot be used on its own, and plate metadata is necessary.
+
+First, we import metadata for each dataset, and add a "dataset" column that will help with the next steps.
+
+```{r}
+# import csvs
+(Nmin_metadata <- read_csv(
+  "raw_data/Nmin/Nmin_metadata.csv", show_col_types = FALSE
+  ) |>
+  mutate(dataset = "Nmint1t2"))
+str(Nmin_metadata)
+
+Nmin_t3_metadata <- read_csv(
+  "raw_data/Nmin_t3/Nmint3_metadata.csv", show_col_types = FALSE
+  ) |> 
+  mutate(dataset = "Nmint3")
+
+TDN_metadata <- read_csv(
+  "raw_data/TDN/TDN_metadata.csv", show_col_types = FALSE
+  ) |> 
+  mutate(std_column = as.character(std_column)) |> 
+  mutate(dataset = "TDN")
+```
+
+Then we join them in one big metadata file. ! this only works because the 3 metadata files have stricly the same stucture (same column names in the same order, containing the same data type (string, ...)).
+
+```{r}
+# join csv's
+(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata))
+```
+
+We could already here, join both metadata and tidy data, but this would create a much larger file to save on the computer than the 2 files separately (because rows of the metadata would be repeated 96 times, one per well of the plate.
+
+# 5 - Export
 
 ```{r}
 all_raw_abs_tidy |> write_rds("output/data/1.1_all_raw_abs_tidy.rds")
+all_plate_metadata |> write_rds("output/data/1.1_all_plate_metadata.rds")
 ```
