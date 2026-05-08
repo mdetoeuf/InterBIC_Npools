@@ -1,0 +1,93 @@
+---
+title: "2.1.1 Absorbance Data QC"
+author: "Morgane de Toeuf"
+format: 
+  gfm:
+    toc: true
+    #code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# Set up
+
+Loading packages
+
+```{r}
+
+rm(list = ls())
+
+library(tidyverse)
+library(plate2N)
+```
+
+Loading data
+
+```{r}
+all_raw_abs_tidy <- read_rds("output/data/1.1_all_raw_abs_tidy.rds")
+all_plate_metadata <- read_rds("output/data/1.1_all_plate_metadata.rds")
+```
+
+Joining plate data and metadata
+
+```{r}
+raw_meta <- all_raw_abs_tidy |> left_join(all_plate_metadata, by = join_by(dataset, plate_id))
+```
+
+# 1 - Suspicious wells removal
+
+## 1.1 - Manual records
+
+This section allows the removal of wells that "we know" are failed wells (e.g., something went wrong during pipetting...).
+
+First, we create a template document to record identifiers of failed wells. To unequivocally identify a well, 3 pieces of info are needed: dataset, plate id, well id.
+
+```{r}
+(template <- failed_wells_template(nrow = 30))
+```
+
+Then we export it as a csv for manual encoding
+
+```{r}
+#| eval: false
+#| include: true
+write_csv(template, file = "output/template/failed_wells_30.csv")
+#write_excel_csv(template, file = "output/template/failed_wells_30.csv")
+```
+
+After filling that file manually, we re-import it and correct the tidy data table
+
+```{r}
+(failed_wells <- read_csv("raw_data/failed_wells.csv", show_col_types = FALSE))
+
+raw_abs_tidy <- raw_meta |> remove_wells(failed_wells)
+```
+
+## 1.2 - Suspicious absorbance values (automated)
+
+Observe values for absorbance (iteratively)
+
+```{r}
+suspicious_wells <- raw_abs_tidy |> 
+  qc_raw_abs(
+    min_abs = 0.03, max_abs = 4, 
+    plot_col_facet = "std_sp", 
+    export_plot = "none") 
+
+suspicious_wells |> slice_max(abs, n = 10)
+```
+
+For now, I decide to remove those wells. To be reviewed
+
+```{r}
+raw_abs_trusted <- raw_abs_tidy |> remove_wells(suspicious_wells)
+```
+
+# 2 - Correction for blank
+
+## 2.1 - Standard curve

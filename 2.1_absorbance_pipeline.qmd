@@ -21,13 +21,13 @@ output: true
 
 # To Do
 
--   [**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**]{.underline}
--   !! Figure out wh[**y some final concentrations are equal to zero!**]{.underline}
--   Improve visualization for multiple plots –\> make a loop to produce several pages?
--   improve rendering of @lst-qc4
-    -   have the table(s) called in successive chunks with labels –\> can call them in comments above
-    -   change the printing of warning / message? (seems to appear twice)
--   Change function for superposed plots so that it is easy to modulate which column of metadata goes into the color-coding of the curves
+- [**!! 2 PLATES WHERE I WOULD WANT TO HAVE A LOWER THRESHOLD !! SO UPDATE PIPELINE CODE TO BE MORE FLEXIBLE IN FUNCTION CALL !!**]{.underline}
+- !! Figure out wh[**y some final concentrations are equal to zero!**]{.underline}
+- Improve visualization for multiple plots –\> make a loop to produce several pages?
+- improve rendering of @lst-qc4
+  - have the table(s) called in successive chunks with labels –\> can call them in comments above
+  - change the printing of warning / message? (seems to appear twice)
+- Change function for superposed plots so that it is easy to modulate which column of metadata goes into the color-coding of the curves
 
 # Intro
 
@@ -35,27 +35,27 @@ To keep this pipeline easily readable and reproducible, most operations are "hid
 
 In this pipeline we refer to
 
--   "curve" = all wells and associated data that refer to one standard curve (typically a whole column on the plate).
+- "curve" = all wells and associated data that refer to one standard curve (typically a whole column on the plate).
 
--   "plate" = one 96-well plate used for the experiment. It is, together with rows and columns, one of the smallest scales of extracting data. Although data at this stage is no longer formated in the shape of a plate, the plate still constitutes a unit. All wells on that plate share the same blanc and the same standard curve, they will thus be treated as one for many computation steps.
+- "plate" = one 96-well plate used for the experiment. It is, together with rows and columns, one of the smallest scales of extracting data. Although data at this stage is no longer formated in the shape of a plate, the plate still constitutes a unit. All wells on that plate share the same blanc and the same standard curve, they will thus be treated as one for many computation steps.
 
--   "row" can be used to designate the row (i.e., observation) of a table or data set. But it also designates the row of a plate and, as such, becomes data recorded in a column called "row". This dual meaning can lead to some confusion. I try to use "row-plate" when refering to the rows (A, B, C...) of a 96-well plate. But it is possible that I forgot to do that sometimes and simply used "row". Context should help.
+- "row" can be used to designate the row (i.e., observation) of a table or data set. But it also designates the row of a plate and, as such, becomes data recorded in a column called "row". This dual meaning can lead to some confusion. I try to use "row-plate" when refering to the rows (A, B, C...) of a 96-well plate. But it is possible that I forgot to do that sometimes and simply used "row". Context should help.
 
--   "suspicious". We refer to suspicious curves or suspicious wells or suspicious plates: they need to be examined and may contain / constitute outliers
+- "suspicious". We refer to suspicious curves or suspicious wells or suspicious plates: they need to be examined and may contain / constitute outliers
 
--   "(un)trusted": this is one step further than "suspicion". A decision has been taken. This refers to wells that have been or will be removed (untrusted) or kept (trusted)
+- "(un)trusted": this is one step further than "suspicion". A decision has been taken. This refers to wells that have been or will be removed (untrusted) or kept (trusted)
 
 ::: {#tip-input .callout-tip}
 ## Your input is needed!
 
 The pipeline is highly automated. Nevertheless, as a user, you'll have to take a few decisions:
 
--   adapting path for import of data (@lst-load)
--   Playing around with the range of absorbance to accept (@lst-qc1-initial-range)
--   Playing around with max acceptable coefficient of variation for extractant (@lst-hist-extr-coeff-var)
--   Based on observations from @fig-suspicious-plates, thresholds can be set in @lst-cut-threshold-extractant to exclude outlier wells from extractant data
--   Based on visual appraisal of graphs @fig-unsorted-curves, encode identifier of outlier wells @lst-outlier-std
--   adapting path for export of data (@lst-export)
+- adapting path for import of data (@lst-load)
+- Playing around with the range of absorbance to accept (@lst-qc1-initial-range)
+- Playing around with max acceptable coefficient of variation for extractant (@lst-hist-extr-coeff-var)
+- Based on observations from @fig-suspicious-plates, thresholds can be set in @lst-cut-threshold-extractant to exclude outlier wells from extractant data
+- Based on visual appraisal of graphs @fig-unsorted-curves, encode identifier of outlier wells @lst-outlier-std
+- adapting path for export of data (@lst-export)
 :::
 
 # 1 - Set up
@@ -126,13 +126,13 @@ The min and max need to be adapted also because some manips may allow more open 
 
 If wells are out of range of "acceptable" absorbance values, you'll get a warning.
 
--   You can play around with the min and max of the "acceptable" range (@lst-qc1-initial-range)
+- You can play around with the min and max of the "acceptable" range (@lst-qc1-initial-range)
 
--   You can also evaluate this range with having a look at @fig-plot_QC_wells
+- You can also evaluate this range with having a look at @fig-plot_QC_wells
 
 <!-- -->
 
--   What if some wells are out of range? Ware options then? Remove suspicious wells (replace by NAs?)
+- What if some wells are out of range? Ware options then? Remove suspicious wells (replace by NAs?)
 :::
 
 ```{r}
@@ -169,7 +169,7 @@ For now, this is a separate process (std curves vs samples) to account for the f
 
 [**To be thought through:**]{.underline}
 
--   If it becomes relevant: make some sort of if condition, based on plate information (`blanc_id` and `std_id`)
+- If it becomes relevant: make some sort of if condition, based on plate information (`blanc_id` and `std_id`)
 
 A typical pipetting error with the automated pipette is to forget to expell the first bit (containing air) before the "real" pipetting starts. In this case, the first well to be pipetted (typically well A1) will receive a wrong amount of reagent, which in turn may impact stoechiometry and volume, thus absorbance reads. The next chunk allows the identification of minimum values within a standard curve that are not situated in the first or last row of the plate (usually the standard curve is pipetted in ascending or descending order).
 
@@ -253,9 +253,9 @@ QC5$multiple_plot
 
 We have to remove outliers manually: it is really a visual appreciation that works (see @fig-suspicious-plates). Only "suspicious" plates from above are displayed.
 
--   Watch out, in the case of plates with several blancs like here (coming from several batches of soil extraction), that a bimodal distribution might not necessary be an issue.
+- Watch out, in the case of plates with several blancs like here (coming from several batches of soil extraction), that a bimodal distribution might not necessary be an issue.
 
--   Also look at the scale of the axes: bins will always spread over the whole x-axis, even if the distance is only of 0.001...
+- Also look at the scale of the axes: bins will always spread over the whole x-axis, even if the distance is only of 0.001...
 
 Based on visual appreciation, here is the list of plates that we want to correct. One way to do it is to impose, for each plate, a threshold value that we can later use to filter out outlier wells (wells above the threshold value).
 
@@ -264,9 +264,9 @@ Based on visual appreciation, here is the list of plates that we want to correct
 
 In the following chunk, you need to input threshold values as a vector with one number per "suspicious" plate. If you decide to keep all values, you can set a threshold of 1.00.
 
--   look at @fig-suspicious-plates to decide on threshold values. By default, the function `wrap_plots()` orders plots by row, so that the order of plates in `extr_suspicious` corresponds to the plots read from left to right, then next row, etc.
+- look at @fig-suspicious-plates to decide on threshold values. By default, the function `wrap_plots()` orders plots by row, so that the order of plates in `extr_suspicious` corresponds to the plots read from left to right, then next row, etc.
 
--   The function call only allows to exclude values above the threshold for now. If your outliers are rather the lower values, you'll need to have a look in the source code of the function `qc6_extr_trusted()`, and update it somehow.
+- The function call only allows to exclude values above the threshold for now. If your outliers are rather the lower values, you'll need to have a look in the source code of the function `qc6_extr_trusted()`, and update it somehow.
 :::
 
 **!! In case you want to exclude lower values only, then just change the `>` into `<`. But if you want to exclude some upper values, and some lower values, consider updating the code.**
@@ -323,9 +323,9 @@ corrected_data <- correct_abs_samples(N_all_plate, QC6 = QC6)
 
 The next chunk will first perfom a basic quality check of the standard curve
 
--   checking that metadata and data have the same nb of plates
+- checking that metadata and data have the same nb of plates
 
--   check that there are no negative values for the corrected absorbance
+- check that there are no negative values for the corrected absorbance
 
 ### 4.1.1 - removing outliers
 
@@ -348,11 +348,11 @@ QC7.1$multiplot + plot_annotation(subtitle = "1st iteration, no outlier removed 
 
 In the following chunk, we can manually encode a vector containing all outlier wells, based on visual appraisal of graphs @fig-unsorted-curves
 
--   For the plates where you want to keep all wells, encode NA
+- For the plates where you want to keep all wells, encode NA
 
--   For the plates where you want to remove [**one**]{.underline} well, encode its identifier (e.g., "E12")
+- For the plates where you want to remove [**one**]{.underline} well, encode its identifier (e.g., "E12")
 
--   Currently, you have to encode exactly one value per suspicious curve. If you want to remove 2 wells, proceed either iteratively or go to the source code of the function `qc7_std_find_outlier()`.
+- Currently, you have to encode exactly one value per suspicious curve. If you want to remove 2 wells, proceed either iteratively or go to the source code of the function `qc7_std_find_outlier()`.
 :::
 
 Once outlier wells are encoded, the following chunk will update input data (`std_tidy` will replace `std_corrected`). You can then look again at the remaining "suspicious" curves and see the improvement, then decide to proceed for one more iteration or keep the tidy data as is.
@@ -497,9 +497,9 @@ The function `abs_to_mgN_L` first transforms corrected absorbances into concentr
 
 The concentration in mg N/L for NO3 is at this stage still a gross measurement that also contains the amouns of NO2 that was present in the sample but was oxidised to NO3. In theory we have to make a substraction (NO3 neat = NO3 gross - NO2). But
 
--   we can only do this once we've agregated data on each sample (so an average of the 4 wells = technical replicates)
+- we can only do this once we've agregated data on each sample (so an average of the 4 wells = technical replicates)
 
--   in practice we see that concentrations in NO2 are so low that it's ok, in first approximation, to have a look at this value for now.
+- in practice we see that concentrations in NO2 are so low that it's ok, in first approximation, to have a look at this value for now.
 :::
 
 To finally convert these numbers from mg N /L into mg N / g dry soil, we need to integrate the 2 variables from external data sets: soil dry matter and the soil:exctractant ratio. This is thus something for another script. We can nevertheless have a first look at plots and see that indeed NO2 is mostly at 0, there is some noise in NH4, and clear variations in NO3.

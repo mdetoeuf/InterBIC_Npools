@@ -73,3 +73,6 @@ correct_abs_std <- function(
 }
 
 #correct_abs_std(Nmin_data)
+
+
+
