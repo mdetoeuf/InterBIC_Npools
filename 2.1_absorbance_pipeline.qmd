@@ -233,6 +233,7 @@ Looking at the distribution of the coefficient of variation per plate, it appear
 
 #** Look at this (and the next chunk) iteratively a couple of times to decide where to put the threshold. *
   QC5 <- qc5_extr_blanc_variation(N_all_plate,max_coeff = 3)
+  QC5$multiple_plot
   
   QC5$distrib_coeff +
   labs(subtitle = "anything above 5% seems to be an outlier (even above 3%)")

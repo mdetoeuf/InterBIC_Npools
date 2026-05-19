@@ -14,6 +14,10 @@ echo: true
 output: true
 ---
 
+# TO DO
+
+- Check concentrations courbe std de Cloé
+
 # Set up
 
 Loading packages
@@ -24,6 +28,7 @@ rm(list = ls())
 
 library(tidyverse)
 library(plate2N)
+library(roperators)
 ```
 
 Loading data
@@ -37,6 +42,7 @@ Joining plate data and metadata
 
 ```{r}
 raw_meta <- all_raw_abs_tidy |> left_join(all_plate_metadata, by = join_by(dataset, plate_id))
+#raw_meta |> filter(plate_id == string, map == "Std")
 ```
 
 # 1 - Suspicious wells removal
@@ -66,6 +72,7 @@ After filling that file manually, we re-import it and correct the tidy data tabl
 (failed_wells <- read_csv("raw_data/failed_wells.csv", show_col_types = FALSE))
 
 raw_abs_tidy <- raw_meta |> remove_wells(failed_wells)
+#raw_abs_tidy |> filter(plate_id == string, map == "Std")
 ```
 
 ## 1.2 - Suspicious absorbance values (automated)
@@ -85,9 +92,184 @@ suspicious_wells |> slice_max(abs, n = 10)
 For now, I decide to remove those wells. To be reviewed
 
 ```{r}
-raw_abs_trusted <- raw_abs_tidy |> remove_wells(suspicious_wells)
+raw_abs_ok <- raw_abs_tidy |> remove_wells(suspicious_wells)
+#raw_abs_ok|> filter(plate_id == string, map == "Std")
 ```
+
+Check the QC once more
+
+```{r}
+raw_abs_ok |> 
+  qc_raw_abs(min_abs = 0.03, max_abs = 3, 
+    plot_col_facet = "std_sp", 
+    export_plot = "none") #|> 
+  #select(well_id, map) |> unique()
+
+# Once validated, store last version in a "validated" data
+raw_abs_clean <- raw_abs_ok
+```
+
+It appears that only the most concentrated wells in the standard curve for TDN (well H1) show absorbance levels above 3. We can later look at those curves and see whether those points are outside of the linear range. Not to worry now, though
 
 # 2 - Correction for blank
 
 ## 2.1 - Standard curve
+
+Obtain curve concentrations from metadata
+
+```{r}
+curve_concentration <- extract_curve(all_plate_metadata)
+```
+
+Extract Std wells, add unique curve ID, then add curve_concentration
+
+```{r}
+std_data <- raw_abs_clean |> 
+  extract_std_data() |> 
+  select(!std_conc) |> 
+  left_join(curve_concentration, by = join_by(row, plate_id))
+```
+
+Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting) or in row H (bottom_up pipetting)
+
+```{r}
+blank <- raw_abs_clean |> plate2N::extract_std_blanc()
+blank$untrusted
+#blank$all |> filter(plate_id == "NO3_R2R3_1")
+```
+
+Check it out graphically.
+
+```{r}
+# get unique curve id for the curves of interest (containing the suspicious wells)
+#curve <- blank$untrusted$unique_curve_id
+
+# all data --> too messy. 
+std_data |> 
+  plot_std() +
+  facet_grid(dataset~std_sp)
+
+# Subset: look at suspicious blanks
+std_data |> 
+  filter(unique_curve_id %in% blank$untrusted$unique_curve_id) |> 
+  plot_std() +
+  facet_wrap(~plate_id, scales = "free")
+```
+
+In this case, all "untrusted wells" are to be removed, as the values in A1 are clearly out of the curve and probably come from a pipetting error (failure to eject liquid with the automated pipette).
+
+Should there be a choice, where only some of those wells need to be removed, but not all, the function `remove_wells()` can be used on `blank$all` to remove the selection of really-untrusted wells, which would generate a new version of "trusted wells", from which the average values need to be recomputed manually.
+
+```{r}
+#| eval: false
+#| include: true
+# EXAMPLE, NOT NEEDED IN THIS PIPELINE
+# get info on wells to remove
+
+      # (suspicious_wells <- blank$untrusted |> 
+      #   ungroup() |> 
+      #   select(dataset, plate_id, well_id))
+
+# Here, those wells are in blank$all, which we can use to remove the wells
+      # std_blank <- blank$all |> ungroup() |> remove_wells(suspicious_wells)
+
+# In this case, std_blank is the same as blank$trusted, but we could decide to keep some
+      # sum(std_blank != blank$trusted)
+      # 
+      # std_blanc_avg <- std_blank |>
+      #     dplyr::summarise(
+      #       .by = c(dataset, plate_id),
+      #       blanc_avg = mean(abs),
+      #       blanc_sdev = stats::sd(abs)
+      #     ) |>
+      #     dplyr::mutate(blanc_coeff_var_percent = 100 * blanc_sdev / blanc_avg)
+
+
+```
+
+Checking how many blanks have been removed
+
+```{r}
+
+nrow(blank$all) ; nrow(blank$untrusted) ; nrow(blank$trusted) 
+
+```
+
+::: {#loss-of-std-blank .callout-caution}
+## CAUTION
+
+We are here removing wells with the blank for the standard curve. This works because we had 2 curves per plate in those plates.
+
+- Should there have only been 1 curve per plate, it would be more complex, as we cannot afford to have zero value for the blank of the standard curve.
+
+- An option would be to see whether the inter-plate variation in absorbance values for the standard curves is sufficiently small. If so, then maybe the blank value of one plate could be replaced by the mean of other plates.
+
+- In doing so, watch out for batch effect. Maybe inter-plate variation is smallest during a single day of experimentation, etc.
+
+- To be tested and implemented in coding.
+:::
+
+Now that we have all the trusted wells with blank values, we can finally correct absorbance values for the standard curves
+
+```{r}
+std_corrected <- raw_abs_clean |> 
+  correct_std_blank(std_blank_average = blank$average)
+```
+
+Because the logic is similar, we will first go into blank-correction of sample data before finalizing work on the standard curves (applying linear regression model)
+
+## 2.2 - Sample wells
+
+First, extract data for wells containing extractant and have a look at its variation
+
+```{r}
+extr_data <- extract_extractant(raw_abs_clean)
+(extr_avg <- extractant_average(raw_abs_clean) |> 
+  arrange(desc(extr_coeff_var_percent)))
+
+plot_blank_var_distrib(extr_avg)
+```
+
+We see that a few plates have a very high coefficient of variation, we will have to look at them individually. Let's set the threshold for the coefficient of variation at 5% (default)
+
+```{r}
+suspicious_plates <- raw_abs_clean |> 
+  qc_raw_extr(suppress_warning = TRUE, max_coeff = 5)
+
+suspicious_extr <- suspicious_extr(
+  raw_abs_clean, suspicious_plate_id = suspicious_plates, max_coeff = 5)
+
+suspicious_extr$suspicious_extractant
+suspicious_extr$multiple_plot
+
+```
+
+Look at the scale of the axes: bins will always spread over the whole x-axis, even if the distance is only of 0.001... But in this case, we have 5 plates that each have an obvious outlier well. We input a vector to remove those wells.
+
+:::: callout-tip
+## Manually remove outliers
+
+::: {#tip-input-threshold-extr .callout-tip}
+In the following chunk, you need to input threshold values as a vector with one number per "suspicious" plate.
+
+- If you decide to keep all values, you can set a threshold of 1.00.
+
+- Read plots one row at the time, from left to right
+
+- The function call only allows to exclude values above the threshold for now. For outliers that are rather the lower values, the function will have to be updated for more options.
+:::
+::::
+
+```{r}
+# Manual input
+cut_threshold <- c(
+  0.050, 0.044, 0.075, 
+  0.11, 0.08)
+```
+
+!! START HERE, TAKE A SIMPLIFIED VERSION OF QC6 !!
+
+```{r}
+# TEST CHUNK
+
+```
