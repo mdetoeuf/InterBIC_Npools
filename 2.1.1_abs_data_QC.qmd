@@ -233,43 +233,94 @@ plot_blank_var_distrib(extr_avg)
 We see that a few plates have a very high coefficient of variation, we will have to look at them individually. Let's set the threshold for the coefficient of variation at 5% (default)
 
 ```{r}
+threshold <- 5
+
 suspicious_plates <- raw_abs_clean |> 
-  qc_raw_extr(suppress_warning = TRUE, max_coeff = 5)
+  qc_raw_extr(suppress_warning = TRUE, max_coeff = threshold)
 
 suspicious_extr <- suspicious_extr(
-  raw_abs_clean, suspicious_plate_id = suspicious_plates, max_coeff = 5)
+  raw_abs_clean, suspicious_plate_id = suspicious_plates, max_coeff = threshold)
 
-suspicious_extr$suspicious_extractant
-suspicious_extr$multiple_plot
+# check it out
+suspicious_extr
+
+# plot outliers
+suspicious_extr |> boxplot_outlier_extr(max_coeff = threshold)
 
 ```
 
-Look at the scale of the axes: bins will always spread over the whole x-axis, even if the distance is only of 0.001... But in this case, we have 5 plates that each have an obvious outlier well. We input a vector to remove those wells.
+We have 5 plates that each have one or more obvious outlier well. We will need to remove them manually.
+
+First, we create a small tibble that will serve to construct the tibble of wells to remove
+
+```{r}
+plate_ids <- suspicious_extr |> 
+  ungroup() |> 
+  select(dataset, plate_id) |> unique() 
+plate_ids <- plate_ids |> # save numbers for plate order in the plot
+  mutate(plate_order = seq(1, nrow(plate_ids)))
+```
+
+Then, we create a vector with wells to remove (going through boxplots from top to bottom).
 
 :::: callout-tip
 ## Manually remove outliers
 
 ::: {#tip-input-threshold-extr .callout-tip}
-In the following chunk, you need to input threshold values as a vector with one number per "suspicious" plate.
+In the following chunk, you need to manually decide which wells to remove, based on the boxplots produced above.
 
-- If you decide to keep all values, you can set a threshold of 1.00.
-
-- Read plots one row at the time, from left to right
-
-- The function call only allows to exclude values above the threshold for now. For outliers that are rather the lower values, the function will have to be updated for more options.
+- [**Make sure to deal appropriately with plates that require 2 outliers to be removed**]{.underline} (see example below)
 :::
 ::::
 
 ```{r}
-# Manual input
-cut_threshold <- c(
-  0.050, 0.044, 0.075, 
-  0.11, 0.08)
+#** !!! MANUAL INPUT !!! *
+
+# Which plate needs 2 outliers removed?
+plate_with_2_outliers <- 4
+
+# Which wells are outliers? 
+well_ids <- c("H8", "C8", "B5", "C8", "D8", "E8")
 ```
 
-!! START HERE, TAKE A SIMPLIFIED VERSION OF QC6 !!
+Then we finish constructing the tibble of wells to be removed
 
 ```{r}
-# TEST CHUNK
+#nb_plates <- plate_ids |> nrow()
+
+to_remove <- plate_ids |> 
+  bind_rows(plate_ids |> filter(plate_order == plate_with_2_outliers)) |> 
+  arrange(plate_order) |> 
+  mutate(well_id = well_ids) |> 
+  select(!plate_order)
 
 ```
+
+And we remove it from extractant data
+
+```{r}
+extr_data_clean <- extr_data |> 
+  remove_wells(to_remove) 
+
+extr_avg_clean <- extractant_average(extractant_data = extr_data_clean) 
+```
+
+Check that biggest coeff_var indeed below threshold
+
+```{r}
+extr_avg_clean |> arrange(desc(extr_coeff_var_percent)) |> head()
+```
+
+Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
+
+# TO DO
+
+- Blank-correct sample absorbance
+
+- Linear model for standard curves (and further QC)
+
+- Apply linear model on sample data to get raw concentration data
+
+- Bullet-point fill the vignette (basically copy-paste of this script)
+
+- Start new script for data transformation (or not if too late in the week)
