@@ -133,8 +133,8 @@ std_data <- raw_abs_clean |>
 Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting) or in row H (bottom_up pipetting)
 
 ```{r}
-blank <- raw_abs_clean |> plate2N::extract_std_blanc()
-blank$untrusted
+std_blank <- raw_abs_clean |> plate2N::extract_std_blanc()
+std_blank$untrusted
 #blank$all |> filter(plate_id == "NO3_R2R3_1")
 ```
 
@@ -151,7 +151,7 @@ std_data |>
 
 # Subset: look at suspicious blanks
 std_data |> 
-  filter(unique_curve_id %in% blank$untrusted$unique_curve_id) |> 
+  filter(unique_curve_id %in% std_blank$untrusted$unique_curve_id) |> 
   plot_std() +
   facet_wrap(~plate_id, scales = "free")
 ```
@@ -166,17 +166,17 @@ Should there be a choice, where only some of those wells need to be removed, but
 # EXAMPLE, NOT NEEDED IN THIS PIPELINE
 # get info on wells to remove
 
-      # (suspicious_wells <- blank$untrusted |> 
+      # (suspicious_wells <- std_blank$untrusted |> 
       #   ungroup() |> 
       #   select(dataset, plate_id, well_id))
 
 # Here, those wells are in blank$all, which we can use to remove the wells
-      # std_blank <- blank$all |> ungroup() |> remove_wells(suspicious_wells)
+      # blank <- std_blank$all |> ungroup() |> remove_wells(suspicious_wells)
 
-# In this case, std_blank is the same as blank$trusted, but we could decide to keep some
-      # sum(std_blank != blank$trusted)
+# In this case, std_blank is the same as std_blank$trusted, but we could decide to keep some
+      # sum(blank != std_blank$trusted)
       # 
-      # std_blanc_avg <- std_blank |>
+      # std_blanc_avg <- blank |>
       #     dplyr::summarise(
       #       .by = c(dataset, plate_id),
       #       blanc_avg = mean(abs),
@@ -191,7 +191,7 @@ Checking how many blanks have been removed
 
 ```{r}
 
-nrow(blank$all) ; nrow(blank$untrusted) ; nrow(blank$trusted) 
+nrow(std_blank$all) ; nrow(std_blank$untrusted) ; nrow(std_blank$trusted) 
 
 ```
 
@@ -212,8 +212,18 @@ We are here removing wells with the blank for the standard curve. This works bec
 Now that we have all the trusted wells with blank values, we can finally correct absorbance values for the standard curves
 
 ```{r}
-std_corrected <- raw_abs_clean |> 
-  correct_std_blank(std_blank_average = blank$average)
+# # 2,302 rows
+# std_corrected <- raw_abs_clean |> 
+#   correct_std_blank(std_blank_average = blank$average)
+
+std_corrected <- 
+  blank_correct_abs(
+    raw_wells_data = std_data|> 
+      ungroup() |> 
+      filter_out(row == "A"),
+    per_plate_avg_blank = std_blank$average |> rename(blank_avg = blanc_avg),
+    map_to_exclude = ""
+  )
 ```
 
 Because the logic is similar, we will first go into blank-correction of sample data before finalizing work on the standard curves (applying linear regression model)
@@ -269,7 +279,7 @@ Then, we create a vector with wells to remove (going through boxplots from top t
 ::: {#tip-input-threshold-extr .callout-tip}
 In the following chunk, you need to manually decide which wells to remove, based on the boxplots produced above.
 
-- [**Make sure to deal appropriately with plates that require 2 outliers to be removed**]{.underline} (see example below)
+- Make sure to deal appropriately with plates that require 2 outliers or no outlier to be removed (see example below)
 :::
 ::::
 
@@ -277,10 +287,11 @@ In the following chunk, you need to manually decide which wells to remove, based
 #** !!! MANUAL INPUT !!! *
 
 # Which plate needs 2 outliers removed?
-plate_with_2_outliers <- 4
+plate_with_2_outliers <- 5
+plate_without_outliers <- 9 # use a number > nb of plates if there is no such plate
 
 # Which wells are outliers? 
-well_ids <- c("H8", "C8", "B5", "C8", "D8", "E8")
+well_ids <- c("H8", "C8", "H3", "B5", "C8", "D8", "D2", "E8") # use NA for plates without outliers
 ```
 
 Then we finish constructing the tibble of wells to be removed
@@ -292,6 +303,7 @@ to_remove <- plate_ids |>
   bind_rows(plate_ids |> filter(plate_order == plate_with_2_outliers)) |> 
   arrange(plate_order) |> 
   mutate(well_id = well_ids) |> 
+  filter(plate_order != plate_without_outliers) |> #remove plate without outliers
   select(!plate_order)
 
 ```
@@ -313,13 +325,97 @@ extr_avg_clean |> arrange(desc(extr_coeff_var_percent)) |> head()
 
 Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
 
-# TO DO
+```{r}
 
-- Blank-correct sample absorbance
+abs_corrected <- 
+  blank_correct_abs(
+    raw_wells_data = raw_abs_clean, 
+    per_plate_avg_blank = extr_avg_clean |> rename(blank_avg = extr_avg),
+    map_to_exclude = c("empty","Std","extr")) 
+
+```
+
+## 2.3 - All corrected data
+
+Let's just recall all corrected data. We have 2 separate tibbles (because the experimental design was arranged to have separate blanks for the curve and the samples)
+
+```{r}
+# Standard curve, blank-corrected and clean
+std_corrected 
+
+# Samples, blank-corrected and clean
+abs_corrected
+```
+
+# 3 - Compute regression equation (per plate)
+
+## 3.1 - QC standard curves
+
+Assumptions of a linear model: \
+(taken here: <https://towardsdatascience.com/all-the-statistical-tests-you-must-do-for-a-good-linear-regression-6ec1ac15e5d4/>, apparently from Spanish book Dalson [FIGUEIREDO
+FILHO, Felipe NUNES, Enivaldo CARVALHO DA ROCHA, Manoel LEORNARDO
+SANTOS, Mariana BATISTA e José Alexandre SILVA JUNIOR in Revista
+Política Hoje, Vol.20, n. 1, 2001](https://periodicos.ufpe.br/revistas/politicahoje/article/download/3808/31622))
+
+- The residuals must follow a normal distribution.
+
+- The residuals are homogeneous, there’s homoscedasticity.
+
+- There’s no outliers in the errors.
+
+- There’s no autocorrelation in the errors.
+
+- There’s no multicolinearity between the independent variables.
+
+::: callout-warning
+## ATTENTION - ISSUE
+
+TO DO:
+
+- Figure out why the grouped table given as input to `lm_std_curve()` has 329 groups, but the output table has 331 rows!
+
+- And why `lm_table_suspicious` has 47 rows, but `suspicious_lm_plotlist` has 45 elements
+:::
+
+!!! FORMULATE better and split in 2 chunks :-)
+
+```{r}
+
+
+lm_table_raw <- lm_std_curve(std_corrected |> group_by(plate_id, column))
+
+# extract all plates where "something" is not perfect 
+lm_table_suspicious <- lm_table_raw |> 
+  filter_out(
+    normality_lm_residuals == "Normal" & 
+      homoscedasticity_lm_residuals == "Homooscedasticity" &
+      lm_p < 0.05)
+
+# lm_data <- lm_table_suspicious 
+# std_df <- std_corrected
+
+
+suspicious_lm_plotlist <- plot_list_lm(
+  lm_data = lm_table_suspicious,
+  std_data = std_corrected)
+
+suspicious_lm_plotlist$NH4_1F1_col1
+
+```
+
+# TO DO
 
 - Linear model for standard curves (and further QC)
 
+  - (qc7, see if something with residuals...)
+
+  - intercurve variability with `plot_qc_std_all()`
+
 - Apply linear model on sample data to get raw concentration data
+
+  - std_regression()
+
+  - abs_to_mgN_L()
 
 - Bullet-point fill the vignette (basically copy-paste of this script)
 
