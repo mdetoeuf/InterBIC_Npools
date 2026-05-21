@@ -1,0 +1,71 @@
+---
+title: "2.1.2 - From Absorbance to Concentration"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+# Set up
+
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(plate2N)
+```
+
+# 1 - Import data
+
+```{r}
+lm_output <- read_rds("output/data/2.1.1_lm_output.rds")
+```
+
+# 2 - Apply regression equation
+
+Check that we are now left with only one curve per plate
+
+```{r}
+if (
+  (lm_output$std_data_clean |> group_by(plate_id) |>  n_groups()) == 
+  (lm_output$std_data_clean |> group_by(unique_curve_id) |>  n_groups())
+) {message("All good: there is exactly one curve per plate")} else {
+  warning("Warning: there is at least one plate with several curves")
+}
+```
+
+Regression equation is Abs = slope \* Concentration
+
+```{r}
+reg_data <- lm_output$lm_table_clean |> 
+  select(plate_id, slope, adj_r_squared, lm_p)
+
+abs_data <- lm_output$abs_corrected |> 
+  select(dataset, plate_id, map, abs_corrected, std_sp, std_unit) |> 
+  left_join(reg_data, by = join_by(plate_id)) |> 
+  mutate(target_sp = rep("N"), .after = std_sp)
+
+conc_data <- 
+  abs_data |> 
+  # compute concentration in mg Nsp per L
+  mutate(conc_mgNsp_L = abs_corrected / slope)
+```
+
+```{r}
+# TEST CHUNK
+
+```
+
+# TO DO
+
+Other, coding
+
+- Apply linear model on sample data to get raw concentration data
+
+  - std_regression()
+
+  - abs_to_mgN_L()
+
+- Bullet-point fill the vignette (basically copy-paste of this script)
+
+- Start new script for data transformation (or not if too late in the week)

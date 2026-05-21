@@ -625,10 +625,11 @@ lm_plots_clean <- plot_list_lm(lm_table_clean, std_data_clean)
 lm_output <- list(
   "std_data_clean" = std_data_clean,
   "lm_table_clean" = lm_table_clean,
-  "lm_plots_clean" = lm_plots_clean
+  "lm_plots_clean" = lm_plots_clean,
+  "abs_corrected" = abs_corrected
 )
 
-#lm_output |> write_rds("output/data/2.1.1_lm_output.rds")
+lm_output |> write_rds("output/data/2.1.1_lm_output.rds")
 ```
 
 ## 3.4 - Multiple curve QC
@@ -711,18 +712,6 @@ lm_output$std_data_clean |>
 Now, finally, I decide that I am happy with my standard curves, so I can move on to apply the equations on my data
 
 # TO DO
-
-Other, coding
-
-- Apply linear model on sample data to get raw concentration data
-
-  - std_regression()
-
-  - abs_to_mgN_L()
-
-- Bullet-point fill the vignette (basically copy-paste of this script)
-
-- Start new script for data transformation (or not if too late in the week)
 
 !!! FOR TDN !!!
 
