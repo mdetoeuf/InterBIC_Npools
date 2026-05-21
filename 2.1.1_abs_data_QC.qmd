@@ -349,7 +349,7 @@ abs_corrected
 
 # 3 - Compute regression equation (per plate)
 
-## 3.1 - QC standard curves
+## 3.1 - QC standard curves - round 1
 
 Assumptions of a linear model: (taken [here](https://towardsdatascience.com/all-the-statistical-tests-you-must-do-for-a-good-linear-regression-6ec1ac15e5d4/), apparently from [Spanish book](https://periodicos.ufpe.br/revistas/politicahoje/article/download/3808/31622))
 
@@ -384,10 +384,7 @@ lm_table_raw <- lm_std_curve(std_corrected |> group_by(plate_id, column))
 
 # extract all plates where "something" is not perfect 
 lm_table_suspicious <- lm_table_raw |> 
-  filter_out(
-    normality_lm_residuals == "Normal" & 
-      homoscedasticity_lm_residuals == "Homooscedasticity" &
-      lm_p < 0.05)
+  suspicious_lm()
 ```
 
 Then, for visual support, we create a list of plots where we store each individual plot of "suspicious" standard curves
@@ -471,19 +468,31 @@ For the NO3 plates, the issue has to be solved differently, but those are just a
 ```{r}
 abs_corrected |> filter(std_sp == "NO3", dataset != "TDN") |> 
   arrange(desc(abs_corrected)) |> slice_head(n = 3)
+std_corrected |> filter(std_sp == "NO3", dataset == "TDN") |> 
+  group_by(plate_id) |> slice_max(abs_corrected) # |> view()
+
 ```
 
-Once that is done –\> go through another iteration of remove_wells().
+For NO3_2F1 and NO3_1F1: there were probably 2 columns, so I can look at both columns together
+
+```{r}
+lm_table_raw |> 
+  separate_wider_delim(
+    cols = unique_curve_id, delim = "_", 
+    names = c("n_sp", "plate", "rest"), 
+    too_many = "merge", cols_remove = FALSE) |> 
+  filter(n_sp == "NO3", plate %in% c("1F1", "2F1")) |> 
+  plot_list_lm(std_data = std_corrected) |> 
+  patchwork::wrap_plots()
+```
+
+Honestly, they look ok-ish. Maybe after computing the average of both curves the issue is solved!
 
 Then re-compute linear model table as "clean" version.
 
 Then apply it
 
 ```{r}
-
-#** TO BE COMPLETED WITH WELLS TO REMOVE FOR NO3 SUSPICIOUS CURVES *
-#*
-
 std_corrected_wash1 <- 
   std_corrected |> remove_wells(to_remove_nh4_no2_h)
 ```
@@ -494,18 +503,14 @@ Run the quality check once more
 lm_table_wash1 <- lm_std_curve(std_corrected_wash1 |> group_by(plate_id, column))
 
 # extract all plates where "something" is not perfect 
-lm_table_suspicious_wash1 <- lm_table_wash1 |> 
-  filter_out(
-    normality_lm_residuals == "Normal" & 
-      homoscedasticity_lm_residuals == "Homooscedasticity" &
-      lm_p < 0.05)
+lm_table_suspicious_wash1 <- lm_table_wash1 |> suspicious_lm()
 
 suspicious_lm_plotlist_wash1 <- plot_list_lm(
   lm_data = lm_table_suspicious_wash1,
   std_data = std_corrected_wash1)
 
 n_plots <- length(suspicious_lm_plotlist_wash1)
-batch <- 15
+batch <- 16
 
 batch_1 <- suspicious_lm_plotlist_wash1 |> head(n = batch)
 batch_2 <- suspicious_lm_plotlist_wash1 |> tail(n = n_plots-batch) |> head(n = batch)
@@ -517,21 +522,197 @@ patchwork::wrap_plots(batch_2, axis_titles = "keep") +
 
 ```
 
+We still get quite some curves. But when we look at the p-values to reject normality or heteroscedasticity, they are indeed below 0.05, but it's also not 10\^-5 or something like that. The smallest p-value (shapiro) is at 0.007.
+
+Let's compute the means per dilution and see...
+
+## 3.2 - Compute per-dilution averages
+
+Most plates in our dataset have 2 columns with the standard curves. It seems that the \~1min delay between the 2 (column 1 and column 12 of the plate) are responsible for a slight shift (example in plot below)
+
+```{r}
+std_corrected_wash1 |> filter(plate_id == "NO3_2F3_1") |> rename(abs = abs_corrected) |> 
+  plot_std()
+```
+
+So we will now compute the mean for same row (e.g., mean of H1 and H12)
+
+::: callout-warning
+## WARNING
+
+The next step computes per plate per row means for the standard curves.
+
+If some wells have been swapped in some plates, this may cause problems. Make sure there was no pipetting issue, or correct raw data or solve it through code
+:::
+
+```{r}
+# compute per plate per std_conc mean
+std_mean <- std_corrected_wash1 |> 
+  group_by(plate_id, row) |> 
+  summarise(abs_mean = mean(abs_corrected))
+
+# create a table to rejoin to the std mean, to get back the columns lost in the process 
+lost_columns <- std_corrected_wash1 |> arrange(plate_id, std_conc) |> 
+  select(!any_of(c("column", "unique_curve_id", "well_id", "unique_well_id", "abs_corrected"))) |> unique()
+
+# rejoin the mean with the relevant lost columns and recreate fake columns sometimes needed for downstream steps: column = 13; well_id ; unique_curve_id
+std_corrected_wash2 <- std_mean |> 
+  left_join(lost_columns, by = join_by(plate_id, row)) |> 
+  mutate(
+    column = rep(13), 
+    well_id = paste0(row, column), 
+    unique_curve_id = paste0(plate_id, "_col", column),
+    .after = row) 
+```
+
+## 3.3 - QC standard curves - round 2
+
+We repeat same steps as above: computation of linear model, identification of suspicious curves and plotting
+
+```{r}
+lm_std_mean <- lm_std_curve(std_corrected_wash2 |> rename(abs_corrected = abs_mean))
+lm_suspicious_wash2 <- lm_std_mean |> suspicious_lm()
+
+lm_plots_wash2 <- lm_suspicious_wash2 |> plot_list_lm(
+  std_data = std_corrected_wash2 |> rename(abs_corrected = abs_mean))
+
+lm_plots_wash2 |> patchwork::wrap_plots()
+```
+
+Now, we decide to get rid of just a few wells that really stick out, for the following plates:
+
+NH4_1G2 (E13)
+
+NH4_2F4_1 and NH4_2F4_2 (C13)
+
+And the TDN issues will have to be resolved later (when we know the range of std concentration)
+
+Let's compose a "to_remove" tibble
+
+```{r}
+to_remove <- std_corrected_wash2 |> 
+  ungroup() |> 
+  select(dataset, plate_id, well_id) |> 
+  filter(
+    ((plate_id == "NH4_1G2") & (well_id == "E13")) |
+    (plate_id %in% c("NH4_2F4_1", "NH4_2F4_2") & (well_id == "C13"))
+  )
+
+std_corrected_wash3 <- std_corrected_wash2 |> 
+  remove_wells(to_remove) |> 
+  rename(abs_corrected = abs_mean)
+```
+
+One more run of QC to check if we are satisfied with the resulting curves
+
+```{r}
+lm_wash3 <- lm_std_curve(std_corrected_wash3)
+lm_suspicious_wash3 <- lm_wash3 |> suspicious_lm()
+
+lm_plots_wash3 <- plot_list_lm(lm_suspicious_wash3, std_corrected_wash3)
+lm_plots_wash3 |> patchwork::wrap_plots()  
+```
+
+Ok, good enough!
+
+Let's store the last correction into a clean variable name to reduce possible confusion, and let's compute all the plots in a big list, for storage purposes. We then export this as one output data in a single list
+
+```{r}
+std_data_clean <- std_corrected_wash3
+lm_table_clean <- lm_wash3
+lm_plots_clean <- plot_list_lm(lm_table_clean, std_data_clean)
+
+lm_output <- list(
+  "std_data_clean" = std_data_clean,
+  "lm_table_clean" = lm_table_clean,
+  "lm_plots_clean" = lm_plots_clean
+)
+
+#lm_output |> write_rds("output/data/2.1.1_lm_output.rds")
+```
+
+## 3.4 - Multiple curve QC
+
+First, let's look at the distribution of p-values of the std curve regressions
+
+```{r}
+p_threshold <- 0.05
+
+lm_output$lm_table_clean |> 
+  separate_wider_delim(
+    cols = unique_curve_id, delim = "_", 
+    names = c("n_sp", "rest"), too_many = "merge") |>
+  ggplot(aes(x = -log(lm_p))) + 
+  theme_minimal() +
+  # geom_histogram() +
+  geom_density() +
+  geom_vline(aes(xintercept = -log(p_threshold)), linetype = 2, colour = "purple") +
+  annotate(
+    geom = "label", label = paste0("p-val = ", p_threshold),
+    x = -log(p_threshold), y = 0.15, hjust = 0.25, colour = "purple" ) +
+  facet_wrap(~n_sp, nrow = 3) +
+  xlim(0,max(-log(lm_output$lm_table_clean$lm_p))) +
+  xlab("-log(p-value of linear model)") +
+  labs(
+    title = "Distribution of p-values of the linear model",
+    subtitle = "logarithmic scale"
+  )
+```
+
+Then, same with R_squared (or adjusted?)
+
+```{r}
+threshold <- 95
+
+lm_output$lm_table_clean |> 
+  separate_wider_delim(
+    cols = unique_curve_id, delim = "_", 
+    names = c("n_sp", "rest"), too_many = "merge") |>
+  ggplot(aes(x = adj_r_squared, colour = n_sp, fill = n_sp)) + 
+  theme_minimal() +
+  #geom_histogram() +
+  geom_density(alpha = 0.3) +
+  geom_vline(aes(xintercept = 0.95), linetype = 2, colour = "purple") +
+  annotate(
+    geom = "label", label = paste0("adjusted R2 = ", threshold, "%"),
+    x = threshold/100, y = 500, hjust = 0.25, colour = "purple" ) +
+  #facet_wrap(~n_sp, nrow = 3, scales = "free_y") +
+  xlim(
+    0.945,
+    max(lm_output$lm_table_clean$adj_r_squared)) +
+  xlab("Adjusted R2") +
+  labs(
+    title = "Distribution of adjusted R2 values of the linear model"
+  )
+```
+
+Now we plot all curves on same plot
+
+- for now: exclude TDN because concentrations of standard curves are wrong
+
+- To Do : check std curve concentrations in Cloé's notebook!
+
+```{r}
+colors <- c("#7FC97F", "#BEAED4", "#FDC086")
+
+lm_output$std_data_clean |> 
+  filter_out(dataset == "TDN") |> 
+  ggplot(aes(x = as.numeric(std_conc), y = abs_corrected, groups = plate_id, colour = dataset, fill = dataset)) +
+  theme_minimal()+
+  geom_smooth(
+    formula = y~x-1, method = "lm", se = TRUE, 
+    alpha = 0.05) +
+  geom_point() +
+  facet_wrap(~std_sp, scales = "free") +
+  scale_color_discrete(palette = colors[1:2]) +
+  scale_fill_discrete(palette = colors[1:2]) 
+```
+
+Now, finally, I decide that I am happy with my standard curves, so I can move on to apply the equations on my data
+
 # TO DO
 
-!!! FOR TDN !!!
-
--  CHECK Std curve concentrations !!!
-
-- Check how high is the highest absorbance value of 2x diluted samples for NO3 –\> can we remove H row?
-
 Other, coding
-
-- Linear model for standard curves (and further QC)
-
-  - (qc7, see if something with residuals...)
-
-  - intercurve variability with `plot_qc_std_all()`
 
 - Apply linear model on sample data to get raw concentration data
 
@@ -542,3 +723,13 @@ Other, coding
 - Bullet-point fill the vignette (basically copy-paste of this script)
 
 - Start new script for data transformation (or not if too late in the week)
+
+!!! FOR TDN !!!
+
+- CHECK Std curve concentrations !!!
+
+- Check how high is the highest absorbance value of 2x diluted samples for NO3 –\> can we remove H row?
+
+!!! FOR Nmin t3 !!!
+
+- Check in lab notebook of Cloé: which dilutions for NH4? Courbes sont bizarrement décalées (facteur 2 quasi! )
