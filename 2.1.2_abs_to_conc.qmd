@@ -36,23 +36,24 @@ if (
 
 Regression equation is Abs = slope \* Concentration
 
+Here, we
+
+- connect regression data to sample absorbance data
+
+- apply the regression equation to go from absorbance to concentration in mg N-sp per L
+
+- convert unit to mg N per L
+
 ```{r}
-reg_data <- lm_output$lm_table_clean |> 
-  select(plate_id, slope, adj_r_squared, lm_p)
-
-abs_data <- lm_output$abs_corrected |> 
-  select(dataset, plate_id, map, abs_corrected, std_sp, std_unit) |> 
-  left_join(reg_data, by = join_by(plate_id)) |> 
-  mutate(target_sp = rep("N"), .after = std_sp)
-
-conc_data <- 
-  abs_data |> 
-  # compute concentration in mg Nsp per L
-  mutate(conc_mgNsp_L = abs_corrected / slope)
+data_mg_N_L <- 
+  # add slope + info regression (p-val and R2) to absorbance data
+  reg_join_abs(lm_output$lm_table_clean, lm_output$abs_corrected, target_sp = "N") |> 
+  # compute concentration from absorbance
+  mutate(conc_mgNsp_L = abs_corrected / slope) |> 
+  convert_molec(masses = molar_masses)
 ```
 
 ```{r}
-# TEST CHUNK
 
 ```
 
@@ -60,12 +61,8 @@ conc_data <-
 
 Other, coding
 
-- Apply linear model on sample data to get raw concentration data
+- Bullet-point fill in the vignette
 
-  - std_regression()
-
-  - abs_to_mgN_L()
-
-- Bullet-point fill the vignette (basically copy-paste of this script)
+  - And create intermediate data for the package
 
 - Start new script for data transformation (or not if too late in the week)
