@@ -127,13 +127,13 @@ Extract Std wells, add unique curve ID, then add curve_concentration
 std_data <- raw_abs_clean |> 
   extract_std_data() |> 
   select(!std_conc) |> 
-  left_join(curve_concentration, by = join_by(row, plate_id))
+  left_join(curve_concentration, by = join_by(row, dataset, plate_id))
 ```
 
 Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting) or in row H (bottom_up pipetting)
 
 ```{r}
-std_blank <- raw_abs_clean |> plate2N::extract_std_blanc()
+std_blank <- raw_abs_clean |> plate2N::extract_std_blank()
 std_blank$untrusted
 #blank$all |> filter(plate_id == "NO3_R2R3_1")
 ```
@@ -176,13 +176,13 @@ Should there be a choice, where only some of those wells need to be removed, but
 # In this case, std_blank is the same as std_blank$trusted, but we could decide to keep some
       # sum(blank != std_blank$trusted)
       # 
-      # std_blanc_avg <- blank |>
+      # std_blank_avg <- blank |>
       #     dplyr::summarise(
       #       .by = c(dataset, plate_id),
-      #       blanc_avg = mean(abs),
-      #       blanc_sdev = stats::sd(abs)
+      #       blank_avg = mean(abs),
+      #       blank_sdev = stats::sd(abs)
       #     ) |>
-      #     dplyr::mutate(blanc_coeff_var_percent = 100 * blanc_sdev / blanc_avg)
+      #     dplyr::mutate(blank_coeff_var_percent = 100 * blank_sdev / blank_avg)
 
 
 ```
@@ -221,7 +221,7 @@ std_corrected <-
     raw_wells_data = std_data|> 
       ungroup() |> 
       filter_out(row == "A"),
-    per_plate_avg_blank = std_blank$average |> rename(blank_avg = blanc_avg),
+    per_plate_avg_blank = std_blank$average |> rename(blank_avg = blank_avg),
     map_to_exclude = ""
   )
 ```
@@ -234,10 +234,10 @@ First, extract data for wells containing extractant and have a look at its varia
 
 ```{r}
 extr_data <- extract_extractant(raw_abs_clean)
-(extr_avg <- extractant_average(raw_abs_clean) |> 
-  arrange(desc(extr_coeff_var_percent)))
+(blank_avg <- extractant_average(raw_abs_clean) |> 
+  arrange(desc(blank_coeff_var_percent)))
 
-plot_blank_var_distrib(extr_avg)
+plot_blank_var_distrib(blank_avg)
 ```
 
 We see that a few plates have a very high coefficient of variation, we will have to look at them individually. Let's set the threshold for the coefficient of variation at 5% (default)
@@ -314,13 +314,13 @@ And we remove it from extractant data
 extr_data_clean <- extr_data |> 
   remove_wells(to_remove) 
 
-extr_avg_clean <- extractant_average(extractant_data = extr_data_clean) 
+blank_avg_clean <- extractant_average(extractant_data = extr_data_clean) 
 ```
 
 Check that biggest coeff_var indeed below threshold
 
 ```{r}
-extr_avg_clean |> arrange(desc(extr_coeff_var_percent)) |> head()
+blank_avg_clean |> arrange(desc(blank_coeff_var_percent)) |> head()
 ```
 
 Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
@@ -330,7 +330,7 @@ Now that we are confident in the per-plate average value of raw absorbance of ex
 abs_corrected <- 
   blank_correct_abs(
     raw_wells_data = raw_abs_clean, 
-    per_plate_avg_blank = extr_avg_clean |> rename(blank_avg = extr_avg),
+    per_plate_avg_blank = blank_avg_clean |> rename(blank_avg = blank_avg),
     map_to_exclude = c("empty","Std","extr")) 
 
 ```
