@@ -546,23 +546,9 @@ If some wells have been swapped in some plates, this may cause problems. Make su
 :::
 
 ```{r}
-# compute per plate per std_conc mean
-std_mean <- std_corrected_wash1 |> 
-  group_by(plate_id, row) |> 
-  summarise(abs_mean = mean(abs_corrected))
 
-# create a table to rejoin to the std mean, to get back the columns lost in the process 
-lost_columns <- std_corrected_wash1 |> arrange(plate_id, std_conc) |> 
-  select(!any_of(c("column", "unique_curve_id", "well_id", "unique_well_id", "abs_corrected"))) |> unique()
+std_dilution_avg <- std_dilution_average(std_corrected_wash1)
 
-# rejoin the mean with the relevant lost columns and recreate fake columns sometimes needed for downstream steps: column = 13; well_id ; unique_curve_id
-std_corrected_wash2 <- std_mean |> 
-  left_join(lost_columns, by = join_by(plate_id, row)) |> 
-  mutate(
-    column = rep(13), 
-    well_id = paste0(row, column), 
-    unique_curve_id = paste0(plate_id, "_col", column),
-    .after = row) 
 ```
 
 ## 3.3 - QC standard curves - round 2
@@ -570,13 +556,13 @@ std_corrected_wash2 <- std_mean |>
 We repeat same steps as above: computation of linear model, identification of suspicious curves and plotting
 
 ```{r}
-lm_std_mean <- lm_std_curve(std_corrected_wash2 |> rename(abs_corrected = abs_mean))
-lm_suspicious_wash2 <- lm_std_mean |> suspicious_lm()
+lm_std_avg <- lm_std_curve(std_dilution_avg |> rename(abs_corrected = abs_mean))
+lm_suspicious_avg <- lm_std_avg |> suspicious_lm()
 
-lm_plots_wash2 <- lm_suspicious_wash2 |> plot_list_lm(
-  std_data = std_corrected_wash2 |> rename(abs_corrected = abs_mean))
+lm_plots_avg <- lm_suspicious_avg |> plot_list_lm(
+  std_data = std_dilution_avg |> rename(abs_corrected = abs_mean))
 
-lm_plots_wash2 |> patchwork::wrap_plots()
+lm_plots_avg |> patchwork::wrap_plots()
 ```
 
 Now, we decide to get rid of just a few wells that really stick out, for the following plates:
@@ -590,7 +576,7 @@ And the TDN issues will have to be resolved later (when we know the range of std
 Let's compose a "to_remove" tibble
 
 ```{r}
-to_remove <- std_corrected_wash2 |> 
+to_remove <- std_dilution_avg |> 
   ungroup() |> 
   select(dataset, plate_id, well_id) |> 
   filter(
@@ -598,7 +584,7 @@ to_remove <- std_corrected_wash2 |>
     (plate_id %in% c("NH4_2F4_1", "NH4_2F4_2") & (well_id == "C13"))
   )
 
-std_corrected_wash3 <- std_corrected_wash2 |> 
+std_corrected_wash2 <- std_dilution_avg |> 
   remove_wells(to_remove) |> 
   rename(abs_corrected = abs_mean)
 ```
@@ -606,11 +592,11 @@ std_corrected_wash3 <- std_corrected_wash2 |>
 One more run of QC to check if we are satisfied with the resulting curves
 
 ```{r}
-lm_wash3 <- lm_std_curve(std_corrected_wash3)
-lm_suspicious_wash3 <- lm_wash3 |> suspicious_lm()
+lm_wash2 <- lm_std_curve(std_corrected_wash2)
+lm_suspicious_wash2 <- lm_wash2 |> suspicious_lm()
 
-lm_plots_wash3 <- plot_list_lm(lm_suspicious_wash3, std_corrected_wash3)
-lm_plots_wash3 |> patchwork::wrap_plots()  
+lm_plots_wash2 <- plot_list_lm(lm_suspicious_wash2, std_corrected_wash2)
+lm_plots_wash2 |> patchwork::wrap_plots()  
 ```
 
 Ok, good enough!
@@ -618,8 +604,8 @@ Ok, good enough!
 Let's store the last correction into a clean variable name to reduce possible confusion, and let's compute all the plots in a big list, for storage purposes. We then export this as one output data in a single list
 
 ```{r}
-std_data_clean <- std_corrected_wash3
-lm_table_clean <- lm_wash3
+std_data_clean <- std_corrected_wash2
+lm_table_clean <- lm_wash2
 lm_plots_clean <- plot_list_lm(lm_table_clean, std_data_clean)
 
 lm_output <- list(
