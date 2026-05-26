@@ -446,6 +446,6 @@ per well of the plate.
 # 5 - Export
 
 ``` r
-all_raw_abs_tidy |> write_rds("output/data/1.1_all_raw_abs_tidy.rds")
-all_plate_metadata_keep |> write_rds("output/data/1.1_all_plate_metadata.rds")
+all_raw_abs_tidy |> write_rds("output/data/1_all_raw_abs_tidy.rds")
+all_plate_metadata_keep |> write_rds("output/data/1_all_plate_metadata.rds")
 ```
