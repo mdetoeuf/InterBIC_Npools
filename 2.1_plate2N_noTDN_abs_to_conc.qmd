@@ -4,7 +4,7 @@ author: "Morgane de Toeuf"
 format: 
   gfm:
     toc: true
-    code-fold: true
+   # code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -254,15 +254,13 @@ plate_ids <- plate_ids |> # save numbers for plate order in the plot
 
 Then, we create a vector with wells to remove (going through boxplots from top to bottom).
 
-:::: callout-tip
+::: callout-tip
 ## Manually remove outliers
 
-::: {#tip-input-threshold-extr .callout-tip}
 In the following chunk, you need to manually decide which wells to remove, based on the boxplots produced above.
 
 - Make sure to deal appropriately with plates that require 2 outliers or no outlier to be removed (see example below)
 :::
-::::
 
 ```{r}
 #** !!! MANUAL INPUT !!! *
