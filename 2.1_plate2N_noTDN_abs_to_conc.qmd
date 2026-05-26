@@ -1,10 +1,10 @@
 ---
-title: "2.1.1 Absorbance Data QC"
+title: "2 - From Absorbance to Concentration (incl QC)"
 author: "Morgane de Toeuf"
 format: 
   gfm:
     toc: true
-    #code-fold: true
+    code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -16,13 +16,15 @@ output: true
 
 # TO DO
 
-- Check concentrations courbe std de Cloé
+- !!! FOR Nmin t3 !!!
+  - Check in lab notebook of Cloé: which dilutions for NH4? Courbes sont bizarrement décalées (facteur 2 quasi! )
 
 # Set up
 
 Loading packages
 
 ```{r}
+#| include: false
 
 rm(list = ls())
 
@@ -41,8 +43,8 @@ all_plate_metadata <- read_rds("output/data/1_all_plate_metadata_noTDN.rds")
 Joining plate data and metadata
 
 ```{r}
-raw_meta <- all_raw_abs_tidy |> left_join(all_plate_metadata, by = join_by(dataset, plate_id))
-#raw_meta |> filter(plate_id == string, map == "Std")
+raw_meta <- all_raw_abs_tidy |> 
+  left_join(all_plate_metadata, by = join_by(dataset, plate_id))
 ```
 
 # 1 - Suspicious wells removal
@@ -55,7 +57,6 @@ wells that "we know" are failed wells, imported
 (failed_wells <- read_csv("raw_data/failed_wells.csv", show_col_types = FALSE))
 
 raw_abs_tidy <- raw_meta |> remove_wells(failed_wells)
-#raw_abs_tidy |> filter(plate_id == string, map == "Std")
 ```
 
 ## 1.2 - Suspicious absorbance values (automated)
@@ -79,14 +80,10 @@ suspicious_wells |> slice_max(abs, n = 10)
 
 - Do check if indeed `suspicious_wells` remains empty when the script or its raw data are updated
 
-- Should it not be empty, decide what to do: broader range ok? Remove outliers? Should some wells be removed, then re-run the `qc_raw_abs()` on the updated data
+- Should it not be empty, decide what to do: broader range ok? Remove outliers?
+
+- Should some wells be removed, then re-run the `qc_raw_abs()` on the updated data
 :::
-
-```{r}
-#raw_abs_ok <- raw_abs_tidy |> remove_wells(suspicious_wells)
-```
-
-Check the QC once more
 
 ```{r}
 # Once validated, store last version in a "validated" data
@@ -100,7 +97,7 @@ raw_abs_clean <- raw_abs_tidy
 Obtain curve concentrations from metadata
 
 ```{r}
-curve_concentration <- extract_curve(all_plate_metadata)
+(curve_concentration <- extract_curve(all_plate_metadata))
 ```
 
 Extract Std wells, add unique curve ID, then add curve_concentration
@@ -115,7 +112,7 @@ std_data <- raw_abs_clean |>
 Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting) or in row H (bottom_up pipetting)
 
 ```{r}
-std_blank <- raw_abs_clean |> plate2N::extract_std_blank()
+std_blank <- raw_abs_clean |> extract_std_blank()
 std_blank$untrusted
 #blank$all |> filter(plate_id == "NO3_R2R3_1")
 ```
@@ -123,11 +120,15 @@ std_blank$untrusted
 Check it out graphically.
 
 ```{r}
+#| eval: false
+#| include: false
 # all data --> too messy. 
-std_data |> 
-  plot_std(through_origin = FALSE) +
-  facet_grid(dataset~std_sp, scales = "free_x")
+# std_data |> 
+#   plot_std(through_origin = FALSE) +
+#   facet_grid(dataset~std_sp, scales = "free_x")
+```
 
+```{r}
 # Subset: look at suspicious blanks
 std_data |> 
   filter(unique_curve_id %in% std_blank$untrusted$unique_curve_id) |> 
@@ -195,6 +196,7 @@ We are here removing wells with the blank for the standard curve. This works bec
 Now that we have all the trusted wells with blank values, we can finally correct absorbance values for the standard curves
 
 ```{r}
+#| include: false
 std_corrected <- 
   blank_correct_abs(
     raw_wells_data = std_data|> 
@@ -309,12 +311,12 @@ blank_avg_clean |> arrange(desc(blank_coeff_var_percent)) |> head()
 Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
 
 ```{r}
+#| include: false
 samples_corrected <- 
   blank_correct_abs(
     raw_wells_data = raw_abs_clean, 
     per_plate_avg_blank = blank_avg_clean |> rename(blank_avg = blank_avg),
     map_to_exclude = c("empty","Std","extr")) 
-
 ```
 
 ## 2.3 - All corrected data
@@ -353,8 +355,8 @@ Then we take a subset to examine individually: those curves where the linear mod
 lm_table_raw <- lm_std_curve(std_corrected |> group_by(plate_id, column))
 
 # extract all plates where "something" is not perfect 
-lm_table_suspicious <- lm_table_raw |> 
-  suspicious_lm()
+(lm_table_suspicious <- lm_table_raw |> 
+  suspicious_lm())
 ```
 
 Then, for visual support, we create a list of plots where we store each individual plot of "suspicious" standard curves
@@ -365,8 +367,7 @@ suspicious_lm_plotlist <- plot_list_lm(
   std_data = std_corrected)
 
 # check one plot out
-#suspicious_lm_plotlist$NH4_1F1_col1
-
+suspicious_lm_plotlist[[2]]
 ```
 
 Now we can look at each plot individually. Because there are still 45 plots to review, we will look through them in 3 batches of 15 plots.
@@ -656,15 +657,10 @@ lm_output$lm_table_clean |>
 
 Now we plot all curves on same plot
 
-- for now: exclude TDN because concentrations of standard curves are wrong
-
-- To Do : check std curve concentrations in Cloé's notebook!
-
 ```{r}
 colors <- c("#7FC97F", "#BEAED4", "#FDC086")
 
 lm_output$std_data_clean |> 
-  filter_out(dataset == "TDN") |> 
   ggplot(aes(x = as.numeric(std_conc), y = abs_corrected, groups = plate_id, colour = dataset, fill = dataset)) +
   theme_minimal() + 
   theme(legend.position = "bottom") +
@@ -680,10 +676,63 @@ lm_output$std_data_clean |>
   labs(title = "Inter-plate variability of the Standard Curves")
 ```
 
-Now, finally, I decide that I am happy with my standard curves, so I can move on to apply the equations on my data in the next script
+Now, finally, I decide that I am happy with my standard curves, so I can move on to apply the equations on my data
 
-# TO DO
+# 4 - From absorbance to concentration
 
-!!! FOR Nmin t3 !!!
+## 4.1 - clean up environment
 
-- Check in lab notebook of Cloé: which dilutions for NH4? Courbes sont bizarrement décalées (facteur 2 quasi! )
+To make sure that we don't get confused on variable names and take old versions from the QC pipeline
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
+```
+
+## 4.2 - Apply regression equation
+
+Check that we are now left with only one curve per plate
+
+```{r}
+if (
+  (lm_output$std_data_clean |> group_by(plate_id) |>  n_groups()) == 
+  (lm_output$std_data_clean |> group_by(unique_curve_id) |>  n_groups())
+) {message("All good: there is exactly one curve per plate")} else {
+  warning("Warning: there is at least one plate with several curves")
+}
+```
+
+Regression equation is Abs = slope \* Concentration
+
+Here, we
+
+- connect regression data to sample absorbance data
+
+- apply the regression equation to go from absorbance to concentration in mg N-sp per L
+
+- convert unit to mg N per L
+
+```{r}
+data_mg_N_L <- 
+  # add slope + info regression (p-val and R2) to absorbance data
+  reg_join_abs(
+    lm_output$lm_table_clean, 
+    lm_output$samples_corrected, 
+    target_sp = "N") |> 
+  # compute concentration from absorbance
+  mutate(conc_mgNsp_L = abs_corrected / slope) |> 
+  convert_molec(masses = molar_masses)
+
+# check it out
+data_mg_N_L
+```
+
+# 5 - Export
+
+```{r}
+
+data_mg_N_L |> write_rds("output/data/2_mgNL_noTDN.rds")
+```

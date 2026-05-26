@@ -18,7 +18,7 @@ library(plate2N)
 # 1 - Import data
 
 ```{r}
-lm_output <- read_rds("output/data/2.1.1_lm_output.rds")
+lm_output <- read_rds("output/data/2_lm_output.rds")
 ```
 
 # 2 - Apply regression equation
