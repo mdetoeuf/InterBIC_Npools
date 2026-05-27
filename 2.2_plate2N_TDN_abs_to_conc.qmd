@@ -16,8 +16,13 @@ output: true
 
 # TO DO
 
-- Work in parallel for TDN –\> other modelling!
-- Check concentrations courbe std de Cloé
+- Check why NO2_TDN_19, wells H6, H7 and H9 have abs = 0
+
+  - not important wells, but if it is due to a failure in raw data, there may be other consequences
+
+- Consider adding a function to plate2N to question the best std model
+
+- Make a function to plot residuals of linear vs polynomial model: copy code already there, put it in a loop and save plots in a list –\> return list and use multiplot approach
 
 # Set up
 
@@ -30,20 +35,21 @@ rm(list = ls())
 library(tidyverse)
 library(plate2N)
 library(roperators)
+library(patchwork)
 ```
 
 Loading data
 
 ```{r}
-all_raw_abs_tidy <- read_rds("output/data/1_all_raw_abs_tidy.rds")
-all_plate_metadata <- read_rds("output/data/1_all_plate_metadata.rds")
+all_raw_abs_tidy <- read_rds("output/data/1_all_raw_abs_TDN.rds")
+all_plate_metadata <- read_rds("output/data/1_all_plate_metadata_TDN.rds")
 ```
 
 Joining plate data and metadata
 
 ```{r}
 raw_meta <- all_raw_abs_tidy |> left_join(all_plate_metadata, by = join_by(dataset, plate_id))
-#raw_meta |> filter(plate_id == string, map == "Std")
+
 ```
 
 # 1 - Suspicious wells removal
@@ -52,28 +58,21 @@ raw_meta <- all_raw_abs_tidy |> left_join(all_plate_metadata, by = join_by(datas
 
 This section allows the removal of wells that "we know" are failed wells (e.g., something went wrong during pipetting...).
 
-First, we create a template document to record identifiers of failed wells. To unequivocally identify a well, 3 pieces of info are needed: dataset, plate id, well id.
-
-```{r}
-(template <- failed_wells_template(nrow = 30))
-```
-
-Then we export it as a csv for manual encoding
+For now, there are no such wells for the TDN dataset
 
 ```{r}
 #| eval: false
-#| include: true
-write_csv(template, file = "output/template/failed_wells_30.csv")
-#write_excel_csv(template, file = "output/template/failed_wells_30.csv")
+#| include: false
+#(failed_wells <- read_csv("raw_data/failed_wells.csv", show_col_types = FALSE))
+
+#raw_abs_tidy <- raw_meta |> remove_wells(failed_wells)
+#raw_abs_tidy |> filter(plate_id == string, map == "Std")
 ```
 
-After filling that file manually, we re-import it and correct the tidy data table
+To keep consistent with object names, we create a new tidy table
 
 ```{r}
-(failed_wells <- read_csv("raw_data/failed_wells.csv", show_col_types = FALSE))
-
-raw_abs_tidy <- raw_meta |> remove_wells(failed_wells)
-#raw_abs_tidy |> filter(plate_id == string, map == "Std")
+raw_abs_tidy <- raw_meta
 ```
 
 ## 1.2 - Suspicious absorbance values (automated)
@@ -90,7 +89,7 @@ suspicious_wells <- raw_abs_tidy |>
 suspicious_wells |> slice_max(abs, n = 10)
 ```
 
-For now, I decide to remove those wells. To be reviewed
+For now, I decide to remove those wells as they were just meant for testing anyway. To be reviewed
 
 ```{r}
 raw_abs_ok <- raw_abs_tidy |> remove_wells(suspicious_wells)
@@ -103,8 +102,7 @@ Check the QC once more
 raw_abs_ok |> 
   qc_raw_abs(min_abs = 0.03, max_abs = 3, 
     plot_col_facet = "std_sp", 
-    export_plot = "none") #|> 
-  #select(well_id, map) |> unique()
+    export_plot = "none") 
 
 # Once validated, store last version in a "validated" data
 raw_abs_clean <- raw_abs_ok
@@ -125,98 +123,44 @@ curve_concentration <- extract_curve(all_plate_metadata)
 Extract Std wells, add unique curve ID, then add curve_concentration
 
 ```{r}
-std_data <- raw_abs_clean |> 
+(std_data <- raw_abs_clean |> 
   extract_std_data() |> 
   select(!std_conc) |> 
-  left_join(curve_concentration, by = join_by(row, dataset, plate_id))
+  left_join(curve_concentration, by = join_by(row, dataset, plate_id)))
 ```
 
-Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting) or in row H (bottom_up pipetting)
+Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting)
 
 ```{r}
-std_blank <- raw_abs_clean |> plate2N::extract_std_blank()
+std_blank <- raw_abs_clean |> extract_std_blank()
 std_blank$untrusted
 #blank$all |> filter(plate_id == "NO3_R2R3_1")
 ```
 
-Check it out graphically.
+There are no untrusted wells, yay :-)
 
 ```{r}
+#| eval: false
+#| include: false
 # get unique curve id for the curves of interest (containing the suspicious wells)
 #curve <- blank$untrusted$unique_curve_id
 
 # all data --> too messy. 
-std_data |> 
-  plot_std() +
-  facet_grid(dataset~std_sp)
-
-# Subset: look at suspicious blanks
-std_data |> 
-  filter(unique_curve_id %in% std_blank$untrusted$unique_curve_id) |> 
-  plot_std(through_origin = FALSE) +
-  facet_wrap(~plate_id, scales = "free")
+# std_data |> group_by(plate_id, column) |> 
+#   plot_std() +
+#   facet_grid(dataset~std_sp)
+# 
+# # Subset: look at suspicious blanks
+# std_data |>
+#   filter(unique_curve_id %in% std_blank$untrusted$unique_curve_id) |>
+#   plot_std(through_origin = FALSE) +
+#   facet_wrap(~plate_id, scales = "free")
 ```
-
-In this case, all "untrusted wells" are to be removed, as the values in A1 are clearly out of the curve and probably come from a pipetting error (failure to eject liquid with the automated pipette).
-
-Should there be a choice, where only some of those wells need to be removed, but not all, the function `remove_wells()` can be used on `blank$all` to remove the selection of really-untrusted wells, which would generate a new version of "trusted wells", from which the average values need to be recomputed manually.
-
-```{r}
-#| eval: false
-#| include: true
-# EXAMPLE, NOT NEEDED IN THIS PIPELINE
-# get info on wells to remove
-
-      # (suspicious_wells <- std_blank$untrusted |> 
-      #   ungroup() |> 
-      #   select(dataset, plate_id, well_id))
-
-# Here, those wells are in blank$all, which we can use to remove the wells
-      # blank <- std_blank$all |> ungroup() |> remove_wells(suspicious_wells)
-
-# In this case, std_blank is the same as std_blank$trusted, but we could decide to keep some
-      # sum(blank != std_blank$trusted)
-      # 
-      # std_blank_avg <- blank |>
-      #     dplyr::summarise(
-      #       .by = c(dataset, plate_id),
-      #       blank_avg = mean(abs),
-      #       blank_sdev = stats::sd(abs)
-      #     ) |>
-      #     dplyr::mutate(blank_coeff_var_percent = 100 * blank_sdev / blank_avg)
-
-
-```
-
-Checking how many blanks have been removed
-
-```{r}
-
-nrow(std_blank$all) ; nrow(std_blank$untrusted) ; nrow(std_blank$trusted) 
-
-```
-
-::: {#loss-of-std-blank .callout-caution}
-## CAUTION
-
-We are here removing wells with the blank for the standard curve. This works because we had 2 curves per plate in those plates.
-
-- Should there have only been 1 curve per plate, it would be more complex, as we cannot afford to have zero value for the blank of the standard curve.
-
-- An option would be to see whether the inter-plate variation in absorbance values for the standard curves is sufficiently small. If so, then maybe the blank value of one plate could be replaced by the mean of other plates.
-
-- In doing so, watch out for batch effect. Maybe inter-plate variation is smallest during a single day of experimentation, etc.
-
-- To be tested and implemented in coding.
-:::
 
 Now that we have all the trusted wells with blank values, we can finally correct absorbance values for the standard curves
 
 ```{r}
-# # 2,302 rows
-# std_corrected <- raw_abs_clean |> 
-#   correct_std_blank(std_blank_average = blank$average)
-
+#| include: false
 std_corrected <- 
   blank_correct_abs(
     raw_wells_data = std_data|> 
@@ -241,7 +185,7 @@ extr_data <- extract_extractant(raw_abs_clean)
 plot_blank_var_distrib(blank_avg)
 ```
 
-We see that a few plates have a very high coefficient of variation, we will have to look at them individually. Let's set the threshold for the coefficient of variation at 5% (default)
+We see that one plate has a high coefficient of variation, we will have to look at it individually. Let's set the threshold for the coefficient of variation at 5% (default)
 
 ```{r}
 threshold <- 5
@@ -260,7 +204,7 @@ suspicious_extr |> boxplot_outlier_extr(max_coeff = threshold)
 
 ```
 
-We have 5 plates that each have one or more obvious outlier well. We will need to remove them manually.
+We have 1 plate that has one obvious outlier well. We will need to remove it manually.
 
 First, we create a small tibble that will serve to construct the tibble of wells to remove
 
@@ -292,7 +236,7 @@ plate_with_2_outliers <- 3
 plate_without_outliers <- 9 # use a number > nb of plates if there is no such plate
 
 # Which wells are outliers? 
-well_ids <- c("H8", "C8", "G3", "H3", "B5", "D2", "E8") # use NA for plates without outliers
+well_ids <- c("E8") # use NA for plates without outliers
 ```
 
 Then we finish constructing the tibble of wells to be removed
@@ -333,6 +277,7 @@ blank_avg_clean |> arrange(desc(blank_coeff_var_percent)) |> head()
 Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
 
 ```{r}
+#| include: false
 
 samples_corrected <- 
   blank_correct_abs(
@@ -356,25 +301,122 @@ samples_corrected
 
 # 3 - Compute regression equation (per plate)
 
+::: callout-tip
+## Polynomial model for high concentrations
+
+For the TDN data set, standard curve concentrations have been increased ten-fold. This resulted in highly concentrated solutions generating absorbance values above 3.
+
+- To be seen if we can remove the H row, but still, G rows are pretty high as well
+
+- It appears that a polynomial model is more appropriated in this case, as can be seen in the the next chunks (example of a single curve)
+:::
+
+```{r}
+# take data for a single curve and format it for the plotting
+curve <- (std_corrected |> 
+            group_by(plate_id, column) |> 
+            filter(std_sp == "NO3") |> 
+            rename(abs = abs_corrected) |> 
+            group_split()
+          )[[9]]
+
+# check it out
+curve
+
+# compute both models
+lm_linear <- lm(abs ~ 0 + std_conc, data = curve)
+lm_poly <- lm(abs ~ 0 + std_conc + I(std_conc^2), data = curve)
+
+(sum_linear <- summary(lm_linear))
+(sum_poly <- summary(lm_poly))
+```
+
+Seeing the summary of both models: both are significant, but the p-value of the coefficient for the second degree term (b in bx\^2) in the polynomial model is \<0.05, which indicates that that term significantly contributes to the model. This becomes also very obvious when we look at the plots (the polynomial model fits a lot better)
+
+```{r}
+p_linear <- plot_std(curve, through_origin = TRUE, model = "linear") + 
+  theme(legend.position = "none") + labs(title = "Linear model")
+p_poly <- plot_std(curve, through_origin = TRUE, model = "poly") + 
+  theme(legend.position = "none") + labs(title = "Polynomial model")
+
+p_linear + p_poly
+```
+
+Let's look at the Residual plot to confirm this intuition
+
+```{r}
+res_linear <- residuals(sum_linear)
+res_poly <- residuals(sum_poly)
+
+# plot residuals for linear model
+plot(curve$std_conc, res_linear, main = "Residuals Analysis", xlab = "Concentration", ylab = "Residuals", col = "grey30", pch = 16)
+# add red line at y = 0
+abline(h = 0, col = "red", lty = 2)
+# add residuals for polynomial model
+points(curve$std_conc, res_poly,  col = "magenta", pch = 15)
+# add legend
+points(0, y = -0.1, col = "grey30", pch = 16)
+text(x = 6, y = -0.1, labels = "linear\nmodel", col = "grey30", adj = 0)
+points(0, y = -0.15, col = "magenta", pch = 15)
+text(x = 6, y = -0.15, labels = "polynomial\nmodel", col = "magenta", adj = 0)
+
+```
+
+So, we will adopt the polynomial model for the TDN dataset
+
 ## 3.1 - QC standard curves - round 1
 
-Assumptions of a linear model: (taken [here](https://towardsdatascience.com/all-the-statistical-tests-you-must-do-for-a-good-linear-regression-6ec1ac15e5d4/), apparently from [Spanish book](https://periodicos.ufpe.br/revistas/politicahoje/article/download/3808/31622))
-
-- The residuals must follow a normal distribution.
-
-- The residuals are homogeneous, there’s homoscedasticity.
-
-- There’s no outliers in the errors.
-
-- There’s no autocorrelation in the errors.
-
-- There’s no multicolinearity between the independent variables.
-
-!!! FORMULATE better and split in 2 chunks :-)
-
-First, we perform a linear model on each curve individually (i.e., possibly several curves per plate).
+First, we perform a polynomial model on each curve individually
 
 Then we take a subset to examine individually: those curves where the linear model doesn't seem to perform ideally (e.g., non-significant model (p-value \> 0.05), residuals not normally distributed, or heteroscedasticity)
+
+# °°° !!! START HERE !!! °°°
+
+```{r}
+# TEST CHUNK
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+# TEST CHUNK
+
+grouped_data <- std_corrected |> group_by(unique_curve_id) |> filter(std_sp == "NO3")
+
+
+lm_std_curve(grouped_data, model = "poly") 
+
+
+
+  
+
+
+
+p_poly +
+  geom_function( fun = \(x) a*x^2 + b*x + c, color = "black")
+```
+
+```{r}
+
+j = 1
+for (j in 1:nrow(plate)) {
+  inferred_conc <- c(-curve$abs_corrected[j], poly_b, poly_a) |> 
+  # compute roots of second-degree equation: poly_a * (conc)^2 + poly_b * x - corrected_abs = 0
+  polyroot() |> 
+  # Extract only the "real" part (not complex part)
+  Re() |> 
+  min()
+  # take first element bc
+  #‚x1 <- (-b - sqrt(b^2 - 4*a*(c-y))) / (2*a) --> Descending part of down-facing (bc poly_a <0) parabol, cannot be this one
+  # So
+ # x <- (-b + sqrt(b^2 - 4*a*(c-y))) / (2*a)
+  
+}
+```
 
 ```{r}
 lm_table_raw <- lm_std_curve(std_corrected |> group_by(plate_id, column))
