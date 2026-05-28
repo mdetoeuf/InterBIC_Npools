@@ -1,5 +1,5 @@
 ---
-title: "2 - From Absorbance to Concentration (incl QC)"
+title: "2.1 - From Absorbance to Concentration with a Linear Model (incl QC) "
 author: "Morgane de Toeuf"
 format: 
   gfm:
@@ -595,7 +595,7 @@ lm_output <- list(
   "samples_corrected" = samples_corrected
 )
 
-lm_output |> write_rds("output/data/2.1_lm_output_noTDN.rds")
+lm_output |> write_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
 ## 3.4 - Multiple curve QC
