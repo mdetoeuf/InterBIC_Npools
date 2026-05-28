@@ -1,5 +1,5 @@
 ---
-title: "II.2 Raw data pipeline"
+title: "3 Greenhouse, t2 - Import non-absorbance data"
 format: 
   gfm:
     toc: true
@@ -19,6 +19,10 @@ echo: true
 output: true
 ---
 
+# To Do
+
+- Link to a MicroResp pipeline!
+
 # Set up
 
 ```{r}
@@ -31,11 +35,16 @@ library(janitor)
 
 # 1 - import data
 
+First, data acquired in the lab (except for absorbance data)
+
 ```{r}
 # import other "wet lab" raw data
 raw_data <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clean_names() |> 
   rename(sample_short = short) 
+
 ```
+
+Then, MicroResp data may need to be added, probably with its own pipeline
 
 # 2 - Compute new variables
 
@@ -43,29 +52,29 @@ raw_data <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clea
 
 In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is still encoded, in separate columns `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
 
--   FW~neat~ = FW~gross~ - tare; DW~neat~ = DW~gross~ - tare
+- FW~neat~ = FW~gross~ - tare; DW~neat~ = DW~gross~ - tare
 
--   average (FW, then DW) = sum(3 technical replicates) / 3
+- average (FW, then DW) = sum(3 technical replicates) / 3
 
--   DM = avg~DW~ / avg~FW~
+- DM = avg~DW~ / avg~FW~
 
--   WC = 1 - DM
+- WC = 1 - DM
 
--   With
+- With
 
-    -   FW = fresh weight \[g\]
+  - FW = fresh weight \[g\]
 
-    -   DW = dry weight \[g\],
+  - DW = dry weight \[g\],
 
-    -   DM = dry matter content \[g dry soil / g fresh soil\],
+  - DM = dry matter content \[g dry soil / g fresh soil\],
 
-    -   WC = water content \[g water / g [**fresh**]{.underline} soil\]
+  - WC = water content \[g water / g [**fresh**]{.underline} soil\]
 
--   ratio = fresh wait of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
+- ratio = fresh wait of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
 
 Then, we can finally convert concentrations in mg/L into concentrations in ppm (mg/kg dry soil)
 
--   see <https://mycloud.ulb.be/index.php/f/30359374> for equation
+- see <https://mycloud.ulb.be/index.php/f/30359374> for equation
 
 ```{r}
 # Volume of extractant used in the K2SO4 extraction

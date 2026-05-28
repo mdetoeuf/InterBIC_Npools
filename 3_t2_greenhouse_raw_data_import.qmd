@@ -1,0 +1,77 @@
+---
+title: "3 Greenhouse, t2 - Import non-absorbance data"
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+# format: 
+#   html:
+#     embed-resources: true
+#     toc: true
+#     toc_float: true
+#     code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# To Do
+
+- Link to a MicroResp pipeline!
+
+- Add some basic data tidying
+
+  - Variables in right format?
+
+  - pivotting required?
+
+  - etc.
+
+# Set up
+
+```{r}
+
+rm(list = ls())
+
+library(tidyverse)
+library(janitor)
+```
+
+# 1 - import data
+
+First, data acquired in the lab (except for absorbance data)
+
+```{r}
+# import other "wet lab" raw data
+raw_data_pot <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clean_names() |> 
+  rename(sample_short = short) |> 
+  filter(expe == "Pot")
+
+raw_greenhouse_t2 <- raw_data_pot |> 
+  filter(sampling_time == "t2") |> 
+  # remove bare soil
+  filter_out(cs == "B") |> 
+  # correct biological unit
+  mutate(biol_unit_nb = case_when(
+    biol_unit_nb < 200 ~ biol_unit_nb,
+    biol_unit_nb > 200 ~ biol_unit_nb - 200
+  )) |> 
+  arrange(biol_unit_nb) |> 
+  # remove useless columns
+  select(
+    biol_unit_nb:sampling_time, 
+    sample_name, #useful?
+   starts_with(c("whc", "flush", "yd_rs"))
+    )
+
+# Check it out
+raw_greenhouse_t2
+```
+
+Then, MicroResp data may need to be added, probably with its own pipeline
+
+# 
