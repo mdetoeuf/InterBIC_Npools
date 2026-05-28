@@ -435,7 +435,7 @@ Keep only relevant columns
 
 ``` r
 all_plate_metadata_keep <- all_plate_metadata |> 
-  select(plate_id, std_sp, std_conc, std_unit, sample_dilution, dataset)
+  select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date)
 ```
 
 We could already here, join both metadata and tidy data, but this would
@@ -445,7 +445,27 @@ per well of the plate.
 
 # 5 - Export
 
+Some steps will be specific of TDN, so we separate the raw data
+according to TDN or rest
+
+First, prepare those subsets
+
 ``` r
-all_raw_abs_tidy |> write_rds("output/data/1_all_raw_abs_tidy.rds")
-all_plate_metadata_keep |> write_rds("output/data/1_all_plate_metadata.rds")
+all_raw_abs_TDN <- all_raw_abs_tidy |> filter(dataset == "TDN")
+all_raw_abs_noTDN <- all_raw_abs_tidy |> filter_out(dataset == "TDN")
+
+all_plate_metadata_TDN <- all_plate_metadata_keep |> 
+  filter(dataset == "TDN")
+all_plate_metadata_noTDN <- all_plate_metadata_keep |> 
+  filter_out(dataset == "TDN")
+```
+
+Then, export them as .rds
+
+``` r
+all_raw_abs_TDN |> write_rds("output/data/1_all_raw_abs_TDN.rds")
+all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
+
+all_plate_metadata_TDN |> write_rds("output/data/1_all_plate_metadata_TDN.rds")
+all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rds")
 ```

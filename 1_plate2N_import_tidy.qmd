@@ -143,7 +143,7 @@ Keep only relevant columns
 
 ```{r}
 all_plate_metadata_keep <- all_plate_metadata |> 
-  select(plate_id, std_sp, std_conc, std_unit, sample_dilution, dataset)
+  select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date)
 ```
 
 We could already here, join both metadata and tidy data, but this would create a much larger file to save on the computer than the 2 files separately (because rows of the metadata would be repeated 96 times, one per well of the plate.

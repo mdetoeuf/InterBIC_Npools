@@ -16,6 +16,8 @@ output: true
 
 # TO DO
 
+- Check how high is the highest absorbance value of 2x diluted samples for NO3 –\> can we remove H row?
+
 - Check why NO2_TDN_19, wells H6, H7 and H9 have abs = 0
 
   - not important wells, but if it is due to a failure in raw data, there may be other consequences
@@ -48,7 +50,9 @@ all_plate_metadata <- read_rds("output/data/1_all_plate_metadata_TDN.rds")
 Joining plate data and metadata
 
 ```{r}
-raw_meta <- all_raw_abs_tidy |> left_join(all_plate_metadata, by = join_by(dataset, plate_id))
+raw_meta <- all_raw_abs_tidy |> 
+  left_join(all_plate_metadata, by = join_by(dataset, plate_id)) |> 
+  mutate(date = as.Date(date, tryFormats = c("%d/%m/%Y")))
 
 ```
 
@@ -168,7 +172,11 @@ std_corrected <-
       filter_out(row == "A"),
     per_plate_avg_blank = std_blank$average |> rename(blank_avg = blank_avg),
     map_to_exclude = ""
-  )
+  ) |> 
+  # take subset (to access plates according to their nb)
+  separate_wider_delim(cols = plate_id, delim = "_", names = c("n_sp", "TDN", "nb", "bla"), too_few = "align_start", cols_remove = FALSE) |> 
+  mutate(
+    nb = as.integer(nb)) 
 ```
 
 Because the logic is similar, we will first go into blank-correction of sample data before finalizing work on the standard curves (applying linear regression model)
@@ -296,7 +304,7 @@ Let's just recall all corrected data. We have 2 separate tibbles (because the ex
 std_corrected 
 
 # Samples, blank-corrected and clean
-samples_corrected
+samples_corrected 
 ```
 
 # 3 - Compute regression equation (per plate)
@@ -366,403 +374,299 @@ So, we will adopt the polynomial model for the TDN dataset
 
 ## 3.1 - QC standard curves - round 1
 
-First, we perform a polynomial model on each curve individually
+First, we perform a polynomial model on each NO3 curve individually
 
-Then we take a subset to examine individually: those curves where the linear model doesn't seem to perform ideally (e.g., non-significant model (p-value \> 0.05), residuals not normally distributed, or heteroscedasticity)
-
-# °°° !!! START HERE !!! °°°
+(! not sure that NO2 is very relevant, but for NO2, linear model is fine)
 
 ```{r}
-# TEST CHUNK
+# Select NO3 & group
+grouped_data_NO3 <- std_corrected |> 
+  group_by(unique_curve_id) |> 
+  filter(std_sp == "NO3")
 
+grouped_data_NO2 <- std_corrected |> 
+  group_by(unique_curve_id) |> 
+  filter(std_sp == "NO2")
 
+lm_NO3_raw <- lm_std_curve(grouped_data_NO3, model = "poly") 
+lm_NO2_raw <- lm_std_curve(grouped_data_NO2, model = "linear")
 ```
 
-```{r}
-
-```
+Then we take a subset to examine individually: those curves where the linear model doesn't seem to perform ideally (e.g., non-significant model (p-value \> 0.05), residuals not normally distributed, or heteroscedasticity, or, for polynomial model, p-value of one of the coefficients \> 0.05)
 
 ```{r}
-# TEST CHUNK
-
-grouped_data <- std_corrected |> group_by(unique_curve_id) |> filter(std_sp == "NO3")
-
-
-lm_std_curve(grouped_data, model = "poly") 
-
-
-
-  
-
-
-
-p_poly +
-  geom_function( fun = \(x) a*x^2 + b*x + c, color = "black")
-```
-
-```{r}
-
-j = 1
-for (j in 1:nrow(plate)) {
-  inferred_conc <- c(-curve$abs_corrected[j], poly_b, poly_a) |> 
-  # compute roots of second-degree equation: poly_a * (conc)^2 + poly_b * x - corrected_abs = 0
-  polyroot() |> 
-  # Extract only the "real" part (not complex part)
-  Re() |> 
-  min()
-  # take first element bc
-  #‚x1 <- (-b - sqrt(b^2 - 4*a*(c-y))) / (2*a) --> Descending part of down-facing (bc poly_a <0) parabol, cannot be this one
-  # So
- # x <- (-b + sqrt(b^2 - 4*a*(c-y))) / (2*a)
-  
-}
-```
-
-```{r}
-lm_table_raw <- lm_std_curve(std_corrected |> group_by(plate_id, column))
-
 # extract all plates where "something" is not perfect 
-lm_table_suspicious <- lm_table_raw |> 
+lm_suspicious_NO3 <- lm_NO3_raw |> suspicious_lm(model = "poly")
+lm_suspicious_NO2 <- lm_NO2_raw |> 
   suspicious_lm()
+
+nrow(lm_suspicious_NO3) ; nrow(lm_suspicious_NO2)
 ```
 
-Then, for visual support, we create a list of plots where we store each individual plot of "suspicious" standard curves
+There are 7 suspicious curves for NO3 and none for NO2. So we just accept NO2 curves without check. Just a quick look at \`lm_NO2_raw"
 
 ```{r}
-suspicious_lm_plotlist <- plot_list_lm(
-  lm_data = lm_table_suspicious,
-  std_data = std_corrected)
+lm_NO2_raw
+```
+
+For NO3, we go on with the QC of the 7 suspicious curves. For visual support, we create a list of plots where we store each individual plot of "suspicious" standard curves
+
+```{r}
+suspicious_plots_NO3 <- plot_list_lm(
+  lm_suspicious_NO3, 
+  std_data = std_corrected, 
+  model = "poly")
 
 # check one plot out
-#suspicious_lm_plotlist$NH4_1F1_col1
-
+#suspicious_plots_NO3[[1]]
 ```
 
-Now we can look at each plot individually. Because there are still 45 plots to review, we will look through them in 3 batches of 15 plots.
+Now we can look at each plot individually.
 
 ```{r}
-n_plots <- length(suspicious_lm_plotlist)
-batch <- 15
-
-batch_1 <- suspicious_lm_plotlist |> head(n = batch)
-batch_2 <- suspicious_lm_plotlist |> tail(n = n_plots-batch) |> head(n = batch)
-batch_3 <- suspicious_lm_plotlist |> tail(n = n_plots-(2*batch)) 
-
-patchwork::wrap_plots(batch_1, axis_titles = "keep") +
-     patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
-patchwork::wrap_plots(batch_2, axis_titles = "keep") +
-     patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
-patchwork::wrap_plots(batch_3, axis_titles = "keep") +
-     patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
-
-
-```
-
-Most plates are from NH4 and NO2. Because most measurement of NH4 and NO2 are close to zero, it might be relevant to just remove highest points of the curve to get a better fit.
-
-Let's check how high the absorbance goes with these data sets, for each N species. When comparing those highest values with the plots above, we see that the highest absorbance for NO2 and NH4 is far below the most concentrated point of the standard curve –\> we can remove row H for sure, but row G probably not.
-
-This is not the case for NO3, or at least not for the TDN dataset, or part of it.
-
-```{r}
-samples_corrected |> filter(std_sp == "NO2") |> 
-  arrange(desc(abs_corrected)) |> slice_head(n = 3)
-samples_corrected |> filter(std_sp == "NH4") |> 
-  arrange(desc(abs_corrected)) |> slice_head(n = 3)
-```
-
-Let's first list wells to remove the H row of NO2 and NH4 std., and also the following:
-
-- NH4_1G2: E12
-
-- NH4_2F4_1 & 2: C1
-
-```{r}
-to_remove_nh4_no2_h <- std_corrected |> 
-  filter(
-    (std_sp == "NH4" & row %in% c("G", "H")) |
-      (std_sp == "NO2" & row == "H")) |> 
-  select(dataset, plate_id, well_id) |> 
-  bind_rows(tibble(
-    dataset = rep("Nmint1t2", 3),
-    plate_id = c("NH4_1G2", "NH4_2F4_1", "NH4_2F4_2"),
-    well_id = c("E12", "C1", "C1")
-  ))
-```
-
-Then, let's look at suspicious plots for NO3 only, so we can see the plots better
-
-```{r}
-lm_table_suspicious_NO3 <- lm_table_suspicious |> 
-  # extract N_sp from plate name. May be done differently, this is just one of many possible approaches
-  separate_wider_delim(
-    cols = unique_curve_id, delim = "_", 
-    names = c("N_sp", "rest"), 
-    too_many = "merge", cols_remove = FALSE) |> 
-  select(!rest) |> 
-  filter(N_sp == "NO3")
-
-# Create plot list
-lm_plot_list_NO3 <- plot_list_lm(
-  lm_data = lm_table_suspicious_NO3,
-  std_data = std_corrected)
-
-patchwork::wrap_plots(lm_plot_list_NO3, axis_titles = "keep") +
+patchwork::wrap_plots(suspicious_plots_NO3, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-For the NO3 plates, the issue has to be solved differently, but those are just a few –\> individual appraisal. We see here that, even out of TDN, we cannot remove the H row, because some points seem to have an absorbance close to that of the H row of the standard.
+I'm not quite sure that I can or should remove wells here. Indeed, with only 7 points, assessing normality is overstretching. It is probably best to rely on observation?
+
+I decide to keep all points for all curves in this dataset.
+
+But I do want to look at the curves from the last plates (those I did where the concentration was wrong)
 
 ```{r}
-samples_corrected |> filter(std_sp == "NO3", dataset != "TDN") |> 
-  arrange(desc(abs_corrected)) |> slice_head(n = 3)
-std_corrected |> filter(std_sp == "NO3", dataset == "TDN") |> 
-  group_by(plate_id) |> slice_max(abs_corrected) # |> view()
-
-```
-
-For NO3_2F1 and NO3_1F1: there were probably 2 columns, so I can look at both columns together
-
-```{r}
-lm_table_raw |> 
-  separate_wider_delim(
-    cols = unique_curve_id, delim = "_", 
-    names = c("n_sp", "plate", "rest"), 
-    too_many = "merge", cols_remove = FALSE) |> 
-  filter(n_sp == "NO3", plate %in% c("1F1", "2F1")) |> 
-  plot_list_lm(std_data = std_corrected) |> 
-  patchwork::wrap_plots()
-```
-
-remove NO3_2F1, B1
-
-Honestly, they look ok-ish. Maybe after computing the average of both curves the issue is solved!
-
-Then re-compute linear model table as "clean" version.
-
-Then apply it
-
-```{r}
-std_corrected_wash1 <- 
-  std_corrected |> 
-  remove_wells(
-    to_remove_nh4_no2_h |> 
-      bind_rows(tibble(
-        dataset = rep("Nmint1t2",2),
-        plate_id = c("NO3_2F1_1", "NO3_2F1_2"),
-        well_id = rep("B1",2)
-        ))
-    )
-```
-
-Run the quality check once more
-
-```{r}
-lm_table_wash1 <- lm_std_curve(std_corrected_wash1 |> group_by(plate_id, column))
-
-# extract all plates where "something" is not perfect 
-lm_table_suspicious_wash1 <- lm_table_wash1 |> suspicious_lm()
-
-suspicious_lm_plotlist_wash1 <- plot_list_lm(
-  lm_data = lm_table_suspicious_wash1,
-  std_data = std_corrected_wash1)
-
-n_plots <- length(suspicious_lm_plotlist_wash1)
-batch <- 12
-
-batch_1 <- suspicious_lm_plotlist_wash1 |> head(n = batch)
-batch_2 <- suspicious_lm_plotlist_wash1 |> tail(n = n_plots-batch) |> head(n = batch)
-
-patchwork::wrap_plots(batch_1, axis_titles = "keep") +
-     patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
-patchwork::wrap_plots(batch_2, axis_titles = "keep") +
-     patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
-
-```
-
-We still get quite some curves. But when we look at the p-values to reject normality or heteroscedasticity, they are indeed below 0.05, but it's also not 10\^-5 or something like that. The smallest p-value (shapiro) is at 0.007.
-
-Let's compute the means per dilution and see...
-
-## 3.2 - Compute per-dilution averages
-
-Most plates in our dataset have 2 columns with the standard curves. It seems that the \~1min delay between the 2 (column 1 and column 12 of the plate) are responsible for a slight shift (example in plot below)
-
-```{r}
-std_corrected_wash1 |> filter(plate_id == "NO3_2F3_1") |> rename(abs = abs_corrected) |> 
-  plot_std()
-```
-
-So we will now compute the mean for same row (e.g., mean of H1 and H12)
-
-::: callout-warning
-## WARNING
-
-The next step computes per plate per row means for the standard curves.
-
-If some wells have been swapped in some plates, this may cause problems. Make sure there was no pipetting issue, or correct raw data or solve it through code
-:::
-
-```{r}
-
-std_dilution_avg <- std_dilution_average(std_corrected_wash1)
-
-```
-
-## 3.3 - QC standard curves - round 2
-
-We repeat same steps as above: computation of linear model, identification of suspicious curves and plotting
-
-```{r}
-lm_std_avg <- lm_std_curve(std_dilution_avg |> rename(abs_corrected = abs_mean))
-lm_suspicious_avg <- lm_std_avg |> suspicious_lm()
-
-lm_plots_avg <- lm_suspicious_avg |> plot_list_lm(
-  std_data = std_dilution_avg |> rename(abs_corrected = abs_mean))
-
-lm_plots_avg |> patchwork::wrap_plots()
-```
-
-Now, we decide to get rid of just a few wells that really stick out, for the following plates:
-
-NH4_1G2 (E13)
-
-NH4_2F4_1 and NH4_2F4_2 (C13)
-
-And the TDN issues will have to be resolved later (when we know the range of std concentration)
-
-Let's compose a "to_remove" tibble
-
-```{r}
-to_remove <- std_dilution_avg |> 
-  ungroup() |> 
-  select(dataset, plate_id, well_id) |> 
-  filter(
-    ((plate_id == "NH4_1G2") & (well_id == "E13")) |
-    (plate_id %in% c("NH4_2F4_1", "NH4_2F4_2") & (well_id == "C13"))
-  )
-
-std_corrected_wash2 <- std_dilution_avg |> 
-  remove_wells(to_remove) |> 
-  rename(abs_corrected = abs_mean)
-```
-
-One more run of QC to check if we are satisfied with the resulting curves
-
-```{r}
-lm_wash2 <- lm_std_curve(std_corrected_wash2)
-lm_suspicious_wash2 <- lm_wash2 |> suspicious_lm()
-
-lm_plots_wash2 <- plot_list_lm(lm_suspicious_wash2, std_corrected_wash2)
-lm_plots_wash2 |> patchwork::wrap_plots()  
-```
-
-Ok, good enough!
-
-Let's store the last correction into a clean variable name to reduce possible confusion, and let's compute all the plots in a big list, for storage purposes. We then export this as one output data in a single list
-
-```{r}
-std_data_clean <- std_corrected_wash2
-lm_table_clean <- lm_wash2
-lm_plots_clean <- plot_list_lm(lm_table_clean, std_data_clean)
-
-lm_output <- list(
-  "std_data_clean" = std_data_clean,
-  "lm_table_clean" = lm_table_clean,
-  "lm_plots_clean" = lm_plots_clean,
-  "samples_corrected" = samples_corrected
+plot_Mo_curves <- plot_list_lm(
+  lm_data = lm_NO3_raw |> tail(n = 7), std_data = std_corrected, model = "poly"
 )
 
-lm_output |> write_rds("output/data/2_lm_output.rds")
+patchwork::wrap_plots(plot_Mo_curves, axis_titles = "keep") +
+     patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-## 3.4 - Multiple curve QC
+Interestingly, the models are all good, but we are in an upward-facing parabole (which would change the computation of the solution (looking for x based on y –\> take higher value: also the only one that is \> 0)
 
-First, let's look at the distribution of p-values of the std curve regressions
+Still, extrapolation well past those concentrations seem unlikely. Let's see the overplotting later, but probably we have to ignore those plates
+
+## 3.2 - Multiple curve QC
+
+First, let's look at the distribution of p-values and adjusted R\^2 of the std curve regressions
 
 ```{r}
-p_threshold <- 0.05
+NO3_p <- density_lm_param(
+  lm_NO3_raw, 
+  p_or_r = "p", threshold = 0.05, 
+  facetting_std_sp = TRUE, color_std_sp = FALSE)
 
-lm_output$lm_table_clean |> 
-  separate_wider_delim(
-    cols = unique_curve_id, delim = "_", 
-    names = c("n_sp", "rest"), too_many = "merge") |>
-  ggplot(aes(x = -log(lm_p))) + 
-  theme_minimal() +
-  # geom_histogram() +
-  geom_density() +
-  geom_vline(aes(xintercept = -log(p_threshold)), linetype = 2, colour = "purple") +
-  annotate(
-    geom = "label", label = paste0("p-val = ", p_threshold),
-    x = -log(p_threshold), y = 0.15, hjust = 0.25, colour = "purple" ) +
-  facet_wrap(~n_sp, nrow = 3) +
-  xlim(0,max(-log(lm_output$lm_table_clean$lm_p))) +
-  xlab("-log(p-value of linear model)") +
-  labs(
-    title = "Distribution of p-values of the linear model",
-    subtitle = "logarithmic scale"
-  )
+NO3_adjR2 <- density_lm_param(
+  lm_NO2_raw, "adjR2", 0.95, color_std_sp = FALSE 
+)
+
+NO2_p <- density_lm_param(
+  lm_NO3_raw, 
+  p_or_r = "p", threshold = 0.05, 
+  facetting_std_sp = TRUE, color_std_sp = FALSE)
+
+NO2_adjR2 <- density_lm_param(
+  lm_NO2_raw, "adjR2", 0.95, color_std_sp = FALSE 
+)
+  
+
+(NO3_p + NO2_p) / (NO3_adjR2 + NO2_adjR2)
 ```
 
-Then, same with R_squared (or adjusted?)
-
-```{r}
-threshold <- 95
-
-lm_output$lm_table_clean |> 
-  separate_wider_delim(
-    cols = unique_curve_id, delim = "_", 
-    names = c("n_sp", "rest"), too_many = "merge") |>
-  ggplot(aes(x = adj_r_squared, colour = n_sp, fill = n_sp)) + 
-  theme_minimal() +
-  #geom_histogram() +
-  geom_density(alpha = 0.3) +
-  geom_vline(aes(xintercept = 0.95), linetype = 2, colour = "purple") +
-  annotate(
-    geom = "label", label = paste0("adjusted R2 = ", threshold, "%"),
-    x = threshold/100, y = 500, hjust = 0.25, colour = "purple" ) +
-  #facet_wrap(~n_sp, nrow = 3, scales = "free_y") +
-  xlim(
-    0.945,
-    max(lm_output$lm_table_clean$adj_r_squared)) +
-  xlab("Adjusted R2") +
-  labs(
-    title = "Distribution of adjusted R2 values of the linear model"
-  )
-```
-
-Now we plot all curves on same plot
-
-- for now: exclude TDN because concentrations of standard curves are wrong
-
-- To Do : check std curve concentrations in Cloé's notebook!
+Now we plot all curves on same plot. I removed "my plates" bc there were polluting the plot. Anyway, we will get rid of those data points!
 
 ```{r}
 colors <- c("#7FC97F", "#BEAED4", "#FDC086")
 
-lm_output$std_data_clean |> 
-  filter_out(dataset == "TDN") |> 
-  ggplot(aes(x = as.numeric(std_conc), y = abs_corrected, groups = plate_id, colour = dataset, fill = dataset)) +
-  theme_minimal()+
+std_Sang <- std_corrected |> 
+  # take only NO3 (bc polanomial model
+  filter(std_sp == "NO3")  |> 
+  filter_out(nb >32) 
+  
+
+annotation <- std_Sang |> 
+  select(plate_id, nb, abs_corrected, std_conc, date) |> 
+  slice_max(std_conc, with_ties = TRUE)
+
+# plot
+std_Sang |> 
+  ggplot(aes(
+    x = as.numeric(std_conc), 
+    y = abs_corrected, groups = plate_id, 
+    colour = date, fill = date)) +
+  theme_minimal() + 
+  theme(legend.position = "right") +
   geom_smooth(
-    formula = y~x-1, method = "lm", se = TRUE, 
-    alpha = 0.05) +
-  geom_point() +
-  facet_wrap(~std_sp, scales = "free") +
-  scale_color_discrete(palette = colors[1:2]) +
-  scale_fill_discrete(palette = colors[1:2]) 
+    formula = y ~ 0 + x + I(x^2), method = "lm", se = TRUE, 
+    alpha = 0, linetype = 1, linewidth = 0.15) +
+  geom_point(alpha = 0.5) +
+ # facet_wrap(~std_sp, scales = "free") +
+#  scale_color_discrete(palette = colors[1:2]) +
+ # scale_fill_discrete(palette = colors[1:2]) +
+  xlab("Standard Concentration [mg N-species / L]") +
+  ylab("Blank-corrected absorbance") +
+  labs(title = "Inter-plate variability of the Standard Curves") +
+  xlim(c(0, 300)) +
+  annotate(
+    geom = "text",
+    x = annotation$std_conc*1.01, 
+    y = annotation$abs_corrected, 
+    label = annotation$date, size = 2,
+    hjust = 0,
+    color = annotation$date
+  ) 
 ```
 
-Now, finally, I decide that I am happy with my standard curves, so I can move on to apply the equations on my data
+There is some batch effect, which can be due to several things:
 
-# TO DO
+- An error in the dilution of the stock solution cannot be excluded, though this alone would result in
 
-!!! FOR TDN !!!
+  - clear, non-overlapping groups of curves done on the same day (dilution only done 1x per day)
 
-- CHECK Std curve concentrations !!!
+  - no particular gradient based on date (random error in pipetting –\> random pattern)
 
-- Check how high is the highest absorbance value of 2x diluted samples for NO3 –\> can we remove H row?
+- The gradient in date can only be explained by a gradient in reaction conditions which should act the same way on samples and standard curves, such as:
 
-!!! FOR Nmin t3 !!!
+  - temperature
 
-- Check in lab notebook of Cloé: which dilutions for NH4? Courbes sont bizarrement décalées (facteur 2 quasi! )
+  - degradation of reagents (bulk preparation)
+
+- The within day noise is possibly due also to slight changes in conditions
+
+  - incubation time slightly different
+
+  - delay since dilution and reagent preparation
+
+    - is there some altering of the solution once it is thawed?
+
+    - How long since the Grieß reagent has been mixed?
+
+    - Degradation of VCl3?
+
+    - etc.
+
+For now I don't see reasons to worry about those curves, we can proceed to apply the regression equations
+
+## 3.3 - Confirm data and export
+
+Let's store all necessary data into a clean variable name to reduce possible confusion, and let's compute all the plots in a big list, for storage purposes. We then export this as one output data in a single list
+
+```{r}
+#| include: false
+
+# remove latest plates with wrong std curves
+std_data_clean <- std_corrected |> filter_out(nb > 32)
+
+# Run once more lm with this smaller data
+grouped_data_NO3 <- std_data_clean |> 
+  group_by(unique_curve_id) |> 
+  filter(std_sp == "NO3")
+
+# actually unchanged for NO2, but keep it for consistency
+grouped_data_NO2 <- std_data_clean |> 
+  group_by(unique_curve_id) |> 
+  filter(std_sp == "NO2")
+
+# recompute the model
+lm_NO3_clean <- lm_std_curve(grouped_data_NO3, model = "poly") 
+lm_NO2_clean <- lm_std_curve(grouped_data_NO2, model = "linear")
+
+# create a full list of plots (not only suspicious plots)
+lm_plots_NO3_clean <- plot_list_lm(lm_NO3_clean, std_data_clean, model = "poly")
+lm_plots_NO2_clean <- plot_list_lm(lm_NO2_clean, std_data_clean, model = "linear")
+
+lm_output <- list(
+  "std_data_clean" = std_data_clean,
+  "lm_NO3_clean" = lm_NO3_clean,
+  "lm_NO2_clean" = lm_NO2_clean,
+  "lm_plots_NO3_clean" = lm_plots_NO3_clean,
+  "lm_plots_NO2_clean" = lm_plots_NO2_clean,
+  "samples_corrected" = samples_corrected
+)
+
+
+```
+
+Now, we save this into an rds file, clean up the environment and re-import the clean data, so no mistake is possible
+
+```{r}
+#| eval: true
+#| include: true
+lm_output |> write_rds("output/data/2_lm_output_TDN.rds")
+
+rm(list = ls())
+lm_output <- read_rds("output/data/2_lm_output_TDN.rds")
+```
+
+# 4 - From absorbance to concentration
+
+## 4.1 - Theoretical considerations - polynomial model
+
+Regression equation is `Abs = poly_a * Concentration^2 + poly_b * Concentration`. There is no additional term because we constrained the model to be fitted through the origin. This equation can be transformed into `poly_a * Concentration^2 + poly_b * Concentration - Abs = 0`.
+
+The function `polyroot()` computes the roots to a second (or higher) degree equation of the form `ax^2 + bx + c`. It takes as argument a vector `z` of the type `z = c(c, b, a)`. Its output is a vector with the roots of the equation expressed as a complex number. To extract the real component, we use the function `Re()`.
+
+A second degree equation, by definition, accepts 2 solutions for most values of y and its shape is a parable. If a is negative, it is an downward-facing parable (see plotting above). In the case of our model, we already know that the smallest of the 2 solutions for x will be the one we are looking for, for several reasons:
+
+- we constrained the curve to go through the origin,
+
+- all our points will be in the ascending part of the curve (before its maximum)
+
+- So that if we draw a horizontal line at any absorbance value, its first intersection with the parable (smallest of x1, x2) will be the one within the range of our standard curves (the second one would be in the other half, descending part of the parable)
+
+!!! This applies because we have a downward facing parable. We are anyway in an ascending part. Should the parable, in another dataset, have an upward-facing shape (e.g., very small concentrations), then the reasoning is reverse: we would be in the right-hand half of the parable, thus the highest solution from x1 and x2.
+
+## 4.2 - Application of the model
+
+Polyroot is difficult to apply rowwise for now... Until I find a more elegant way, let's just input the standard definition of the solution to a second degree equation for the polynomial model:
+
+`x = (-b +- sqrt(b^2 - 4*ac)) / (2*a)`, with c = -y
+
+Here, we
+
+- connect regression data to sample absorbance data
+
+- apply the regression equation to go from absorbance to concentration in mg N-sp per L
+
+- convert unit to mg N per L
+
+```{r}
+# For NO3
+data_NO3 <- lm_output$lm_NO3_clean |> 
+  filter(std_sp == "NO3") |> 
+  reg_join_abs(
+    lm_output$samples_corrected |> filter(std_sp == "NO3"), 
+    target_sp = "N") 
+
+data_NO2 <- lm_output$lm_NO2_clean |> 
+  filter(std_sp == "NO2") |> 
+  reg_join_abs(
+    lm_output$samples_corrected |> filter(std_sp == "NO2"), 
+    target_sp = "N") 
+
+data_all <- 
+
+data_mg_N_L <- full_join(data_NO3, data_NO2) |> 
+  rowwise() |> 
+  mutate(
+    conc_mgNsp_L = case_when(
+      std_sp == "NO2" ~ (abs_corrected / slope),
+      std_sp == "NO3" ~ min(c(
+        (-poly_b + sqrt(poly_b^2 - 4*poly_a*(-abs_corrected))) / (2*poly_a),
+        (-poly_b - sqrt(poly_b^2 - 4*poly_a*(-abs_corrected))) / (2*poly_a)
+      ))
+    )
+  ) |> 
+  convert_molec(masses = molar_masses)
+  
+# Check it out
+data_mg_N_L
+```
+
+# 5 - Export
+
+```{r}
+
+data_mg_N_L |> write_rds("output/data/2_mgNL_TDN.rds")
+```
