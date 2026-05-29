@@ -1,2 +1,10 @@
 ﻿dataset,plate_id,well_id
 Nmint1t2,NO2_2P1,E12
+Nmint3,NO2_R1R2_1,E3
+Nmint3,NO2_R1R2_2,E3
+Nmint3,NO3_R2R3_1,A1
+Nmint3,NO3_R2R3_2,A1
+,,
+,,
+,,
+,, 
