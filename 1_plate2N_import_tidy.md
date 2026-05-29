@@ -1,4 +1,4 @@
-# Import and tidy with plate2N
+# Import and tidy Absorbance Data with plate2N
 Morgane de Toeuf
 
 - [Set up](#set-up)
@@ -17,13 +17,14 @@ rm(list = ls())
 #pak::pak("mdetoeuf/plate2N”) # if doesn't work --> try pak::pak_cleanup()
 library(plate2N)
 library(tidyverse)
-#library(janitor) # for row_to_names()
 ```
 
 # 1 - Import data
 
 All object names ending with “abs” contain absorbance data, all object
 names ending with “map” contain the mapping of the equivalent abs data
+(sample id, or one of three options: “empty”, “Std” or “extr” for empty
+wells, standard curve and extractant (K2SO4) respectively)
 
 Here we import all our datasets, with various functions from the package
 `plate2N`. The output is displayed each time a new function is used.
@@ -72,7 +73,7 @@ Here we import all our datasets, with various functions from the package
 Nmin_t3_abs <- csv_to_tibble("raw_data/Nmin_t3/Nmint3_data.csv")
 Nmin_t3_map <- csv_to_tibble("raw_data/Nmin_t3/Nmint3_maps.csv")
 
-# TDN (map csv not in the right format --> back to import_csv)
+# TDN (map csv not in the right format --> back to import_csv = manual import)
 TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 (TDN_map <- 
     read_csv(
@@ -140,33 +141,39 @@ TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 >
 > ### For users of the Skanit file format
 >
-> The previous chunk (absorbance and plate map data) demonstrate the
-> usage of the Skanit format version of the import function, but the
-> rest of this pipeline does not require the Skanit data, so it is no
-> longer used passed this import step. However, the output format
-> should, in theory, be strictly identical to other format options, so
-> that the object `Skanit_abs` should, in theory, be interchangeable
-> with `TDN_abs` or `Nmin_abs`. Please reach out if you encounter any
-> difficulty.
+> The previous chunk (absorbance and plate map data) demonstrates the
+> usage of the Skanit format version of the import, but the rest of this
+> pipeline does not require the Skanit data, so it is no longer used
+> passed this import step. However, the output format should, in theory,
+> be strictly identical to other format options, so that the object
+> `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or
+> `Nmin_abs`. Please reach out if you encounter any difficulty.
 
 # 2 - Verticalize plates
 
+Here, we transform data from plate format to “verticalized” format: 1
+row per well position (well_id –\> 96 rows) and 1 column per “plate”
+(actually 2 columns per physical plate: absorbance data plate and
+mapping plate).
+
 We do this separately for each data set. Because those distinct data
-sets will be combined eventually, we add a prefix to column names to
-reflect dataset + whether it is abs or map.
+sets will be combined eventually, a prefix is added to column names to
+reflect dataset + whether it is abs or map. Notice the “-” at the end of
+the dataset prefix.
 
 ``` r
 # Nmint1t2
-Nmin_t1t2_vert <- join_abs_map(Nmin_t1t2_abs, Nmin_t1t2_map, dataset = "Nmint1t2-")
+Nmin_t1t2_vertical <- join_abs_map(
+  Nmin_t1t2_abs, Nmin_t1t2_map, dataset = "Nmint1t2-")
 
 # Nmint3
-Nmin_t3_vert <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
+Nmin_t3_vertical <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
 
 # TDN
-TDN_vert <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
+TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
 
 ## Check them out
-Nmin_t1t2_vert; Nmin_t3_vert; TDN_vert
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical
 ```
 
     # A tibble: 96 × 200
@@ -238,12 +245,25 @@ and abs/map-related prefixes
 
 ``` r
 # join all 3 in a single table with all "plate data"
-all_vert <- Nmin_t1t2_vert |> 
-  left_join(Nmin_t3_vert, by = join_by(row, column)) |> 
-  left_join(TDN_vert, by = join_by(row, column))
+all_vertical <- Nmin_t1t2_vertical |> 
+  left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
+  left_join(TDN_vertical, by = join_by(row, column))
 
-# check it out + look at variable names
-all_vert; names(all_vert)[1:100]
+# look at the structure of variable names
+sample(names(all_vertical),size = 20)
+```
+
+     [1] "Nmint1t2-abs-NH4_2F4_2" "Nmint1t2-map-NO3_2P6_2" "Nmint3-map-NO3_R6R7_2" 
+     [4] "Nmint1t2-abs-NO3_2F2_1" "Nmint1t2-map-NO3_2F3_2" "Nmint1t2-map-NH4_2P3"  
+     [7] "Nmint1t2-map-NH4_2F2_1" "TDN-abs-NO3_TDN_15"     "Nmint1t2-map-NO3_2P6_1"
+    [10] "TDN-abs-NO3_TDN_21"     "Nmint1t2-map-NO2_2F3_1" "Nmint1t2-map-NO3_1F3"  
+    [13] "TDN-map-NO2_TDN_06"     "Nmint1t2-map-NH4_1F1"   "Nmint1t2-abs-NO2_1F1"  
+    [16] "Nmint1t2-abs-NO2_2P7_1" "TDN-abs-NO3_TDN_04"     "Nmint3-map-NO3_R5R6_1" 
+    [19] "Nmint3-abs-NH4_R5R6_2"  "Nmint3-map-NH4_R2R3_1" 
+
+``` r
+# check it out  
+all_vertical
 ```
 
     # A tibble: 96 × 390
@@ -267,54 +287,20 @@ all_vert; names(all_vert)[1:100]
     #   `Nmint1t2-abs-NH4_1G4` <chr>, `Nmint1t2-abs-NH4_1G5` <chr>,
     #   `Nmint1t2-abs-NH4_2F1_1` <chr>, `Nmint1t2-abs-NH4_2F1_2` <chr>, …
 
-      [1] "row"                    "column"                 "Nmint1t2-abs-NH4_1F1"  
-      [4] "Nmint1t2-abs-NH4_1F2_1" "Nmint1t2-abs-NH4_1F2_2" "Nmint1t2-abs-NH4_1F3"  
-      [7] "Nmint1t2-abs-NH4_1F4"   "Nmint1t2-abs-NH4_1F5"   "Nmint1t2-abs-NH4_1G1"  
-     [10] "Nmint1t2-abs-NH4_1G2"   "Nmint1t2-abs-NH4_1G3"   "Nmint1t2-abs-NH4_1G4"  
-     [13] "Nmint1t2-abs-NH4_1G5"   "Nmint1t2-abs-NH4_2F1_1" "Nmint1t2-abs-NH4_2F1_2"
-     [16] "Nmint1t2-abs-NH4_2F2_1" "Nmint1t2-abs-NH4_2F2_2" "Nmint1t2-abs-NH4_2F3_1"
-     [19] "Nmint1t2-abs-NH4_2F3_2" "Nmint1t2-abs-NH4_2F4_1" "Nmint1t2-abs-NH4_2F4_2"
-     [22] "Nmint1t2-abs-NH4_2F5_1" "Nmint1t2-abs-NH4_2F5_2" "Nmint1t2-abs-NH4_2F6_1"
-     [25] "Nmint1t2-abs-NH4_2F6_2" "Nmint1t2-abs-NH4_2P1"   "Nmint1t2-abs-NH4_2P2"  
-     [28] "Nmint1t2-abs-NH4_2P3"   "Nmint1t2-abs-NH4_2P4"   "Nmint1t2-abs-NH4_2P5"  
-     [31] "Nmint1t2-abs-NH4_2P6_1" "Nmint1t2-abs-NH4_2P6_2" "Nmint1t2-abs-NH4_2P6_3"
-     [34] "Nmint1t2-abs-NH4_2P7_1" "Nmint1t2-abs-NH4_2P7_2" "Nmint1t2-abs-NO2_1F1"  
-     [37] "Nmint1t2-abs-NO2_1F2_1" "Nmint1t2-abs-NO2_1F2_2" "Nmint1t2-abs-NO2_1F3"  
-     [40] "Nmint1t2-abs-NO2_1F4"   "Nmint1t2-abs-NO2_1F5"   "Nmint1t2-abs-NO2_1G1"  
-     [43] "Nmint1t2-abs-NO2_1G2"   "Nmint1t2-abs-NO2_1G3"   "Nmint1t2-abs-NO2_1G4"  
-     [46] "Nmint1t2-abs-NO2_1G5"   "Nmint1t2-abs-NO2_2F1_1" "Nmint1t2-abs-NO2_2F1_2"
-     [49] "Nmint1t2-abs-NO2_2F2_1" "Nmint1t2-abs-NO2_2F2_2" "Nmint1t2-abs-NO2_2F3_1"
-     [52] "Nmint1t2-abs-NO2_2F3_2" "Nmint1t2-abs-NO2_2F4_1" "Nmint1t2-abs-NO2_2F4_2"
-     [55] "Nmint1t2-abs-NO2_2F5_1" "Nmint1t2-abs-NO2_2F5_2" "Nmint1t2-abs-NO2_2F6_1"
-     [58] "Nmint1t2-abs-NO2_2F6_2" "Nmint1t2-abs-NO2_2P1"   "Nmint1t2-abs-NO2_2P2"  
-     [61] "Nmint1t2-abs-NO2_2P3"   "Nmint1t2-abs-NO2_2P4"   "Nmint1t2-abs-NO2_2P5"  
-     [64] "Nmint1t2-abs-NO2_2P6_1" "Nmint1t2-abs-NO2_2P6_2" "Nmint1t2-abs-NO2_2P6_3"
-     [67] "Nmint1t2-abs-NO2_2P7_1" "Nmint1t2-abs-NO2_2P7_2" "Nmint1t2-abs-NO3_1F1"  
-     [70] "Nmint1t2-abs-NO3_1F2_1" "Nmint1t2-abs-NO3_1F2_2" "Nmint1t2-abs-NO3_1F3"  
-     [73] "Nmint1t2-abs-NO3_1F4"   "Nmint1t2-abs-NO3_1F5"   "Nmint1t2-abs-NO3_1G1"  
-     [76] "Nmint1t2-abs-NO3_1G2"   "Nmint1t2-abs-NO3_1G3"   "Nmint1t2-abs-NO3_1G4"  
-     [79] "Nmint1t2-abs-NO3_1G5"   "Nmint1t2-abs-NO3_2F1_1" "Nmint1t2-abs-NO3_2F1_2"
-     [82] "Nmint1t2-abs-NO3_2F2_1" "Nmint1t2-abs-NO3_2F2_2" "Nmint1t2-abs-NO3_2F3_1"
-     [85] "Nmint1t2-abs-NO3_2F3_2" "Nmint1t2-abs-NO3_2F4_1" "Nmint1t2-abs-NO3_2F4_2"
-     [88] "Nmint1t2-abs-NO3_2F5_1" "Nmint1t2-abs-NO3_2F5_2" "Nmint1t2-abs-NO3_2F6_1"
-     [91] "Nmint1t2-abs-NO3_2F6_2" "Nmint1t2-abs-NO3_2P1"   "Nmint1t2-abs-NO3_2P2"  
-     [94] "Nmint1t2-abs-NO3_2P3"   "Nmint1t2-abs-NO3_2P4"   "Nmint1t2-abs-NO3_2P5"  
-     [97] "Nmint1t2-abs-NO3_2P6_1" "Nmint1t2-abs-NO3_2P6_2" "Nmint1t2-abs-NO3_2P6_3"
-    [100] "Nmint1t2-abs-NO3_2P7_1"
-
 # 3 - tidy table
 
-What we want, is to have one column for absorbance data, another one for
-the mapping.
+What we want is to have one column for absorbance data (all plates),
+another one for the mapping (all plates), i.e., a much longer table
+(number of rows = 96 \* nb of plates).
 
-`verticalize_to_tidy()`\` brings the verticalized plates into a tidy
+`verticalize_to_tidy()` brings the verticalized plates into a tidy
 format, extracting from column names dataset, plate_id , mapping data
 and absorbance data into their own column, thus creating a very long
-tidy table where each row corresponds to a unique well (see column
-unique_well_id).
+tidy table where each row corresponds to a unique well reported in a new
+column called `unique_well_id`.
 
 ``` r
-(all_raw_abs_tidy <- vertical_to_tidy(all_vert))
+(all_raw_abs_tidy <- vertical_to_tidy(all_vertical))
 ```
 
     # A tibble: 18,624 × 8
@@ -338,8 +324,8 @@ Now we have a tidy table that is, in theory, ready for export. In real
 life, this data cannot be used on its own, and plate metadata is
 necessary.
 
-First, we import metadata for each dataset, and add a “dataset” column
-that will help with the next steps.
+First, we import metadata for each dataset, and, if it is not already in
+it, add a “dataset” column that will help with the next steps.
 
 ``` r
 # import csvs
@@ -368,6 +354,7 @@ that will help with the next steps.
     #   extractant_conc <dbl>, empty_column <lgl>, wait_min <chr>, dataset <chr>
 
 ``` r
+# check it out
 str(Nmin_metadata)
 ```
 
@@ -404,8 +391,8 @@ TDN_metadata <- read_csv(
 ```
 
 Then we join them in one big metadata file. ! this only works because
-the 3 metadata files have stricly the same stucture (same column names
-in the same order, containing the same data type (string, …)).
+the 3 metadata files have strictly the same structure (same column names
+in the same order, containing the same data type (string, numeric, …)).
 
 ``` r
 # join csv's
@@ -431,11 +418,11 @@ in the same order, containing the same data type (string, …)).
     #   extractant_conc <dbl>, empty_column <chr>, wait_min <chr>, dataset <chr>,
     #   wavelength <chr>
 
-Keep only relevant columns
+Keep only relevant columns.
 
 ``` r
 all_plate_metadata_keep <- all_plate_metadata |> 
-  select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date)
+  select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date) 
 ```
 
 We could already here, join both metadata and tidy data, but this would
@@ -445,8 +432,9 @@ per well of the plate.
 
 # 5 - Export
 
-Some steps will be specific of TDN, so we separate the raw data
-according to TDN or rest
+Some steps will be specific of TDN (because we work with much higher
+concentrations), so we separate the raw data according to TDN or not
+TDN[^1].
 
 First, prepare those subsets
 
@@ -469,3 +457,6 @@ all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
 all_plate_metadata_TDN |> write_rds("output/data/1_all_plate_metadata_TDN.rds")
 all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rds")
 ```
+
+[^1]: TDN stands for Total Dissolved Nitrogen, i.e., NO3- is dosed after
+    an oxidation of all N compounds to NO3-

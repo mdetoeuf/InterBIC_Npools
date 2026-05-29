@@ -1,5 +1,5 @@
 ---
-title: "Import and tidy with plate2N"
+title: "Import and tidy Absorbance Data with plate2N"
 author: "Morgane de Toeuf"
 format: 
   gfm:
@@ -27,12 +27,11 @@ rm(list = ls())
 #pak::pak("mdetoeuf/plate2N”) # if doesn't work --> try pak::pak_cleanup()
 library(plate2N)
 library(tidyverse)
-#library(janitor) # for row_to_names()
 ```
 
 # 1 - Import data
 
-All object names ending with "abs" contain absorbance data, all object names ending with "map" contain the mapping of the equivalent abs data
+All object names ending with "abs" contain absorbance data, all object names ending with "map" contain the mapping of the equivalent abs data (sample id, or one of three options: "empty", "Std" or "extr" for empty wells, standard curve and extractant (K2SO4) respectively)
 
 Here we import all our datasets, with various functions from the package `plate2N`. The output is displayed each time a new function is used.
 
@@ -45,7 +44,7 @@ Here we import all our datasets, with various functions from the package `plate2
 Nmin_t3_abs <- csv_to_tibble("raw_data/Nmin_t3/Nmint3_data.csv")
 Nmin_t3_map <- csv_to_tibble("raw_data/Nmin_t3/Nmint3_maps.csv")
 
-# TDN (map csv not in the right format --> back to import_csv)
+# TDN (map csv not in the right format --> back to import_csv = manual import)
 TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 (TDN_map <- 
     read_csv(
@@ -63,54 +62,60 @@ TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 ::: callout-tip
 ## For users of the Skanit file format
 
-The previous chunk (absorbance and plate map data) demonstrate the usage of the Skanit format version of the import function, but the rest of this pipeline does not require the Skanit data, so it is no longer used passed this import step. However, the output format should, in theory, be strictly identical to other format options, so that the object `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or `Nmin_abs`. Please reach out if you encounter any difficulty.
+The previous chunk (absorbance and plate map data) demonstrates the usage of the Skanit format version of the import, but the rest of this pipeline does not require the Skanit data, so it is no longer used passed this import step. However, the output format should, in theory, be strictly identical to other format options, so that the object `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or `Nmin_abs`. Please reach out if you encounter any difficulty.
 :::
 
 # 2 - Verticalize plates
 
-We do this separately for each data set. Because those distinct data sets will be combined eventually, we add a prefix to column names to reflect dataset + whether it is abs or map.
+Here, we transform data from plate format to "verticalized" format: 1 row per well position (well_id –\> 96 rows) and 1 column per "plate" (actually 2 columns per physical plate: absorbance data plate and mapping plate).
+
+We do this separately for each data set. Because those distinct data sets will be combined eventually, a prefix is added to column names to reflect dataset + whether it is abs or map. Notice the "-" at the end of the dataset prefix.
 
 ```{r}
 # Nmint1t2
-Nmin_t1t2_vert <- join_abs_map(Nmin_t1t2_abs, Nmin_t1t2_map, dataset = "Nmint1t2-")
+Nmin_t1t2_vertical <- join_abs_map(
+  Nmin_t1t2_abs, Nmin_t1t2_map, dataset = "Nmint1t2-")
 
 # Nmint3
-Nmin_t3_vert <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
+Nmin_t3_vertical <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
 
 # TDN
-TDN_vert <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
+TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
 
 ## Check them out
-Nmin_t1t2_vert; Nmin_t3_vert; TDN_vert
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical
 ```
 
 Then, we use the `dplyr::left_join()` function to join all plate data in a single data table. Note the distinct column names with their dataset and abs/map-related prefixes
 
 ```{r}
 # join all 3 in a single table with all "plate data"
-all_vert <- Nmin_t1t2_vert |> 
-  left_join(Nmin_t3_vert, by = join_by(row, column)) |> 
-  left_join(TDN_vert, by = join_by(row, column))
+all_vertical <- Nmin_t1t2_vertical |> 
+  left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
+  left_join(TDN_vertical, by = join_by(row, column))
 
-# check it out + look at variable names
-all_vert; names(all_vert)[1:100]
+# look at the structure of variable names
+sample(names(all_vertical),size = 20)
+
+# check it out  
+all_vertical
 ```
 
 # 3 - tidy table
 
-What we want, is to have one column for absorbance data, another one for the mapping.
+What we want is to have one column for absorbance data (all plates), another one for the mapping (all plates), i.e., a much longer table (number of rows = 96 \* nb of plates).
 
-`verticalize_to_tidy()`\` brings the verticalized plates into a tidy format, extracting from column names dataset, plate_id , mapping data and absorbance data into their own column, thus creating a very long tidy table where each row corresponds to a unique well (see column unique_well_id).
+`verticalize_to_tidy()` brings the verticalized plates into a tidy format, extracting from column names dataset, plate_id , mapping data and absorbance data into their own column, thus creating a very long tidy table where each row corresponds to a unique well reported in a new column called `unique_well_id`.
 
 ```{r}
-(all_raw_abs_tidy <- vertical_to_tidy(all_vert))
+(all_raw_abs_tidy <- vertical_to_tidy(all_vertical))
 ```
 
 # 4 - Add plate metadata
 
 Now we have a tidy table that is, in theory, ready for export. In real life, this data cannot be used on its own, and plate metadata is necessary.
 
-First, we import metadata for each dataset, and add a "dataset" column that will help with the next steps.
+First, we import metadata for each dataset, and, if it is not already in it, add a "dataset" column that will help with the next steps.
 
 ```{r}
 # import csvs
@@ -118,6 +123,8 @@ First, we import metadata for each dataset, and add a "dataset" column that will
   "raw_data/Nmin/Nmin_metadata.csv", show_col_types = FALSE
   ) |>
   mutate(dataset = "Nmint1t2"))
+
+# check it out
 str(Nmin_metadata)
 
 Nmin_t3_metadata <- read_csv(
@@ -132,25 +139,27 @@ TDN_metadata <- read_csv(
   mutate(dataset = "TDN")
 ```
 
-Then we join them in one big metadata file. ! this only works because the 3 metadata files have stricly the same stucture (same column names in the same order, containing the same data type (string, ...)).
+Then we join them in one big metadata file. ! this only works because the 3 metadata files have strictly the same structure (same column names in the same order, containing the same data type (string, numeric, ...)).
 
 ```{r}
 # join csv's
 (all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata))
 ```
 
-Keep only relevant columns
+Keep only relevant columns.
 
 ```{r}
 all_plate_metadata_keep <- all_plate_metadata |> 
-  select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date)
+  select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date) 
 ```
 
 We could already here, join both metadata and tidy data, but this would create a much larger file to save on the computer than the 2 files separately (because rows of the metadata would be repeated 96 times, one per well of the plate.
 
 # 5 - Export
 
-Some steps will be specific of TDN, so we separate the raw data according to TDN or rest
+Some steps will be specific of TDN (because we work with much higher concentrations), so we separate the raw data according to TDN or not TDN[^1].
+
+[^1]: TDN stands for Total Dissolved Nitrogen, i.e., NO3- is dosed after an oxidation of all N compounds to NO3-
 
 First, prepare those subsets
 
