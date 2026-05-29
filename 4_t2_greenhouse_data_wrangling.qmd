@@ -2,21 +2,93 @@
 title: "4 Greenhouse t2 - Data wrangling"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
 # TO DO
 
+!!! Imported data incomplete
+
+- Forgot mean per sample... in abs pipeline !
+
+For PMN:
+
+- water content can only be obtained from the WHC experiment (CHECK!)
+
+For Nmin:
+
+- Deal with standard soils. Problem: they have same biological unit nb. Their analysis needs to run separately
+
 # Set up
 
-# !! COPY - PASTED FROM OLD VERSION !!
+```{r}
+#| message: false
+#| warning: false
 
-# 2 - Compute new variables
+# clean environment
+rm(list = ls())
 
-## 2.1 - dry matter content
+# packages
+library(tidyverse)
 
-In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is still encoded, in separate columns `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
+# data
+raw_greenhouse_t2 <- read_rds("output/data/3_raw_greenhouse_t2.rds")
+raw_Nmin <- read_rds("output/data/2_mgNL_noTDN.rds") |> filter_out(dataset == "Nmint3")
 
-- FW~neat~ = FW~gross~ - tare; DW~neat~ = DW~gross~ - tare
+```
+
+# 1 - Subset data
+
+Flush data (from K2SO4 extraction)
+
+```{r}
+raw_greenhouse_t2_flush <- raw_greenhouse_t2 |> 
+  select(
+    !starts_with(c("yd", "whc")) &
+      !cra_trial:sd_c)
+```
+
+From Nmin data (from absorbance pipeline)
+
+```{r}
+
+raw_greenhouse_t2_Nmin <- raw_Nmin |> 
+  # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
+  mutate(
+    sampling_time = paste0(
+      "t", 
+      str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 1)),
+    expe = str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 2),
+    expe = case_when(expe %in% c("P", "G") ~ "Pot", .default = expe),
+    .before = plate_id) |>
+  # filter based on sampling_time
+  filter(sampling_time == "t2", expe == "Pot") |> 
+  separate_wider_delim(
+    cols = map,
+    names = c("biol_unit_nb"),
+    delim = "_",
+    too_many = "drop", 
+    cols_remove = FALSE
+  ) |> 
+  mutate(biol_unit_nb = as.double(biol_unit_nb))
+  
+# Check it out
+raw_greenhouse_t2_Nmin
+
+greenhouse_t2_Nmin_sample <- raw_greenhouse_t2_Nmin |> filter(biol_unit_nb < 100)
+greenhouse_t2_Nmin_std <- raw_greenhouse_t2_Nmin |> filter_out(biol_unit_nb < 100)
+```
+
+# 1 - Compute new variables
+
+## 1.1 - dry matter content
+
+### 1.1.1 - Principle and equations
+
+In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is encoded, in separate columns starting with `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
+
+- FW~neat~ = FW~gross~ - tare ; DW~neat~ = DW~gross~ - tare
 
 - average (FW, then DW) = sum(3 technical replicates) / 3
 
@@ -30,64 +102,132 @@ In this data set, dry matter and water content have not yet been computed. The r
 
   - DW = dry weight \[g\],
 
-  - DM = dry matter content \[g dry soil / g fresh soil\],
+  - DM = dry matter content \[g~dry\ soil~ / g~fresh\ soil~\],
 
-  - WC = water content \[g water / g [**fresh**]{.underline} soil\]
+  - WC = water content \[g~water~ / g~fresh\ soil~\] [**!! UNIT: per g fresh soil !!**]{.underline}
 
-- ratio = fresh wait of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
+- ratio = fresh weight of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
 
 Then, we can finally convert concentrations in mg/L into concentrations in ppm (mg/kg dry soil)
 
-- see <https://mycloud.ulb.be/index.php/f/30359374> for equation
+- see <https://mycloud.ulb.be/index.php/s/9ZKaJg9rXJg4iB7> for equation
+
+### 1.1.2 - Pivot data so that technical replicates are above each other, not next to each other
+
+First, we select relevant columns and pivot to get
+
+- one column respectively for tare, gross fresh weight (g_fw) and gross dry weight (g_dw)
+
+- 1 row per technical replicate
+
+```{r}
+raw_greenhouse_t2_subset_wc <- raw_greenhouse_t2_flush |> 
+  select(sample_short, flush_dm_tare_tr1:flush_dm_g_dw_tr3) |> 
+  pivot_longer(
+    cols = !sample_short,
+    names_pattern = "flush_dm_(g_fw|g_dw|tare)_tr(\\d)",
+    names_to = c(".value", "tech_rep"),
+    values_to = "weight") 
+
+# check it out
+raw_greenhouse_t2_subset_wc 
+```
+
+Then, we
+
+- compute the neat fresh weight and dry weight for each row, and the dry matter content and water content
+
+- Compute the average per sample (over the technical triplicate)
+
+```{r}
+greenhouse_t2_wc <- raw_greenhouse_t2_subset_wc |> 
+  # compute neat values
+  mutate(
+    n_fw = g_fw - tare,
+    n_dw = g_dw - tare,
+    dm = n_dw / n_fw,
+    wc = 1 - dm,
+    .keep = "unused"
+  ) |> 
+  # compute mean per sample
+  summarize(
+    .by = sample_short,
+    dm = mean(dm),
+    wc = mean(wc)
+  ) 
+
+# check it out
+greenhouse_t2_wc 
+```
+
+Now that we have that clean data, we can
+
+- remove useless columns (raw data used above)
+
+- rejoin it to the complete greenhouse data (with all columns)
+
+- compute each sample's individual "ratio" (\~10g/20ml)
 
 ```{r}
 # Volume of extractant used in the K2SO4 extraction
-vol_extr <- 20
+vol_extr <- 20 
 
-# 
-lab_data <- raw_data |> 
-  
-  #** °°°°° first, update format of variables °°°°° *
-  # mutate(
-  #   soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC")),
-  #   crop_diversity = factor(crop_diversity, levels = c("SC", "IC")),
-  #   cs = factor(cs, levels = c("F", "IC", "W")),
-  #   bloc = as.factor(bloc)
-  # ) |> 
-  #** °°°°° Compute dm °°°°° *
+greenhouse_t2_flush_clean <- raw_greenhouse_t2_flush |> 
+  select(
+    !flush_dm_tare_tr1:flush_dm_g_dw_tr3 & 
+      !ends_with("comment")) |> 
+  left_join(greenhouse_t2_wc) |> 
   mutate(
-    # subtract tare from gross fresh weight
-    flush_dm_neat_fw_tr1 = flush_dm_g_fw_tr1 - flush_dm_tare_tr1,
-    flush_dm_neat_fw_tr2 = flush_dm_g_fw_tr2 - flush_dm_tare_tr2,
-    flush_dm_neat_fw_tr3 = flush_dm_g_fw_tr3 - flush_dm_tare_tr3,
-    # subtract tare from gross dry weight
-    flush_dm_neat_dw_tr1 = flush_dm_g_dw_tr1 - flush_dm_tare_tr1,
-    flush_dm_neat_dw_tr2 = flush_dm_g_dw_tr2 - flush_dm_tare_tr2,
-    flush_dm_neat_dw_tr3 = flush_dm_g_dw_tr3 - flush_dm_tare_tr3,
-    # compute average fresh and dry weight
-    flush_dm_avg_fw = (
-      flush_dm_neat_fw_tr1 + flush_dm_neat_fw_tr2 + flush_dm_neat_fw_tr3
-      ) / 3,
-    flush_dm_avg_dw = (
-      flush_dm_neat_dw_tr1 + flush_dm_neat_dw_tr2 + flush_dm_neat_dw_tr3) / 3,
-    # compute dry matter content
-    dm = flush_dm_avg_dw / flush_dm_avg_fw,
-    # compute water content
-    wc = 1- dm,
-    
-    #** °°°°° compute each sample's individual ratio (~10g moist per 20 ml) °°°°° *
     ratio_nf = flush_fw_nf_g / vol_extr,
     ratio_cfe = flush_fw_cfe_g / vol_extr,
-    .keep = "unused"
-  ) 
- 
-
+    .keep = "unused") 
+  
+greenhouse_t2_flush_clean
 ```
 
-!! For t0, for PMN, water content can only be obtained from the WHC experiment (CHECK!)
+Now, we divide the data in 2 subsets: sample data and standard soil data (several reps, messes up the analysis (for now))
+
+```{r}
+greenhouse_t2_flush_sample <- greenhouse_t2_flush_clean |> filter(biol_unit_nb < 100)
+greenhouse_t2_flush_std <- greenhouse_t2_flush_clean |> filter_out(biol_unit_nb < 100)
+```
+
+## 1.2 - Nmin concentrations in ppm
+
+First, we
+
+- join absorbance data and flush data,
+
+- Compute the N-sp N concentration in ppm (e.g. mg NO3-N / kg dry soil)
+
+- do some data housecleaning
+
+```{r}
+greenhouse_t2_Nmin_sample |> arrange(biol_unit_nb) |> view()
+
+greenhouse_t2_Nmin_ppm_sample <- greenhouse_t2_Nmin_sample |> 
+  # join both data tables
+  left_join(greenhouse_t2_flush_sample) |> 
+  # compute concentration in ppm
+  mutate(conc_ppm = conc_mgN_L / (ratio_nf * dm)) |> 
+  # remove again the bare soils
+  filter_out(is.na(sample_short)) |> 
+  # select relevant columns
+  select(!c(
+    dataset, expe, 
+    target_sp:lm_p, 
+    starts_with("sampl"), starts_with("ratio"),
+    map, plate_id, abs_corrected, conc_mgNsp_L, conc_mgN_L)) |> 
+  arrange(biol_unit_nb)
+
+# Check it out
+greenhouse_t2_Nmin_ppm_sample
+```
+
+Now, all that is left to do is to pivot the data so that
 
 # 3 - Export
 
 ```{r}
-lab_data |> write_rds("output/data/2_lab_data.rds")
+
 ```

@@ -23,17 +23,11 @@ output: true
 
 - Link to a MicroResp pipeline!
 
-- Add some basic data tidying
-
-  - Variables in right format?
-
-  - pivotting required?
-
-  - etc.
-
 # Set up
 
 ```{r}
+#| message: false
+#| warning: false
 
 rm(list = ls())
 
@@ -43,11 +37,19 @@ library(janitor)
 
 # 1 - import data
 
-First, data acquired in the lab (except for absorbance data)
+## 1.1 - Non-absorbance data from AELab
 
 ```{r}
 # import other "wet lab" raw data
-raw_data_pot <- read_csv("../raw_data/2024_raw.csv", show_col_types = FALSE) |> clean_names() |> 
+raw_data_pot <- read_csv(
+  "../raw_data/2024_raw.csv", show_col_types = TRUE,
+  col_types = list(
+    Soil = col_factor(),
+    crop_diversity = col_factor(),
+    CS = col_factor(),
+    bloc = col_factor()
+  )
+  ) |> clean_names() |> 
   rename(sample_short = short) |> 
   filter(expe == "Pot")
 
@@ -72,6 +74,23 @@ raw_greenhouse_t2 <- raw_data_pot |>
 raw_greenhouse_t2
 ```
 
+## 1.2 - Data from CRA-W (Field)
+
+## 1.3 - Microresp Data
+
 Then, MicroResp data may need to be added, probably with its own pipeline
 
-# 
+## 2 - Tidy data
+
+For raw greenhouse data, it looks good for now
+
+```{r}
+raw_greenhouse_t2 |> str()
+
+```
+
+# 3 - Export
+
+```{r}
+raw_greenhouse_t2 |> write_rds("output/data/3_raw_greenhouse_t2.rds")
+```

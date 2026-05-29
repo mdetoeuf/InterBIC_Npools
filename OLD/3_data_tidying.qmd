@@ -88,9 +88,9 @@ N_data_avg <- N_data |>
 
 Then, we have a look. Actually, datasets are a bit too diverse, so it would be probably best to look at them separately. But for now, general observation:
 
--   for NO3: the vast majority of samples present coefficient of variation below 10%, acceptable.
+- for NO3: the vast majority of samples present coefficient of variation below 10%, acceptable.
 
--   In general: extreme coefficient of variation occur not so much from high stdev but from very low averages. This is extreme for NO2 and NH4, which score at virtually zero for most samples
+- In general: extreme coefficient of variation occur not so much from high stdev but from very low averages. This is extreme for NO2 and NH4, which score at virtually zero for most samples
 
 The question then remains: how to spot and remove outliers? This is maybe something to do on a per data set basis.
 
@@ -136,13 +136,13 @@ The N_data does not contain explicitly the info on experiment (greenhouse vs fie
 
 First, raw data (lab_data): this will apply to all datasets. We subset based on t2 and pot experiment, then clean a little but:
 
--   exclude bare soil (only for t2!)
+- exclude bare soil (only for t2!)
 
--   exclude soil and sand standards for now (select only experimental soils)
+- exclude soil and sand standards for now (select only experimental soils)
 
--   correct sample number
+- correct sample number
 
--   remove clutter (amf and root data)
+- remove clutter (amf and root data)
 
 ```{r}
 # raw data

@@ -16,6 +16,8 @@ output: true
 
 # TO DO
 
+- Compute per sample mean (across 4 wells !)
+  - Consider adressing outliers here as well
 - FOR Nmin t3
   - Check in lab notebook of Cloé: which dilutions for NH4? Courbes sont bizarrement décalées (facteur 2 quasi! ) –\> a l'air ok! (effectivement concentrations différentes, mais données probablement correctes)
 
