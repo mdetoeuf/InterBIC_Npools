@@ -1,0 +1,684 @@
+---
+title: "3 Greenhouse, t2 - Import non-absorbance data"
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+# format: 
+#   html:
+#     embed-resources: true
+#     toc: true
+#     toc_float: true
+#     code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# To Do
+
+- Link to a MicroResp pipeline!
+
+# Set up
+
+```{r}
+#| message: false
+#| warning: false
+
+rm(list = ls())
+
+library(plate2N) # for remove_wells
+library(tidyverse)
+library(janitor)
+library(roperators) # for %ni%
+library(ggrepel) # for geom_text_repel()
+library(ggridges) # for geom_density_ridges()
+library(patchwork) # for the "+" layout and plot_layout()
+```
+
+# 1 - Non-absorbance data from AELab
+
+```{r}
+# import other "wet lab" raw data
+raw_data_pot <- read_csv(
+  "../raw_data/2024_raw.csv", show_col_types = TRUE,
+  col_types = list(
+    Soil = col_factor(),
+    crop_diversity = col_factor(),
+    CS = col_factor(),
+    bloc = col_factor()
+  )
+  ) |> clean_names() |> 
+  rename(sample_short = short) |> 
+  filter(expe == "Pot")
+
+raw_greenhouse_t2 <- raw_data_pot |> 
+  filter(sampling_time == "t2") |> 
+  # remove bare soil
+  filter_out(cs == "B") |> 
+  # correct biological unit
+  mutate(biol_unit_nb = case_when(
+    biol_unit_nb < 200 ~ biol_unit_nb,
+    biol_unit_nb > 200 ~ biol_unit_nb - 200
+  )) |> 
+  arrange(biol_unit_nb) |> 
+  # remove useless columns
+  select(
+    biol_unit_nb:sampling_time, 
+    sample_name, #useful?
+   starts_with(c("whc", "flush", "yd_rs"))
+    )
+
+# Check it out
+raw_greenhouse_t2
+```
+
+# 2 - Microresp Data
+
+Then, MicroResp data may need to be added, probably with its own pipeline
+
+# 3 - Absorbance data
+
+This data needs tidying, because we still have 4 values per sample (corresponding to the 4 wells given to each sample for analytical replicates on the absorbance plate.
+
+First, we import this dataset
+
+```{r}
+raw_Nmin <- read_rds("output/data/2_mgNL_noTDN.rds") |> filter_out(dataset == "Nmint3")
+```
+
+## 3.1 - Subset t2, greenhouse data set, no bare soil
+
+Then we take a subset (t2 only, greenhouse only, no bare soil)
+
+```{r}
+
+cs_map <- raw_greenhouse_t2 |> select(biol_unit_nb, cs, soil) |> unique()
+
+raw_greenhouse_t2_Nmin <- raw_Nmin |> 
+  # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
+  mutate(
+    sampling_time = paste0(
+      "t", 
+      str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 1)),
+    expe = str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 2),
+    expe = case_when(expe %in% c("P", "G") ~ "Pot", .default = expe),
+    .before = plate_id) |>
+  # filter based on sampling_time
+  filter(sampling_time == "t2", expe == "Pot") |> 
+  separate_wider_delim(
+    cols = map,
+    names = c("biol_unit_nb"),
+    delim = "_",
+    too_many = "drop", 
+    cols_remove = FALSE
+  ) |> 
+  mutate(biol_unit_nb = as.double(biol_unit_nb)) |> 
+  # remove bare soils (multiples of 4)
+  filter_out(biol_unit_nb %ni% cs_map$biol_unit_nb) |> 
+  # add info on crop stand and soil
+  left_join(cs_map) #|> 
+  # remove 
+```
+
+## 3.2 - Per-sample outlier removal
+
+So we will compute the per-sample average, for the greenhouse dataset. But first, let's have a look at the distribution of concentrations before taking the average: are there clear outliers?
+
+### 3.2.1 - NO3
+
+```{r}
+boxplot_no3 <- raw_greenhouse_t2_Nmin |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, colour = "purple") +
+  geom_text_repel(
+    aes(label = well_id), 
+    size = 2,
+    colour = "purple", alpha = 1, 
+    min.segment.length = 1)  + labs(title = "NO3")
+
+ridges_no3 <- raw_greenhouse_t2_Nmin |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), color = cs, fill = cs)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~soil, ncol = 4) + labs(title = "NO3")
+  
+```
+
+I see some points that are a little bit off compared to the other three.
+
+- samples where the highest concentration seems to be an outlier:
+
+  - 21(H7), 54(H3), 15(A3), 61(C4), 77(H11), 69(H3), 10(A9), 41(A9), 74(A9)
+
+- samples where the lowest concentration seems to be an outlier:
+
+  - 49(E10), 6(D11), 38(E10), 53(E10), 71(F9), 42(C9)
+
+Manually removing those points, then re-running the plotting
+
+```{r}
+biol_unit <- c(21, 54, 15, 61, 77, 69, 10, 41, 74, 49, 6, 38, 53, 71, 42)
+wells <- c("H7", "H3", "A3", "C4", "H11", "H3", "A9", "A9", "A9", "E10", "D11", "E10", "E10", "F9", "C9")
+names(wells) <- biol_unit
+
+to_remove <- tibble(
+  biol_unit_nb = biol_unit,
+  well_id = wells
+) |> left_join(
+  raw_greenhouse_t2_Nmin |> 
+    filter(std_sp == "NO3") |> 
+    select(biol_unit_nb, plate_id, dataset) |> 
+    unique())
+
+
+test_outlier_no3 <- remove_wells(
+  table_to_clean = raw_greenhouse_t2_Nmin,
+  well_table = to_remove) 
+
+boxplot_no3_outlierfree <- test_outlier_no3 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, colour = "purple") +
+  geom_text_repel(
+    aes(label = well_id), 
+    size = 2,
+    colour = "purple", alpha = 1, 
+    min.segment.length = 1) + labs(title = "NO3, outliers removed")
+
+boxplot_no3 + boxplot_no3_outlierfree
+
+ridges_no3_outlierfree <- test_outlier_no3 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  #filter(biol_unit_nb < 5) |> 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = cs, fill = cs )) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) +
+  #geom_density(position = "stack")
+  #geom_boxplot(outliers = FALSE) +
+  #geom_point(alpha = 0.4, colour = "purple")# +
+  facet_wrap(~soil, ncol = 4) + labs(title = "NO3, outliers removed")
+
+
+ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+### 3.2.2 - NH4
+
+Now same, for NH4.
+
+```{r}
+boxplot_nh4 <- test_outlier_no3 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, colour = "purple") +
+  geom_text_repel(
+    aes(label = well_id), 
+    size = 2,
+    colour = "purple", alpha = 1, 
+    min.segment.length = 1)  + labs(title = "NH4")
+
+ridges_nh4 <- test_outlier_no3 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  #filter(biol_unit_nb < 5) |> 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = cs, fill = cs )) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) +
+  #geom_density(position = "stack")
+  #geom_boxplot(outliers = FALSE) +
+  #geom_point(alpha = 0.4, colour = "purple")# +
+  facet_wrap(~soil, ncol = 4) + labs(title = "NH4")
+```
+
+Here are those where I would remove
+
+- the highest concentration:
+
+  - 6(C11), 15(C3), 23(E2), 37(A7), 45(D10), 53(F10), 66(F4), 70(G10)
+
+- the lowest concentration:
+
+  - 18(G9)
+
+- those where I am really unsure:
+
+  - 33, 75 –\> should I remove those samples all together?
+
+```{r}
+biol_unit <- c(6, 15, 23, 37, 45, 53, 66, 70, 18)
+wells <- c("C11", "C3", "E2", "A7", "D10", "F10", "F4", "G10", "G9")
+names(wells) <- biol_unit
+
+to_remove <- tibble(
+  biol_unit_nb = biol_unit,
+  well_id = wells
+) |> left_join(
+  test_outlier_no3 |> 
+    filter(std_sp == "NH4") |> 
+    select(biol_unit_nb, plate_id, dataset) |> 
+    unique())
+
+test_outlier_nh4 <- remove_wells(
+  table_to_clean = test_outlier_no3,
+  well_table = to_remove) 
+
+boxplot_nh4_outlierfree <- test_outlier_nh4 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, colour = "purple") +
+  geom_text_repel(
+    aes(label = well_id), 
+    size = 2,
+    colour = "purple", alpha = 1, 
+    min.segment.length = 1)  + labs(title = "NH4, outliers removed")
+
+ridges_nh4_outlierfree <- test_outlier_nh4 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  #filter(biol_unit_nb < 5) |> 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = cs, fill = cs )) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) +
+  #geom_density(position = "stack")
+  #geom_boxplot(outliers = FALSE) +
+  #geom_point(alpha = 0.4, colour = "purple")# +
+  facet_wrap(~soil, ncol = 4) + labs(title = "NH4, outliers removed")
+
+boxplot_nh4 + boxplot_nh4_outlierfree
+
+ridges_nh4 + ridges_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+### 3.2.4 - NO2
+
+Because NO2 readings are virtually zero, there is only little point in removing outliers. Nevertheless, we can have a look at the data
+
+Per sample
+
+```{r}
+boxplot_no2 <- test_outlier_nh4 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, colour = "purple") +
+  geom_text_repel(
+    aes(label = well_id), 
+    size = 2,
+    colour = "purple", alpha = 1, 
+    min.segment.length = 1)  + labs(title = "NO2")
+
+ridges_no2 <- test_outlier_nh4 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), color = cs, fill = cs)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~soil, ncol = 4) + labs(title = "NO2")
+
+boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
+```
+
+Few to remove
+
+```{r}
+biol_unit <- c(37, 42, 49, 54)
+wells <- c("D7", "C9", "E10", "H3")
+
+to_remove <- tibble(
+  biol_unit_nb = biol_unit,
+  well_id = wells, 
+  std_sp = rep("NO2")
+) |> left_join(test_outlier_nh4)
+
+test_outlier_no2 <- test_outlier_nh4 |> remove_wells(to_remove)
+
+boxplot_no2_2 <- test_outlier_no2 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, colour = "purple") +
+  geom_text_repel(
+    aes(label = well_id), 
+    size = 2,
+    colour = "purple", alpha = 1, 
+    min.segment.length = 1)  + labs(title = "NO2, outliers removed")
+
+ridges_no2_2 <- test_outlier_no2 |> 
+  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), color = cs, fill = cs)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~soil, ncol = 4) + labs(title = "NO2, outliers removed")
+
+boxplot_no2_2 + ridges_no2_2 + plot_layout(guides = "collect")
+
+boxplot_no2 + boxplot_no2_2 + plot_layout(guides = "collect")
+ridges_no2 + ridges_no2_2 + plot_layout(guides = "collect")
+```
+
+### 3.2.3 - Standard soils
+
+For NO3,
+
+```{r}
+boxplot_std_no3 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = soil, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1)  + labs(title = "Standard soil NO3")
+
+ridges_std_no3 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + labs(title = "Standard soil NO3")
+
+boxplot_std_no3 + ridges_std_no3
+```
+
+I find that it looks good on a per-standard basis. But each had many samples, let's look at a per-sample basis
+
+```{r}
+boxplot_std_no3_2 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1,)  + labs(title = "Standard soil NO3 per sample") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ridges_std_no3_2 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NO3") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NO3 per sample")
+
+boxplot_std_no3_2 + ridges_std_no3_2 + plot_layout(guides = "collect")
+```
+
+Still looks good, we keep it.
+
+For NH4, same, first per standard
+
+```{r}
+boxplot_std_nh4 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = soil, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1)  + labs(title = "Standard soil NH4")
+
+ridges_std_nh4 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + labs(title = "Standard soil NH4")
+
+boxplot_std_nh4 + ridges_std_nh4 + plot_layout(guides = "collect")
+```
+
+Multimodal curve –\> dig into per-sample view
+
+```{r}
+boxplot_std_nh4_2 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1,)  + labs(title = "Standard soil NH4, per sample") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ridges_std_nh4_2 <- test_outlier_no2 |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NH4, per sample")
+
+boxplot_std_nh4_2 + ridges_std_nh4_2 + plot_layout(guides = "collect")
+```
+
+I find 2 wells to remove:
+
+- plate 109_t2_MR_R8, well A5
+
+- plate 110_t2_MR_R7, well G9
+
+Let's remove them and re-run the analysis
+
+```{r}
+samples <- c("109_t2_MR_R8", "110_t2_MR_R7")
+wells <- c("A5", "G9")
+
+to_remove <- test_outlier_no2 |> filter(
+  ((map == samples[1] & well_id == wells[1]) |
+    (map == samples[2] & well_id == wells[2])) &
+    std_sp == "NH4"
+)
+
+test_outlier_nh4_std <- test_outlier_no2 |> remove_wells(to_remove)
+
+boxplot_std_nh4_3 <- test_outlier_nh4_std |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1,)  + labs(title = "Standard soil NH4\nPer sample, outliers removed") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ridges_std_nh4_3 <- test_outlier_nh4_std |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter_out(std_sp == "NO2") |> 
+  filter(std_sp == "NH4") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NH4\nPer sample, outliers removed")
+
+boxplot_std_nh4_3 + ridges_std_nh4_3 + plot_layout(guides = "collect")
+```
+
+Compare before/after outlier removal
+
+```{r}
+boxplot_std_nh4_2 + boxplot_std_nh4_3 + plot_layout(guides = "collect")
+
+ridges_std_nh4_2 + ridges_std_nh4_3 + plot_layout(guides = "collect")
+```
+
+For NO2, per standard
+
+```{r}
+boxplot_std_no2 <- test_outlier_nh4_std |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = soil, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1)  + labs(title = "Standard soil NO2")
+
+ridges_std_no2 <- test_outlier_nh4_std |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + labs(title = "Standard soil NO2")
+
+boxplot_std_no2 + ridges_std_no2 + plot_layout(guides = "collect")
+```
+
+Then per sample
+
+```{r}
+boxplot_std_no2_2 <- test_outlier_nh4_std |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1,)  + labs(title = "Standard soil NO2 per sample") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ridges_std_no2_2 <- test_outlier_nh4_std |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NO2 per sample")
+
+boxplot_std_no2_2 + ridges_std_no2_2 + plot_layout(guides = "collect")
+```
+
+to remove: plate 110_t2_MR_R8, well H6
+
+```{r}
+to_remove <- test_outlier_nh4_std |> 
+  filter(
+    map == "110_t2_MR_R8",
+    well_id == "H6",
+    std_sp == "NO2")
+
+test_outlier_no2_std <- test_outlier_nh4_std |> remove_wells(to_remove)
+
+boxplot_std_no2_3 <- test_outlier_no2_std |> 
+  filter(biol_unit_nb > 100) |> # 
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
+  theme_minimal() +
+  #geom_violin() +
+  geom_boxplot(outliers = FALSE) +
+  geom_point(alpha = 0.4, aes(colour = soil)) +
+  geom_text_repel(
+    aes(label = well_id, colour = soil), 
+    size = 2, alpha = 1, 
+    min.segment.length = 1,)  + labs(title = "Standard soil NO2\nPer sample, outliers removed") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ridges_std_no2_3 <- test_outlier_no2_std |> 
+  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
+  filter(std_sp == "NO2") |> 
+  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
+  theme_minimal() +
+  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NO2\nPer sample, outliers removed")
+
+boxplot_std_no2_2 + boxplot_std_no2_3 + plot_layout(guides = "collect")
+ridges_std_no2_2 + ridges_std_no2_3 + plot_layout(guides = "collect")
+```
+
+Visually, I am satisfied with this outlier removal, so I save this cleaned table
+
+```{r}
+greenhouse_t2_Nmin_clean <- test_outlier_no2_std
+```
+
+## 3.3 - Per-sample mean
+
+```{r}
+conc_mean <- greenhouse_t2_Nmin_clean |> 
+  select(biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(biol_unit_nb, std_sp) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+
+conc_mean |> arrange(desc(std_sp), desc(coef_var))
+
+conc_mean |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram()
+```
+
+We still have quite a few samples with a high between-wells coefficient of variation. But with only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
+
+# 3 - Export
+
+```{r}
+raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
+conc_mean |> write_rds("output/data/3_greenhouse_t2_conc_clean.rds")
+
+```

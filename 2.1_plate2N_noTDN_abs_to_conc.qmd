@@ -257,7 +257,7 @@ plate_ids <- plate_ids |> # save numbers for plate order in the plot
 Then, we create a vector with wells to remove (going through boxplots from top to bottom).
 
 ::: callout-tip
-## Manually remove outliers
+## Manually remove blank outliers
 
 In the following chunk, you need to manually decide which wells to remove, based on the boxplots produced above.
 

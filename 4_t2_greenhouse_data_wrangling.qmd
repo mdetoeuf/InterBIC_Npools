@@ -27,15 +27,18 @@ For Nmin:
 #| warning: false
 
 # clean environment
-rm(list = ls())
+#rm(list = ls())
 
 # packages
 library(tidyverse)
+library(ggridges) # for geom_density_ridges()
+library(ggrepel) # for geom_text_repel()
+library(patchwork)
 
 # data
 raw_greenhouse_t2 <- read_rds("output/data/3_raw_greenhouse_t2.rds")
 raw_Nmin <- read_rds("output/data/2_mgNL_noTDN.rds") |> filter_out(dataset == "Nmint3")
-
+#lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
 # 1 - Subset data
@@ -102,9 +105,9 @@ In this data set, dry matter and water content have not yet been computed. The r
 
   - DW = dry weight \[g\],
 
-  - DM = dry matter content \[g~dry\ soil~ / g~fresh\ soil~\],
+  - DM = dry matter content \[g~dry soil~ / g~fresh soil~\],
 
-  - WC = water content \[g~water~ / g~fresh\ soil~\] [**!! UNIT: per g fresh soil !!**]{.underline}
+  - WC = water content \[g~water~ / g~fresh soil~\] [**!! UNIT: per g fresh soil !!**]{.underline}
 
 - ratio = fresh weight of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
 
@@ -194,6 +197,8 @@ greenhouse_t2_flush_std <- greenhouse_t2_flush_clean |> filter_out(biol_unit_nb 
 
 ## 1.2 - Nmin concentrations in ppm
 
+### 1.2.1 - compute it
+
 First, we
 
 - join absorbance data and flush data,
@@ -203,7 +208,7 @@ First, we
 - do some data housecleaning
 
 ```{r}
-greenhouse_t2_Nmin_sample |> arrange(biol_unit_nb) |> view()
+greenhouse_t2_Nmin_sample |> arrange(biol_unit_nb) 
 
 greenhouse_t2_Nmin_ppm_sample <- greenhouse_t2_Nmin_sample |> 
   # join both data tables
@@ -222,6 +227,34 @@ greenhouse_t2_Nmin_ppm_sample <- greenhouse_t2_Nmin_sample |>
 
 # Check it out
 greenhouse_t2_Nmin_ppm_sample
+```
+
+### 1.2.2 - Per sample average
+
+Manually remove outliers
+
+```{r}
+
+```
+
+# °°° !!! START HERE !!! °°°
+
+```{r}
+data_mean <- greenhouse_t2_Nmin_ppm_sample |> 
+  select(biol_unit_nb, std_sp, conc_ppm) |> 
+  group_by(biol_unit_nb, std_sp) |> 
+  summarise(
+    mean = mean(conc_ppm),
+    st_dev = sd(conc_ppm)) |> 
+  mutate(coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+
+data_mean |> arrange(desc(std_sp), desc(coef_var))
+
+data_mean |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram()
+
+
 ```
 
 Now, all that is left to do is to pivot the data so that
