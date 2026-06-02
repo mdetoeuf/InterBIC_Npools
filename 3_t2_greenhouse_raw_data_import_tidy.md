@@ -54,7 +54,8 @@ raw_data_pot <- read_csv(
     crop_diversity = col_factor(),
     CS = col_factor(),
     bloc = col_factor()
-  )
+  ),
+  na = c("", "NA", "Na")
   ) |> clean_names() |> 
   rename(sample_short = short) |> 
   filter(expe == "Pot")
@@ -66,8 +67,8 @@ raw_data_pot <- read_csv(
     Rows: 660 Columns: 173
     ── Column specification
     ──────────────────────────────────────────────────────── Delimiter: "," chr
-    (29): Expe, short, CRA_trial, SdC, sampling_time, zone, incub_time, Res... dbl
-    (138): Biol_unit_Nb, WHC_Tare_tube_g, WHC_gFW_g, WHC_Tare_dish_g, WHC_gS... lgl
+    (28): Expe, short, CRA_trial, SdC, sampling_time, zone, incub_time, Res... dbl
+    (139): Biol_unit_Nb, WHC_Tare_tube_g, WHC_gFW_g, WHC_Tare_dish_g, WHC_gS... lgl
     (2): Yd_grain_W_unit, Yd_Comment fct (4): Soil, crop_diversity, CS, bloc
     ℹ Use `spec()` to retrieve the full column specification for this data. ℹ
     Specify the column types or set `show_col_types = FALSE` to quiet this message.

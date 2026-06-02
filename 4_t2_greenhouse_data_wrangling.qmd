@@ -1,9 +1,22 @@
 ---
 title: "4 Greenhouse t2 - Data wrangling"
-format: html
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+# format: 
+#   html:
+#     embed-resources: true
+#     toc: true
+#     toc_float: true
+#     code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
 ---
 
 # TO DO
@@ -12,9 +25,9 @@ For PMN:
 
 - water content can only be obtained from the WHC experiment (CHECK!)
 
-For Nmin:
+Deal with standard soils.
 
-- Deal with standard soils. Problem: they have same biological unit nb. Their analysis needs to run separately
+- Problem: they have same biological unit nb. –\> a preliminary outlier removal needs to be ran separately, then average per biol_unit_nb, then it can be rejoined...
 
 # Set up
 
@@ -38,6 +51,13 @@ Nmin <- read_rds("output/data/3_greenhouse_t2_conc_clean.rds")
 ```
 
 # 1 - Subset data
+
+Yield data
+
+```{r}
+yield_data <- lab |> 
+  select(biol_unit_nb:sampling_time, starts_with("yd")) 
+```
 
 Flush data (from K2SO4 extraction)
 
@@ -79,11 +99,11 @@ Nmin_sample <- raw_Nmin |> filter(biol_unit_nb < 100)
 Nmin_std <- raw_Nmin |> filter_out(biol_unit_nb < 100)
 ```
 
-# 1 - Compute new variables
+# 2 - Compute new variables
 
-## 1.1 - dry matter content
+## 2.1 - dry matter content
 
-### 1.1.1 - Principle and equations
+### 2.1.1 - Principle and equations
 
 In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is encoded, in separate columns starting with `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
 
@@ -111,7 +131,7 @@ Then, we can finally convert concentrations in mg/L into concentrations in ppm (
 
 - see <https://mycloud.ulb.be/index.php/s/9ZKaJg9rXJg4iB7> for equation
 
-### 1.1.2 - Pivot data so that technical replicates are above each other, not next to each other
+### 2.1.2 - Pivot data so that technical replicates are above each other, not next to each other
 
 First, we select relevant columns and pivot to get
 
@@ -191,9 +211,7 @@ flush_sample <- flush_clean |> filter(biol_unit_nb < 100)
 flush_std <- flush_clean |> filter_out(biol_unit_nb < 100)
 ```
 
-## 1.2 - Nmin concentrations in ppm
-
-### 1.2.1 - compute it
+## 2.2 - Nmin concentrations in ppm
 
 First, we
 
@@ -226,17 +244,97 @@ Nmin_ppm_sample <- Nmin_sample |>
 Nmin_ppm_sample
 ```
 
-# °°° !!! START HERE !!! °°°
+Now, we pivot the data so that each N-sp receives its own column
 
 ```{r}
-
-
+Nmin_ppm_wider <- Nmin_ppm_sample |>
+  ungroup() |>  
+  select(!c(plate_id, map, st_dev, coef_var)) |> 
+  pivot_wider(
+    names_from = std_sp,
+    values_from = conc_ppm,
+    names_prefix = "ppm_"
+  ) |> 
+  # to make obvious that NO3 is still uncorrected
+  rename(ppm_NO3_uncorrected = ppm_NO3)
 ```
 
-Now, all that is left to do is to pivot the data so that
+Then we can compute final Nmin variables:
 
-# 3 - Export
+- correct NO3 value (what is measured is the sum of NO3 and NO2, bc we measure NO2 after reduction of NO3 to NO2)
+
+- Compute Nmin (= NO3 + NO2 + NH4)
+
+- Compute ratio, e.g., NO3/Nmin, NH4/Nmin, NO3/NH4
+
+```{r}
+Nmin_all_variables <- Nmin_ppm_wider |> 
+  mutate(
+    ppm_NO3 = ppm_NO3_uncorrected - ppm_NO2,
+    ppm_Nmin = ppm_NO3_uncorrected + ppm_NH4,
+    NO3_Nmin = ppm_NO3 / ppm_Nmin,
+    NH4_Nmin = ppm_NH4 / ppm_Nmin,
+    NO3_NH4 = ppm_NO3 / ppm_NH4
+  ) |> 
+  # remove uncorrected NO3
+  select(!ppm_NO3_uncorrected)
+```
+
+## 2.3 - Yield variables
+
+```{r}
+yield_clean <- yield_data |> 
+  # select(!c(
+  #   expe:crop_diversity, 
+  #   bloc:sampling_time,
+  #   yd_rs_comment)) |> 
+  rowwise() |> 
+  relocate(starts_with(c("yd_rs_f_h", "yd_rs_f_s", "yd_rs_w_h", "yd_rs_w_ti"))) |> 
+  mutate(
+    # compute nb of plants of each sp
+    nb_fb = case_when(
+      !is.na(yd_rs_f_stem1) & !is.na(yd_rs_f_stem2) ~ 2,
+      !is.na(yd_rs_f_stem1) & is.na(yd_rs_f_stem2) ~ 1
+    ),
+    nb_w = case_when(
+      !is.na(yd_rs_w_till1) & !is.na(yd_rs_w_till2) ~ 2,
+      !is.na(yd_rs_w_till1) & is.na(yd_rs_w_till2) ~ 1
+    ),
+    height_per_fb = mean(c_across(starts_with("yd_rs_f_h")), na.rm = TRUE),
+    stem_per_fb = mean(c_across(starts_with("yd_rs_f_s")), na.rm = TRUE),
+    height_per_w = mean(c_across(starts_with("yd_rs_w_h")), na.rm = TRUE),
+    till_per_w = mean(c_across(starts_with("yd_rs_w_ti")), na.rm = TRUE),
+    
+    fw_fb_per_pot = yd_rs_f_biom_1_2plants_raw_fw_g - yd_rs_f_tare_g,
+    fw_w_per_pot = yd_rs_w_biom_1_2plants_raw_fw_g - yd_rs_w_tare_g,
+    dw_fb_per_pot = yd_rs_f_biom_1_2plants_raw_dw_g - yd_rs_f_tare_g,
+    dw_w_per_pot = yd_rs_w_biom_1_2plants_raw_dw_g - yd_rs_w_tare_g,
+    
+    fw_fb_per_plant = fw_fb_per_pot / nb_fb,
+    fw_w_per_plant = fw_w_per_pot / nb_w,
+    dw_fb_per_plant = dw_fb_per_pot / nb_fb,
+    dw_w_per_plant = dw_w_per_pot / nb_w,
+    
+    .keep = "unused"
+    ) 
+
+# check it out
+yield_clean
+```
+
+## 2.4 - Join all data
 
 ```{r}
 
+data_to_export <- Nmin_all_variables |> left_join(yield_clean)
+```
+
+# 3 - Deal with standard soils
+
+# **°°° !!! TO DO !!! °°°**
+
+# 4 - Export
+
+```{r}
+data_to_export |> write_rds("output/data/4_t2_greenhouse_transformed.rds")
 ```

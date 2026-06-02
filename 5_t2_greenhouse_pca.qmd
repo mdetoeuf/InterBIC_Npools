@@ -1,0 +1,15 @@
+---
+title: "5 PCA for t2 greenhouse"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+# TO DO
+
+# Set up
+
+```{r}
+library(tidyverse)
+```

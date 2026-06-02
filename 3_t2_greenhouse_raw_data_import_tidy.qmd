@@ -51,7 +51,8 @@ raw_data_pot <- read_csv(
     crop_diversity = col_factor(),
     CS = col_factor(),
     bloc = col_factor()
-  )
+  ),
+  na = c("", "NA", "Na")
   ) |> clean_names() |> 
   rename(sample_short = short) |> 
   filter(expe == "Pot")
