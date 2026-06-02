@@ -8,10 +8,6 @@ editor_options:
 
 # TO DO
 
-!!! Imported data incomplete
-
-- Forgot mean per sample... in abs pipeline !
-
 For PMN:
 
 - water content can only be obtained from the WHC experiment (CHECK!)
@@ -27,7 +23,7 @@ For Nmin:
 #| warning: false
 
 # clean environment
-#rm(list = ls())
+rm(list = ls())
 
 # packages
 library(tidyverse)
@@ -36,8 +32,8 @@ library(ggrepel) # for geom_text_repel()
 library(patchwork)
 
 # data
-raw_greenhouse_t2 <- read_rds("output/data/3_raw_greenhouse_t2.rds")
-raw_Nmin <- read_rds("output/data/2_mgNL_noTDN.rds") |> filter_out(dataset == "Nmint3")
+lab <- read_rds("output/data/3_greenhouse_t2_raw_lab.rds")
+Nmin <- read_rds("output/data/3_greenhouse_t2_conc_clean.rds") 
 #lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
@@ -46,7 +42,7 @@ raw_Nmin <- read_rds("output/data/2_mgNL_noTDN.rds") |> filter_out(dataset == "N
 Flush data (from K2SO4 extraction)
 
 ```{r}
-raw_greenhouse_t2_flush <- raw_greenhouse_t2 |> 
+raw_flush <- lab |> 
   select(
     !starts_with(c("yd", "whc")) &
       !cra_trial:sd_c)
@@ -56,7 +52,7 @@ From Nmin data (from absorbance pipeline)
 
 ```{r}
 
-raw_greenhouse_t2_Nmin <- raw_Nmin |> 
+raw_Nmin <- Nmin |> 
   # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
   mutate(
     sampling_time = paste0(
@@ -67,20 +63,20 @@ raw_greenhouse_t2_Nmin <- raw_Nmin |>
     .before = plate_id) |>
   # filter based on sampling_time
   filter(sampling_time == "t2", expe == "Pot") |> 
-  separate_wider_delim(
-    cols = map,
-    names = c("biol_unit_nb"),
-    delim = "_",
-    too_many = "drop", 
-    cols_remove = FALSE
-  ) |> 
+  # separate_wider_delim(
+  #   cols = map,
+  #   names = c("biol_unit_nb"),
+  #   delim = "_",
+  #   too_many = "drop", 
+  #   cols_remove = FALSE
+  # ) |> 
   mutate(biol_unit_nb = as.double(biol_unit_nb))
   
 # Check it out
-raw_greenhouse_t2_Nmin
+raw_Nmin
 
-greenhouse_t2_Nmin_sample <- raw_greenhouse_t2_Nmin |> filter(biol_unit_nb < 100)
-greenhouse_t2_Nmin_std <- raw_greenhouse_t2_Nmin |> filter_out(biol_unit_nb < 100)
+Nmin_sample <- raw_Nmin |> filter(biol_unit_nb < 100)
+Nmin_std <- raw_Nmin |> filter_out(biol_unit_nb < 100)
 ```
 
 # 1 - Compute new variables
@@ -124,7 +120,7 @@ First, we select relevant columns and pivot to get
 - 1 row per technical replicate
 
 ```{r}
-raw_greenhouse_t2_subset_wc <- raw_greenhouse_t2_flush |> 
+raw_subset_wc <- raw_flush |> 
   select(sample_short, flush_dm_tare_tr1:flush_dm_g_dw_tr3) |> 
   pivot_longer(
     cols = !sample_short,
@@ -133,7 +129,7 @@ raw_greenhouse_t2_subset_wc <- raw_greenhouse_t2_flush |>
     values_to = "weight") 
 
 # check it out
-raw_greenhouse_t2_subset_wc 
+raw_subset_wc 
 ```
 
 Then, we
@@ -143,7 +139,7 @@ Then, we
 - Compute the average per sample (over the technical triplicate)
 
 ```{r}
-greenhouse_t2_wc <- raw_greenhouse_t2_subset_wc |> 
+wc <- raw_subset_wc |> 
   # compute neat values
   mutate(
     n_fw = g_fw - tare,
@@ -160,7 +156,7 @@ greenhouse_t2_wc <- raw_greenhouse_t2_subset_wc |>
   ) 
 
 # check it out
-greenhouse_t2_wc 
+wc 
 ```
 
 Now that we have that clean data, we can
@@ -175,24 +171,24 @@ Now that we have that clean data, we can
 # Volume of extractant used in the K2SO4 extraction
 vol_extr <- 20 
 
-greenhouse_t2_flush_clean <- raw_greenhouse_t2_flush |> 
+flush_clean <- raw_flush |> 
   select(
     !flush_dm_tare_tr1:flush_dm_g_dw_tr3 & 
       !ends_with("comment")) |> 
-  left_join(greenhouse_t2_wc) |> 
+  left_join(wc) |> 
   mutate(
     ratio_nf = flush_fw_nf_g / vol_extr,
     ratio_cfe = flush_fw_cfe_g / vol_extr,
     .keep = "unused") 
   
-greenhouse_t2_flush_clean
+flush_clean
 ```
 
 Now, we divide the data in 2 subsets: sample data and standard soil data (several reps, messes up the analysis (for now))
 
 ```{r}
-greenhouse_t2_flush_sample <- greenhouse_t2_flush_clean |> filter(biol_unit_nb < 100)
-greenhouse_t2_flush_std <- greenhouse_t2_flush_clean |> filter_out(biol_unit_nb < 100)
+flush_sample <- flush_clean |> filter(biol_unit_nb < 100)
+flush_std <- flush_clean |> filter_out(biol_unit_nb < 100)
 ```
 
 ## 1.2 - Nmin concentrations in ppm
@@ -208,51 +204,31 @@ First, we
 - do some data housecleaning
 
 ```{r}
-greenhouse_t2_Nmin_sample |> arrange(biol_unit_nb) 
+Nmin_sample |> arrange(biol_unit_nb) 
 
-greenhouse_t2_Nmin_ppm_sample <- greenhouse_t2_Nmin_sample |> 
+Nmin_ppm_sample <- Nmin_sample |> 
   # join both data tables
-  left_join(greenhouse_t2_flush_sample) |> 
+  left_join(flush_sample) |> 
   # compute concentration in ppm
   mutate(conc_ppm = conc_mgN_L / (ratio_nf * dm)) |> 
   # remove again the bare soils
   filter_out(is.na(sample_short)) |> 
   # select relevant columns
   select(!c(
-    dataset, expe, 
+    #dataset, 
+    expe, 
     target_sp:lm_p, 
     starts_with("sampl"), starts_with("ratio"),
-    map, plate_id, abs_corrected, conc_mgNsp_L, conc_mgN_L)) |> 
+    map, plate_id, conc_mgN_L)) |> 
   arrange(biol_unit_nb)
 
 # Check it out
-greenhouse_t2_Nmin_ppm_sample
-```
-
-### 1.2.2 - Per sample average
-
-Manually remove outliers
-
-```{r}
-
+Nmin_ppm_sample
 ```
 
 # °°° !!! START HERE !!! °°°
 
 ```{r}
-data_mean <- greenhouse_t2_Nmin_ppm_sample |> 
-  select(biol_unit_nb, std_sp, conc_ppm) |> 
-  group_by(biol_unit_nb, std_sp) |> 
-  summarise(
-    mean = mean(conc_ppm),
-    st_dev = sd(conc_ppm)) |> 
-  mutate(coef_var = 100*st_dev / mean) |> 
-  rename(conc_mgN_L = mean)
-
-data_mean |> arrange(desc(std_sp), desc(coef_var))
-
-data_mean |> filter(coef_var > 10) |> 
-  ggplot(aes(x = coef_var)) + geom_histogram()
 
 
 ```

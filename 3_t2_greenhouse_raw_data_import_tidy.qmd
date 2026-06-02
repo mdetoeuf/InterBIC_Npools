@@ -1,5 +1,5 @@
 ---
-title: "3 Greenhouse, t2 - Import non-absorbance data"
+title: "3 Greenhouse, t2 - Import and tidy data"
 format: 
   gfm:
     toc: true
@@ -659,8 +659,8 @@ greenhouse_t2_Nmin_clean <- test_outlier_no2_std
 
 ```{r}
 conc_mean <- greenhouse_t2_Nmin_clean |> 
-  select(biol_unit_nb, std_sp, conc_mgN_L) |> 
-  group_by(biol_unit_nb, std_sp) |> 
+  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(plate_id, map, biol_unit_nb, std_sp) |> 
   summarise(
     mean = mean(conc_mgN_L),
     st_dev = sd(conc_mgN_L)) |> 
@@ -675,10 +675,20 @@ conc_mean |> filter(coef_var > 10) |>
 
 We still have quite a few samples with a high between-wells coefficient of variation. But with only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
 
+Now, finally, we re-join this mean value to the rest of the relevant information from the absorbance dataset
+
+```{r}
+conc_export_ready <- conc_mean |> 
+  inner_join(
+    raw_greenhouse_t2_Nmin |> 
+      select(!c(well_id:abs_corrected, starts_with("conc"))) |> 
+      unique())
+```
+
 # 3 - Export
 
 ```{r}
 raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
-conc_mean |> write_rds("output/data/3_greenhouse_t2_conc_clean.rds")
+conc_export_ready |> write_rds("output/data/3_greenhouse_t2_conc_clean.rds")
 
 ```

@@ -1,4 +1,4 @@
-# 3 Greenhouse, t2 - Import non-absorbance data
+# 3 Greenhouse, t2 - Import and tidy data
 
 
 - [To Do](#to-do)
@@ -1344,8 +1344,8 @@ greenhouse_t2_Nmin_clean <- test_outlier_no2_std
 
 ``` r
 conc_mean <- greenhouse_t2_Nmin_clean |> 
-  select(biol_unit_nb, std_sp, conc_mgN_L) |> 
-  group_by(biol_unit_nb, std_sp) |> 
+  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(plate_id, map, biol_unit_nb, std_sp) |> 
   summarise(
     mean = mean(conc_mgN_L),
     st_dev = sd(conc_mgN_L)) |> 
@@ -1356,11 +1356,11 @@ conc_mean <- greenhouse_t2_Nmin_clean |>
 </details>
 
     `summarise()` has regrouped the output.
-    ℹ Summaries were computed grouped by biol_unit_nb and std_sp.
-    ℹ Output is grouped by biol_unit_nb.
+    ℹ Summaries were computed grouped by plate_id, map, biol_unit_nb, and std_sp.
+    ℹ Output is grouped by plate_id, map, and biol_unit_nb.
     ℹ Use `summarise(.groups = "drop_last")` to silence this message.
-    ℹ Use `summarise(.by = c(biol_unit_nb, std_sp))` for per-operation grouping
-      (`?dplyr::dplyr_by`) instead.
+    ℹ Use `summarise(.by = c(plate_id, map, biol_unit_nb, std_sp))` for
+      per-operation grouping (`?dplyr::dplyr_by`) instead.
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1371,21 +1371,21 @@ conc_mean |> arrange(desc(std_sp), desc(coef_var))
 
 </details>
 
-    # A tibble: 186 × 5
-    # Groups:   biol_unit_nb [62]
-       biol_unit_nb std_sp conc_mgN_L  st_dev coef_var
-              <dbl> <chr>       <dbl>   <dbl>    <dbl>
-     1           77 NO3       0.00128 0.00889    693. 
-     2           78 NO3       0.00370 0.0121     327. 
-     3           75 NO3       0.00557 0.0142     255. 
-     4           59 NO3       0.00575 0.0125     218. 
-     5           47 NO3       0.00770 0.00770    100  
-     6           57 NO3       0.0494  0.0316      64.1
-     7           65 NO3       0.0632  0.0147      23.2
-     8           51 NO3       0.0413  0.00867     21.0
-     9           23 NO3       0.0385  0.00770     20  
-    10           33 NO3       0.0751  0.0144      19.1
-    # ℹ 176 more rows
+    # A tibble: 253 × 7
+    # Groups:   plate_id, map, biol_unit_nb [253]
+       plate_id  map   biol_unit_nb std_sp conc_mgN_L  st_dev coef_var
+       <chr>     <chr>        <dbl> <chr>       <dbl>   <dbl>    <dbl>
+     1 NO3_2P2   77_t2           77 NO3       0.00128 0.00889    693. 
+     2 NO3_2P4   78_t2           78 NO3       0.00370 0.0121     327. 
+     3 NO3_2P1   75_t2           75 NO3       0.00557 0.0142     255. 
+     4 NO3_2P5   59_t2           59 NO3       0.00575 0.0125     218. 
+     5 NO3_2P2   47_t2           47 NO3       0.00770 0.00770    100  
+     6 NO3_2P3   57_t2           57 NO3       0.0494  0.0316      64.1
+     7 NO3_2P5   65_t2           65 NO3       0.0632  0.0147      23.2
+     8 NO3_2P6_2 51_t2           51 NO3       0.0413  0.00867     21.0
+     9 NO3_2P2   23_t2           23 NO3       0.0385  0.00770     20  
+    10 NO3_2P6_1 33_t2           33 NO3       0.0751  0.0144      19.1
+    # ℹ 243 more rows
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1405,6 +1405,24 @@ We still have quite a few samples with a high between-wells coefficient
 of variation. But with only 3 to 4 wells and sometimes very low values,
 this is unavoidable, so we move on
 
+Now, finally, we re-join this mean value to the rest of the relevant
+information from the absorbance dataset
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_export_ready <- conc_mean |> 
+  inner_join(
+    raw_greenhouse_t2_Nmin |> 
+      select(!c(well_id:abs_corrected, starts_with("conc"))) |> 
+      unique())
+```
+
+</details>
+
+    Joining with `by = join_by(plate_id, map, biol_unit_nb, std_sp)`
+
 # 3 - Export
 
 <details class="code-fold">
@@ -1412,7 +1430,7 @@ this is unavoidable, so we move on
 
 ``` r
 raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
-conc_mean |> write_rds("output/data/3_greenhouse_t2_conc_clean.rds")
+conc_export_ready |> write_rds("output/data/3_greenhouse_t2_conc_clean.rds")
 ```
 
 </details>
