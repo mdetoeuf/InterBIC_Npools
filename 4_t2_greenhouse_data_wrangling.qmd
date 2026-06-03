@@ -282,12 +282,12 @@ Nmin_all_variables <- Nmin_ppm_wider |>
 
 ## 2.3 - Yield variables
 
+### 2.3.1 - Human error check
+
+First, we compute the number of plants of each species in each pot
+
 ```{r}
-yield_clean <- yield_data |> 
-  # select(!c(
-  #   expe:crop_diversity, 
-  #   bloc:sampling_time,
-  #   yd_rs_comment)) |> 
+nb_plant <- yield_data |> 
   rowwise() |> 
   relocate(starts_with(c("yd_rs_f_h", "yd_rs_f_s", "yd_rs_w_h", "yd_rs_w_ti"))) |> 
   mutate(
@@ -299,7 +299,63 @@ yield_clean <- yield_data |>
     nb_w = case_when(
       !is.na(yd_rs_w_till1) & !is.na(yd_rs_w_till2) ~ 2,
       !is.na(yd_rs_w_till1) & is.na(yd_rs_w_till2) ~ 1
+    ))
+```
+
+First, we check the comments written during experimentation
+
+```{r}
+nb_plant |> 
+  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
+  filter(!is.na(yd_rs_comment)) |> print(width = 110)
+```
+
+And we correct the data accordingly
+
+- pot #14: change nb of wheat plants to 1
+
+- pot #19: on n'en fait rien de cette info...?
+
+- Pot #27: Changer IC en W pour cs, et IC en SC pour crop_diversity
+
+- Pot #30: on ne fait rien de cette info, mais si nb est outlier, on sait pourquoi...
+
+- Pot #55: changer IC en F (cs) et en SC (crop_diversity)
+
+```{r}
+nb_plant_clean <- nb_plant |> 
+  mutate(
+    nb_w = case_when(biol_unit_nb == 14 ~ 1, .default = nb_w),
+    cs = case_when(
+      biol_unit_nb == 27 ~ "W",
+      biol_unit_nb == 55 ~ "F",
+      .default = cs
     ),
+    crop_diversity = case_when(
+      biol_unit_nb %in% c(27, 55) ~ "SC",
+      .default = crop_diversity
+    )
+  )
+```
+
+Check the modifications
+
+```{r}
+nb_plant_clean |> 
+  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
+  filter(!is.na(yd_rs_comment)) |> print(width = 110)
+```
+
+All good.
+
+### 2.3.2 - Compute per plant clean yield data
+
+Compute per plant versions of weight, plant height and stem/till number
+
+```{r}
+yield_per_plant <- nb_plant_clean |> 
+  rowwise() |> 
+  mutate(
     height_per_fb = mean(c_across(starts_with("yd_rs_f_h")), na.rm = TRUE),
     stem_per_fb = mean(c_across(starts_with("yd_rs_f_s")), na.rm = TRUE),
     height_per_w = mean(c_across(starts_with("yd_rs_w_h")), na.rm = TRUE),
@@ -319,7 +375,13 @@ yield_clean <- yield_data |>
     ) 
 
 # check it out
-yield_clean
+yield_per_plant
+```
+
+Save it in clean data set to join and export
+
+```{r}
+yield_clean <- yield_per_plant
 ```
 
 ## 2.4 - Join all data

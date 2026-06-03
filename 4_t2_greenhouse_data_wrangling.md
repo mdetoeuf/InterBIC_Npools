@@ -12,6 +12,9 @@
       other](#212---pivot-data-so-that-technical-replicates-are-above-each-other-not-next-to-each-other)
   - [2.2 - Nmin concentrations in ppm](#22---nmin-concentrations-in-ppm)
   - [2.3 - Yield variables](#23---yield-variables)
+    - [2.3.1 - Human error check](#231---human-error-check)
+    - [2.3.2 - Compute per plant clean yield
+      data](#232---compute-per-plant-clean-yield-data)
   - [2.4 - Join all data](#24---join-all-data)
 - [3 - Deal with standard soils](#3---deal-with-standard-soils)
 - [**°°° !!! TO DO !!! °°°**](#--to-do--)
@@ -483,15 +486,15 @@ Nmin_all_variables <- Nmin_ppm_wider |>
 
 ## 2.3 - Yield variables
 
+### 2.3.1 - Human error check
+
+First, we compute the number of plants of each species in each pot
+
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-yield_clean <- yield_data |> 
-  # select(!c(
-  #   expe:crop_diversity, 
-  #   bloc:sampling_time,
-  #   yd_rs_comment)) |> 
+nb_plant <- yield_data |> 
   rowwise() |> 
   relocate(starts_with(c("yd_rs_f_h", "yd_rs_f_s", "yd_rs_w_h", "yd_rs_w_ti"))) |> 
   mutate(
@@ -503,7 +506,118 @@ yield_clean <- yield_data |>
     nb_w = case_when(
       !is.na(yd_rs_w_till1) & !is.na(yd_rs_w_till2) ~ 2,
       !is.na(yd_rs_w_till1) & is.na(yd_rs_w_till2) ~ 1
+    ))
+```
+
+</details>
+
+First, we check the comments written during experimentation
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+nb_plant |> 
+  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
+  filter(!is.na(yd_rs_comment)) |> print(width = 110)
+```
+
+</details>
+
+    # A tibble: 5 × 7
+    # Rowwise: 
+      biol_unit_nb soil  cs    crop_diversity  nb_w nb_fb
+             <dbl> <fct> <fct> <fct>          <dbl> <dbl>
+    1           14 ABC   W     SC                 2    NA
+    2           19 Conv  IC    IC                 1     1
+    3           27 Auto  IC    IC                 2    NA
+    4           30 ABC   W     SC                 2    NA
+    5           55 Ref   IC    IC                NA     2
+      yd_rs_comment                                                                 
+      <chr>                                                                         
+    1 1 seule vraie plante. Autre toute sèche (donc feuille pas mesurée) --> check …
+    2 1 féverole supplémentaire dont on n'a pas tenu compte (non prélevée)          
+    3 pas de féverole mais 2 froments --> pas IC, un SC_F supplémentaire --> change…
+    4 trouvé nodules dans racines --> mauvaise herbe légumineuse. Léger IC quand mê…
+    5 2 féveroles, pas de froment. Colonnes à corriger                              
+
+And we correct the data accordingly
+
+- pot \#14: change nb of wheat plants to 1
+
+- pot \#19: on n’en fait rien de cette info…?
+
+- Pot \#27: Changer IC en W pour cs, et IC en SC pour crop_diversity
+
+- Pot \#30: on ne fait rien de cette info, mais si nb est outlier, on
+  sait pourquoi…
+
+- Pot \#55: changer IC en F (cs) et en SC (crop_diversity)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+nb_plant_clean <- nb_plant |> 
+  mutate(
+    nb_w = case_when(biol_unit_nb == 14 ~ 1, .default = nb_w),
+    cs = case_when(
+      biol_unit_nb == 27 ~ "W",
+      biol_unit_nb == 55 ~ "F",
+      .default = cs
     ),
+    crop_diversity = case_when(
+      biol_unit_nb %in% c(27, 55) ~ "SC",
+      .default = crop_diversity
+    )
+  )
+```
+
+</details>
+
+Check the modifications
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+nb_plant_clean |> 
+  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
+  filter(!is.na(yd_rs_comment)) |> print(width = 110)
+```
+
+</details>
+
+    # A tibble: 5 × 7
+    # Rowwise: 
+      biol_unit_nb soil  cs    crop_diversity  nb_w nb_fb
+             <dbl> <fct> <chr> <chr>          <dbl> <dbl>
+    1           14 ABC   W     SC                 1    NA
+    2           19 Conv  IC    IC                 1     1
+    3           27 Auto  W     SC                 2    NA
+    4           30 ABC   W     SC                 2    NA
+    5           55 Ref   F     SC                NA     2
+      yd_rs_comment                                                                 
+      <chr>                                                                         
+    1 1 seule vraie plante. Autre toute sèche (donc feuille pas mesurée) --> check …
+    2 1 féverole supplémentaire dont on n'a pas tenu compte (non prélevée)          
+    3 pas de féverole mais 2 froments --> pas IC, un SC_F supplémentaire --> change…
+    4 trouvé nodules dans racines --> mauvaise herbe légumineuse. Léger IC quand mê…
+    5 2 féveroles, pas de froment. Colonnes à corriger                              
+
+All good.
+
+### 2.3.2 - Compute per plant clean yield data
+
+Compute per plant versions of weight, plant height and stem/till number
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+yield_per_plant <- nb_plant_clean |> 
+  rowwise() |> 
+  mutate(
     height_per_fb = mean(c_across(starts_with("yd_rs_f_h")), na.rm = TRUE),
     stem_per_fb = mean(c_across(starts_with("yd_rs_f_s")), na.rm = TRUE),
     height_per_w = mean(c_across(starts_with("yd_rs_w_h")), na.rm = TRUE),
@@ -523,15 +637,15 @@ yield_clean <- yield_data |>
     ) 
 
 # check it out
-yield_clean
+yield_per_plant
 ```
 
 </details>
 
-    # A tibble: 88 × 25
+    # A tibble: 88 × 23
     # Rowwise: 
        biol_unit_nb expe  sample_short cra_trial sd_c  soil  crop_diversity cs   
-              <dbl> <chr> <chr>        <chr>     <chr> <fct> <fct>          <fct>
+              <dbl> <chr> <chr>        <chr>     <chr> <fct> <chr>          <chr>
      1            1 Pot   t2_201_F     SyCI      Conv  Conv  SC             F    
      2            2 Pot   t2_202_W     SyCI      Conv  Conv  SC             W    
      3            3 Pot   t2_203_IC    SyCI      Conv  Conv  IC             IC   
@@ -543,12 +657,22 @@ yield_clean
      9           11 Pot   t2_211_IC    SyCBio    SdC2  Auto  IC             IC   
     10           13 Pot   t2_213_F     SyCBio    SdC3  ABC   SC             F    
     # ℹ 78 more rows
-    # ℹ 17 more variables: bloc <fct>, sampling_time <chr>, yd_rs_comment <chr>,
-    #   nb_fb <dbl>, nb_w <dbl>, height_per_fb <dbl>, stem_per_fb <dbl>,
-    #   height_per_w <dbl>, till_per_w <dbl>, fw_fb_per_pot <dbl>,
-    #   fw_w_per_pot <dbl>, dw_fb_per_pot <dbl>, dw_w_per_pot <dbl>,
-    #   fw_fb_per_plant <dbl>, fw_w_per_plant <dbl>, dw_fb_per_plant <dbl>,
-    #   dw_w_per_plant <dbl>
+    # ℹ 15 more variables: bloc <fct>, sampling_time <chr>, yd_rs_comment <chr>,
+    #   height_per_fb <dbl>, stem_per_fb <dbl>, height_per_w <dbl>,
+    #   till_per_w <dbl>, fw_fb_per_pot <dbl>, fw_w_per_pot <dbl>,
+    #   dw_fb_per_pot <dbl>, dw_w_per_pot <dbl>, fw_fb_per_plant <dbl>,
+    #   fw_w_per_plant <dbl>, dw_fb_per_plant <dbl>, dw_w_per_plant <dbl>
+
+Save it in clean data set to join and export
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+yield_clean <- yield_per_plant
+```
+
+</details>
 
 ## 2.4 - Join all data
 
