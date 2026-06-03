@@ -11,5 +11,168 @@ editor_options:
 # Set up
 
 ```{r}
+#| message: false
+#| warning: false
+
+# clean environment
+rm(list = ls())
+
+# packages
 library(tidyverse)
+library(vegan) # for rda()
+
+# data
+
+```
+
+# 1 - Load and clean data
+
+```{r}
+greenhouse <- read_rds("output/data/4_t2_greenhouse_transformed.rds") |> 
+  select(!c(
+    dataset, expe:sampling_time
+  )) |> 
+  relocate(yd_rs_comment, .after = last_col())
+
+str(greenhouse)
+```
+
+Problem: for now, the statistical unit is the pot (1 row per pot). But some variables cannot be regrouped for both plant species. Consequently, there are some missing data, see here:
+
+```{r}
+greenhouse |> select(cs, fw_fb_per_pot:dw_w_per_plant)
+```
+
+A PCA cannot be ran with missing data.
+
+A solution is to change the statistical unit to be the plant, and have 2 data sets: dataset fababean (`data_fb`) and dataset wheat (`data_w`). Anyway, it makes little sense to compare the 2 plant species, but it is interesting to see if effects are similar or not. To be considered: bulk soil data of intercrops will appear twice, so that the 2 datasets are not to be combined in downstream analyses.
+
+So we do that subsetting
+
+```{r}
+data_fb <- greenhouse |> 
+  select(!contains("_w")) |> 
+  filter(cs != "W")
+
+data_w <- greenhouse |> 
+  select(!contains("_f")) |> 
+  filter(cs != "F")
+
+# check it out
+str(data_fb) ; str(data_w)
+```
+
+# 2 - Compute LER
+
+This also cannot go into the PCA since we get only data that agregates on SC + IC
+
+```{r}
+ler_fb <- data_fb |> 
+  select(crop_diversity, soil, bloc, dw_fb_per_plant) |> 
+  pivot_wider(
+    names_from = crop_diversity,
+    values_from = dw_fb_per_plant) |> 
+  mutate(
+    ler_fb = IC / SC
+  )
+  
+ler_w <- data_w |> 
+  select(crop_diversity, soil, bloc, dw_w_per_plant) |> 
+  pivot_wider(
+    names_from = crop_diversity,
+    values_from = dw_w_per_plant) |> 
+  mutate(
+    ler_w = IC / SC
+  )
+
+ler_total <- ler_w |> 
+  select(!SC:IC) |> 
+  left_join(ler_fb |> select(!SC:IC)) |> 
+  mutate(ler_total = (ler_w + ler_fb)/2)
+```
+
+Plot it
+
+```{r}
+plot_ler_total <- ler_total |> 
+  ggplot(aes(x = soil, y = ler_total)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER total - pot experiment, t2")
+
+plot_ler_fb <- ler_total |> 
+  ggplot(aes(x = soil, y = ler_fb)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER Faba Bean - pot experiment, t2")
+
+plot_ler_w <- ler_total |> 
+  ggplot(aes(x = soil, y = ler_w)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER Wheat - pot experiment, t2")
+
+plot_ler_total + plot_ler_fb + plot_ler_w
+```
+
+# 2 - PCA
+
+## 2.1 - Check asumptions
+
+.... UPCOMING?
+
+## 2.2 - Run PCA
+
+```{r}
+rda_matrix <- greenhouse |> 
+  select(
+    ppm_NH4:NO3_NH4,
+  )
+Nmin_pca <- rda(rda_matrix, scale = TRUE)
+
+summary(Nmin_pca)
+
+screeplot(Nmin_pca, bstick = TRUE, npcs = length(Nmin_pca$CA$eig))
+
+biplot(Nmin_pca, scaling = 1, main = "PCA - scaling 1 = object relationships preserved")
+biplot(Nmin_pca, main = "PCA - scaling 2 = variable relationships preserved")
+```
+
+project categ variables
+
+```{r}
+non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
+site_scores <- scores(Nmin_pca, display = "wa", scaling = 1)
+
+Nmin_w <- hclust(dist(scale(rda_matrix)), "ward.D")
+cutree(Nmin_w, k = 4)
+
+variable <- greenhouse$soil
+var_lev <- levels(factor(variable))
+
+data <- left_join(greenhouse, 
+                  site_scores |> as_tibble() |> mutate(biol_unit_nb = seq(1,60))
+                  )
+
+data |> 
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes( colour = cs))
+
+
+plot(
+  Nmin_pca,
+  display = "wa",
+  scaling = 1,
+  type = "n",
+  main = "PCA correlation"
+)
+abline(v = 0, lty = "dotted")
+abline(h = 0, lty = "dotted")
+for (level in levels(variable)) {
+  points(site_scores[variable == level,],
+         pch = (14 + i),
+         cex = 2,
+         col = i + 1)
+}
+
 ```
