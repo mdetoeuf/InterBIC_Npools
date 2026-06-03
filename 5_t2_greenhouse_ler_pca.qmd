@@ -1,0 +1,310 @@
+---
+title: "5 PCA and LER for t2 greenhouse"
+format: 
+  gfm:
+    toc: true
+   # code-fold: true
+# format: 
+#   html:
+#     embed-resources: true
+#     toc: true
+#     toc_float: true
+#     code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# TO DO
+
+# Set up
+
+```{r}
+#| message: false
+#| warning: false
+
+# clean environment
+rm(list = ls())
+
+# packages
+library(tidyverse)
+library(vegan) # for rda()
+library(patchwork)
+library(RColorBrewer)
+
+# data
+
+```
+
+# 1 - Load and clean data
+
+```{r}
+greenhouse <- read_rds("output/data/4_t2_greenhouse_transformed.rds") |> 
+  select(!c(
+    dataset, expe:sampling_time
+  )) |> 
+  relocate(yd_rs_comment, .after = last_col())
+
+str(greenhouse)
+```
+
+Problem: for now, the statistical unit is the pot (1 row per pot). But some variables cannot be regrouped for both plant species. Consequently, there are some missing data, see here:
+
+```{r}
+greenhouse |> select(cs, fw_fb_per_pot:dw_w_per_plant)
+```
+
+A PCA cannot be ran with missing data.
+
+A solution is to change the statistical unit to be the plant, and have 2 data sets: dataset fababean (`data_fb`) and dataset wheat (`data_w`). Anyway, it makes little sense to compare the 2 plant species, but it is interesting to see if effects are similar or not. To be considered: bulk soil data of intercrops will appear twice, so that the 2 datasets are not to be combined in downstream analyses.
+
+So we do that subsetting
+
+```{r}
+data_fb <- greenhouse |> 
+  select(!contains("_w")) |> 
+  filter(cs != "W") |> 
+  arrange(biol_unit_nb)
+
+data_w <- greenhouse |> 
+  select(!contains("_f")) |> 
+  filter(cs != "F") |> 
+  arrange(biol_unit_nb)
+
+# check it out
+str(data_fb) ; str(data_w)
+```
+
+# 2 - Compute LER
+
+This also cannot go into the PCA since we get only data that agregates on SC + IC
+
+```{r}
+#| message: false
+ler_fb <- data_fb |> 
+  select(crop_diversity, soil, bloc, dw_fb_per_plant) |> 
+  pivot_wider(
+    names_from = crop_diversity,
+    values_from = dw_fb_per_plant) |> 
+  mutate(
+    ler_fb = IC / SC
+  )
+  
+ler_w <- data_w |> 
+  select(crop_diversity, soil, bloc, dw_w_per_plant) |> 
+  pivot_wider(
+    names_from = crop_diversity,
+    values_from = dw_w_per_plant) |> 
+  mutate(
+    ler_w = IC / SC
+  )
+
+ler_total <- ler_w |> 
+  select(!SC:IC) |> 
+  left_join(ler_fb |> select(!SC:IC)) |> 
+  mutate(ler_total = (ler_w + ler_fb)/2)
+```
+
+Plot it
+
+```{r}
+#| warning: false
+plot_ler_total <- ler_total |> 
+  ggplot(aes(x = soil, y = ler_total)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER total", subtitle = "Pot experiment, t2")
+
+plot_ler_fb <- ler_total |> 
+  ggplot(aes(x = soil, y = ler_fb)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER Faba Bean", subtitle = "Pot experiment, t2")
+
+plot_ler_w <- ler_total |> 
+  ggplot(aes(x = soil, y = ler_w)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER Wheat", subtitle = "Pot experiment, t2")
+
+plot_ler_total + plot_ler_fb + plot_ler_w
+```
+
+# 3 - PCA
+
+## 3.1 - Check assumptions
+
+.... UPCOMING?
+
+## 3.2 - Run PCA
+
+### 3.2.1 - Graphical parameters
+
+```{r}
+library(RColorBrewer)
+display.brewer.all(n = 3, type = "qual")
+display.brewer.pal(n = 3, name = "Accent")
+cs_colors <- brewer.pal(n = 3, name = "Accent")
+names(cs_colors) <- c("FB", "IC", "W")
+```
+
+### 3.2.2 - Faba Bean
+
+```{r}
+
+rda_matrix_fb <- data_fb |> 
+  select(
+    biol_unit_nb,
+    ppm_NO3, ppm_NH4, 
+    #stem_per_fb, 
+    height_per_fb, dw_fb_per_plant) |> 
+  column_to_rownames("biol_unit_nb") |> 
+  drop_na()
+  
+pca_fb <- pca(rda_matrix_fb, scale = TRUE)
+
+summary(pca_fb)
+
+screeplot(pca_fb, bstick = TRUE, npcs = length(pca_fb$CA$eig))
+
+#biplot(pca_fb, scaling = 1, main = "PCA - scaling 1 = object relationships preserved")
+biplot(pca_fb, main = "PCA FB - scaling 2 = variable relationships preserved")
+
+
+```
+
+Plot it
+
+```{r}
+#non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
+pot_scores <- scores(pca_fb, display = "sites", scaling = 2) 
+biol_unit <- rownames(pot_scores) |> as.double()
+pot_scores <- pot_scores |> 
+  as_tibble() |> 
+  mutate(biol_unit_nb = biol_unit)
+
+var_scores <- scores(pca_fb, display = "species", scaling = 2)
+variables <- rownames(var_scores)
+var_scores <- var_scores |> 
+  as_tibble() |> 
+  mutate(variable = variables)
+
+PC_percent <- pca_fb$CA$eig / sum(pca_fb$CA$eig)
+
+#Nmin_w <- hclust(dist(scale(rda_matrix)), "ward.D")
+#cutree(Nmin_w, k = 4)
+
+#variable <- greenhouse$soil
+#var_lev <- levels(factor(variable))
+
+data_fb_pca <- left_join(data_fb, pot_scores, by = join_by(biol_unit_nb))
+
+
+#dev.new()
+plot_pca_fb <- data_fb_pca |> 
+  ggplot(aes(x = PC1, y = PC2)) +
+  theme_minimal() +
+  geom_segment(
+    data = var_scores,
+    aes(xend = PC1, yend = PC2, x = 0, y =0),
+    colour = "grey30", linetype = 1,
+    arrow = arrow(length = unit(0.03, "npc"))
+  ) +
+  geom_text(
+    data = var_scores,
+    aes(x = PC1*0.9, y = PC2*1.1, label = variable),
+    colour = "grey30"
+  ) +
+  geom_point(aes( colour = cs)) +
+  scale_color_discrete(palette = c(cs_colors["FB"], cs_colors["IC"])) +
+  labs(title = "PCA - Faba Bean") +
+  xlab(paste0("PC1 (", signif(PC_percent[1]*100, digits = 3), "%)")) +
+  ylab(paste0("PC2 (", signif(PC_percent[2]*100, digits = 3), "%)"))
+
+#plot_pca_fb
+```
+
+### 3.2.3 - Wheat
+
+```{r}
+
+rda_matrix_w <- data_w |> 
+  select(
+    biol_unit_nb,
+    ppm_NO3, ppm_NH4, 
+    #till_per_w, 
+    height_per_w, dw_w_per_plant) |> 
+  column_to_rownames("biol_unit_nb") |> 
+  drop_na()
+  
+pca_w <- pca(rda_matrix_w, scale = TRUE)
+
+summary(pca_w)
+
+screeplot(pca_w, bstick = TRUE, npcs = length(pca_w$CA$eig))
+
+#biplot(pca_fb, scaling = 1, main = "PCA - scaling 1 = object relationships preserved")
+biplot(pca_w, main = "PCA Wheat - scaling 2 = variable relationships preserved")
+
+
+```
+
+Plot it
+
+```{r}
+#non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
+pot_scores <- scores(pca_w, display = "sites", scaling = 2) 
+biol_unit <- rownames(pot_scores) |> as.double()
+pot_scores <- pot_scores |> 
+  as_tibble() |> 
+  mutate(biol_unit_nb = biol_unit)
+
+var_scores <- scores(pca_w, display = "species", scaling = 2)
+variables <- rownames(var_scores)
+var_scores <- var_scores |> 
+  as_tibble() |> 
+  mutate(variable = variables)
+
+PC_percent <- pca_w$CA$eig / sum(pca_w$CA$eig)
+
+data_w_pca <- left_join(data_w, pot_scores, by = join_by(biol_unit_nb))
+
+#dev.new()
+plot_pca_w <- data_w_pca |> 
+  ggplot(aes(x = PC1, y = PC2)) +
+  theme_minimal() +
+  geom_segment(
+    data = var_scores,
+    aes(xend = PC1, yend = PC2, x = 0, y =0),
+    colour = "grey30", linetype = 1,
+    arrow = arrow(length = unit(0.03, "npc"))
+  ) +
+  geom_text(
+    data = var_scores,
+    aes(x = PC1*0.9, y = PC2*1.1, label = variable),
+    colour = "grey30"
+  ) +
+  geom_point(aes( colour = cs)) +
+  scale_color_discrete(palette = c(cs_colors["IC"], cs_colors["W"])) +
+  labs(title = "PCA - Wheat") +
+  xlab(paste0("PC1 (", signif(PC_percent[1]*100, digits = 3), "%)")) +
+  ylab(paste0("PC2 (", signif(PC_percent[2]*100, digits = 3), "%)"))
+
+#plot_pca_w
+
+
+
+```
+
+### 3.2.4 - Both plots
+
+```{r}
+#| warning: false
+plot_pca_fb + plot_pca_w + plot_layout(guides = "collect")
+```
+
+# What now?
