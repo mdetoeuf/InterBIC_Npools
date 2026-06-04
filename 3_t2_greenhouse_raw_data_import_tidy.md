@@ -3,19 +3,36 @@
 
 - [To Do](#to-do)
 - [Set up](#set-up)
-- [1 - Non-absorbance data from
-  AELab](#1---non-absorbance-data-from-aelab)
-- [2 - Microresp Data](#2---microresp-data)
-- [3 - Absorbance data](#3---absorbance-data)
-  - [3.1 - Subset t2, greenhouse data set, no bare
-    soil](#31---subset-t2-greenhouse-data-set-no-bare-soil)
-  - [3.2 - Per-sample outlier removal](#32---per-sample-outlier-removal)
-    - [3.2.1 - NO3](#321---no3)
-    - [3.2.2 - NH4](#322---nh4)
-    - [3.2.4 - NO2](#324---no2)
-    - [3.2.3 - Standard soils](#323---standard-soils)
-  - [3.3 - Per-sample mean](#33---per-sample-mean)
-- [3 - Export](#3---export)
+- [1 - Import data](#1---import-data)
+  - [1.1 - Non-absorbance data from
+    AELab](#11---non-absorbance-data-from-aelab)
+  - [1.2 - Microresp Data (TO DO?)](#12---microresp-data-to-do)
+  - [1.3 - Absorbance data](#13---absorbance-data)
+    - [1.3.1 - Nmin: Subset t2, greenhouse data set, no bare
+      soil](#131---nmin-subset-t2-greenhouse-data-set-no-bare-soil)
+    - [1.3.2 - PMN: Subset greenhouse](#132---pmn-subset-greenhouse)
+- [2 - Tidy data: per-sample outlier
+  removal](#2---tidy-data-per-sample-outlier-removal)
+  - [2.1 - Nmin (samples)](#21---nmin-samples)
+    - [2.1.1 - NO3](#211---no3)
+    - [2.1.2 - NH4](#212---nh4)
+    - [2.1.3 - NO2](#213---no2)
+  - [2.2 - Nmin (Standard Soils)](#22---nmin-standard-soils)
+    - [2.2.1 - NO3](#221---no3)
+    - [2.2.2 - NH4](#222---nh4)
+    - [2.2.3 - NO2](#223---no2)
+    - [2.2.4 - All outliers removed
+      Nmin](#224---all-outliers-removed-nmin)
+  - [2.3 - PMN](#23---pmn)
+    - [2.3.1 - NO3](#231---no3)
+    - [2.3.2 - NH4](#232---nh4)
+    - [2.3.3 - NO2](#233---no2)
+    - [2.3.4 - All outliers removed
+      PMN](#234---all-outliers-removed-pmn)
+- [3 - Per-sample mean](#3---per-sample-mean)
+  - [3.1 - Nmin](#31---nmin)
+  - [3.2 - PMN](#32---pmn)
+- [4 - Export](#4---export)
 
 # To Do
 
@@ -36,11 +53,16 @@ library(roperators) # for %ni%
 library(ggrepel) # for geom_text_repel()
 library(ggridges) # for geom_density_ridges()
 library(patchwork) # for the "+" layout and plot_layout()
+
+# functions
+source("functions/plot_qc_sample_conc.R")
 ```
 
 </details>
 
-# 1 - Non-absorbance data from AELab
+# 1 - Import data
+
+## 1.1 - Non-absorbance data from AELab
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -122,12 +144,12 @@ raw_greenhouse_t2
     #   flush_dm_tare_tr2 <dbl>, flush_dm_g_fw_tr2 <dbl>, flush_dm_g_dw_tr2 <dbl>,
     #   flush_dm_tare_tr3 <dbl>, flush_dm_g_fw_tr3 <dbl>, …
 
-# 2 - Microresp Data
+## 1.2 - Microresp Data (TO DO?)
 
 Then, MicroResp data may need to be added, probably with its own
 pipeline
 
-# 3 - Absorbance data
+## 1.3 - Absorbance data
 
 This data needs tidying, because we still have 4 values per sample
 (corresponding to the 4 wells given to each sample for analytical
@@ -144,9 +166,12 @@ raw_Nmin <- read_rds("output/data/2_mgNL_noTDN.rds") |> filter_out(dataset == "N
 
 </details>
 
-## 3.1 - Subset t2, greenhouse data set, no bare soil
+### 1.3.1 - Nmin: Subset t2, greenhouse data set, no bare soil
 
-Then we take a subset (t2 only, greenhouse only, no bare soil)
+Then we take a subset (t2 only, greenhouse only, no bare soil).
+
+This complex pipeline is only necessary because I was not very
+consistent in plate-naming structure.
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -154,15 +179,21 @@ Then we take a subset (t2 only, greenhouse only, no bare soil)
 ``` r
 cs_map <- raw_greenhouse_t2 |> select(biol_unit_nb, cs, soil) |> unique()
 
+
 raw_greenhouse_t2_Nmin <- raw_Nmin |> 
+  filter_out(dataset == "PMN") |> 
   # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
   mutate(
+    # paste "t" and the sampling time as number: for t1 and t2: is stored in plate data (--> str_extract)
     sampling_time = paste0(
       "t", 
-      str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 1)),
+      str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 1)
+      ),
+    # for expe: will work for t1 and t2, 
     expe = str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 2),
+    # rephrase "P", "G" into "Pot" (G was for greenhouse)
     expe = case_when(expe %in% c("P", "G") ~ "Pot", .default = expe),
-    .before = plate_id) |>
+    .before = plate_id) |> 
   # filter based on sampling_time
   filter(sampling_time == "t2", expe == "Pot") |> 
   separate_wider_delim(
@@ -172,60 +203,120 @@ raw_greenhouse_t2_Nmin <- raw_Nmin |>
     too_many = "drop", 
     cols_remove = FALSE
   ) |> 
-  mutate(biol_unit_nb = as.double(biol_unit_nb)) |> 
+  mutate(
+    biol_unit_nb = as.double(biol_unit_nb)) |> 
   # remove bare soils (multiples of 4)
   filter_out(biol_unit_nb %ni% cs_map$biol_unit_nb) |> 
   # add info on crop stand and soil
-  left_join(cs_map) #|> 
+  left_join(cs_map)
 ```
 
 </details>
 
     Joining with `by = join_by(biol_unit_nb)`
 
+### 1.3.2 - PMN: Subset greenhouse
+
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-  # remove 
+raw_greenhouse_PMN <- raw_Nmin |> 
+  filter(dataset == "PMN") |> 
+  separate_wider_delim(
+    cols = map,
+    names = c("expe", "soil", "incubation_time", "tech_rep"),
+    delim = "_",
+    cols_remove = FALSE
+  ) |> 
+  mutate(
+    sampling_time = rep("t0"),
+    biol_unit_nb = paste0(expe, "_", soil),
+    .before = well_id) |> 
+  filter_out(expe == "Field")
 ```
 
 </details>
 
-## 3.2 - Per-sample outlier removal
+Check out both subsets. First, Nmin data
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+raw_greenhouse_t2_Nmin
+```
+
+</details>
+
+    # A tibble: 1,012 × 18
+       dataset sampling_time expe  plate_id biol_unit_nb map   well_id abs_corrected
+       <chr>   <chr>         <chr> <chr>           <dbl> <chr> <chr>           <dbl>
+     1 Nmint1… t2            Pot   NH4_2P1           110 110_… A2           0.00362 
+     2 Nmint1… t2            Pot   NH4_2P2           110 110_… A2           0.00471 
+     3 Nmint1… t2            Pot   NH4_2P3            46 46_t2 A2           0.00175 
+     4 Nmint1… t2            Pot   NH4_2P4           110 110_… A2           0.00425 
+     5 Nmint1… t2            Pot   NH4_2P5            26 26_t2 A2           0.00150 
+     6 Nmint1… t2            Pot   NH4_2P7…           27 27_t2 A2           0.00175 
+     7 Nmint1… t2            Pot   NH4_2P1           109 109_… A3           0.000625
+     8 Nmint1… t2            Pot   NH4_2P2            30 30_t2 A3           0.00371 
+     9 Nmint1… t2            Pot   NH4_2P3             2 2_t2  A3           0.00575 
+    10 Nmint1… t2            Pot   NH4_2P4            15 15_t2 A3           0.00425 
+    # ℹ 1,002 more rows
+    # ℹ 10 more variables: std_sp <chr>, target_sp <chr>, std_unit <chr>,
+    #   slope <dbl>, adj_r_squared <dbl>, lm_p <dbl>, conc_mgNsp_L <dbl>,
+    #   conc_mgN_L <dbl>, cs <fct>, soil <fct>
+
+Then, PMN data
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+raw_greenhouse_PMN
+```
+
+</details>
+
+    # A tibble: 960 × 19
+       dataset plate_id expe  soil  incubation_time tech_rep map       sampling_time
+       <chr>   <chr>    <chr> <chr> <chr>           <chr>    <chr>     <chr>        
+     1 PMN     NH4_PC1  Pot   Conv  i0              rt1      Pot_Conv… t0           
+     2 PMN     NH4_PC2  Pot   Conv  i0              rt4      Pot_Conv… t0           
+     3 PMN     NH4_PP1  Pot   Ref   i0              rt1      Pot_Ref_… t0           
+     4 PMN     NH4_PP2  Pot   Ref   i0              rt2      Pot_Ref_… t0           
+     5 PMN     NH4_PP3  Pot   Ref   i0              rt3      Pot_Ref_… t0           
+     6 PMN     NH4_PP4  Pot   Ref   i0              rt4      Pot_Ref_… t0           
+     7 PMN     NH4_PC1  Pot   Conv  i0              rt2      Pot_Conv… t0           
+     8 PMN     NH4_PP1  Pot   Auto  i0              rt1      Pot_Auto… t0           
+     9 PMN     NH4_PP2  Pot   Auto  i0              rt2      Pot_Auto… t0           
+    10 PMN     NH4_PP3  Pot   Auto  i0              rt3      Pot_Auto… t0           
+    # ℹ 950 more rows
+    # ℹ 11 more variables: biol_unit_nb <chr>, well_id <chr>, abs_corrected <dbl>,
+    #   std_sp <chr>, target_sp <chr>, std_unit <chr>, slope <dbl>,
+    #   adj_r_squared <dbl>, lm_p <dbl>, conc_mgNsp_L <dbl>, conc_mgN_L <dbl>
+
+# 2 - Tidy data: per-sample outlier removal
+
+## 2.1 - Nmin (samples)
 
 So we will compute the per-sample average, for the greenhouse dataset.
 But first, let’s have a look at the distribution of concentrations
 before taking the average: are there clear outliers?
 
-### 3.2.1 - NO3
+### 2.1.1 - NO3
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
 boxplot_no3 <- raw_greenhouse_t2_Nmin |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, colour = "purple") +
-  geom_text_repel(
-    aes(label = well_id), 
-    size = 2,
-    colour = "purple", alpha = 1, 
-    min.segment.length = 1)  + labs(title = "NO3")
+  filter(biol_unit_nb < 100, std_sp == "NO3") |> 
+  boxplot_conc() + labs(title = "NO3")
 
 ridges_no3 <- raw_greenhouse_t2_Nmin |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), color = cs, fill = cs)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~soil, ncol = 4) + labs(title = "NO3")
+  filter(biol_unit_nb < 100, std_sp == "NO3") |>  # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO3")
 ```
 
 </details>
@@ -269,49 +360,30 @@ to_remove <- tibble(
 <summary>Code</summary>
 
 ``` r
-test_outlier_no3 <- remove_wells(
+Nmin_wash1 <- remove_wells(
   table_to_clean = raw_greenhouse_t2_Nmin,
   well_table = to_remove) 
 
-boxplot_no3_outlierfree <- test_outlier_no3 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, colour = "purple") +
-  geom_text_repel(
-    aes(label = well_id), 
-    size = 2,
-    colour = "purple", alpha = 1, 
-    min.segment.length = 1) + labs(title = "NO3, outliers removed")
+
+
+boxplot_no3_outlierfree <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO3") |> # exclude sand and conv soil std
+  boxplot_conc(x = "biol_unit_nb", y = "conc_mgN_L") + labs(title = "NO3, outliers removed")
 
 boxplot_no3 + boxplot_no3_outlierfree
 ```
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-6-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-9-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-ridges_no3_outlierfree <- test_outlier_no3 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  #filter(biol_unit_nb < 5) |> 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = cs, fill = cs )) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) +
-  #geom_density(position = "stack")
-  #geom_boxplot(outliers = FALSE) +
-  #geom_point(alpha = 0.4, colour = "purple")# +
-  facet_wrap(~soil, ncol = 4) + labs(title = "NO3, outliers removed")
-
+ridges_no3_outlierfree <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO3") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO3, outliers removed")
 
 ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
 ```
@@ -327,9 +399,9 @@ ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.0115
     Picking joint bandwidth of 0.00758
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-6-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-9-2.png)
 
-### 3.2.2 - NH4
+### 2.1.2 - NH4
 
 Now same, for NH4.
 
@@ -337,33 +409,13 @@ Now same, for NH4.
 <summary>Code</summary>
 
 ``` r
-boxplot_nh4 <- test_outlier_no3 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, colour = "purple") +
-  geom_text_repel(
-    aes(label = well_id), 
-    size = 2,
-    colour = "purple", alpha = 1, 
-    min.segment.length = 1)  + labs(title = "NH4")
-
-ridges_nh4 <- test_outlier_no3 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  #filter(biol_unit_nb < 5) |> 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = cs, fill = cs )) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) +
-  #geom_density(position = "stack")
-  #geom_boxplot(outliers = FALSE) +
-  #geom_point(alpha = 0.4, colour = "purple")# +
-  facet_wrap(~soil, ncol = 4) + labs(title = "NH4")
+boxplot_nh4 <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NH4")
+  
+ridges_nh4 <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NH4")
 ```
 
 </details>
@@ -394,7 +446,7 @@ to_remove <- tibble(
   biol_unit_nb = biol_unit,
   well_id = wells
 ) |> left_join(
-  test_outlier_no3 |> 
+  Nmin_wash1 |> 
     filter(std_sp == "NH4") |> 
     select(biol_unit_nb, plate_id, dataset) |> 
     unique())
@@ -408,44 +460,24 @@ to_remove <- tibble(
 <summary>Code</summary>
 
 ``` r
-test_outlier_nh4 <- remove_wells(
-  table_to_clean = test_outlier_no3,
+Nmin_wash2 <- remove_wells(
+  table_to_clean = Nmin_wash1,
   well_table = to_remove) 
 
-boxplot_nh4_outlierfree <- test_outlier_nh4 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, colour = "purple") +
-  geom_text_repel(
-    aes(label = well_id), 
-    size = 2,
-    colour = "purple", alpha = 1, 
-    min.segment.length = 1)  + labs(title = "NH4, outliers removed")
+boxplot_nh4_outlierfree <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NH4, outliers removed")
 
-ridges_nh4_outlierfree <- test_outlier_nh4 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  #filter(biol_unit_nb < 5) |> 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = cs, fill = cs )) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) +
-  #geom_density(position = "stack")
-  #geom_boxplot(outliers = FALSE) +
-  #geom_point(alpha = 0.4, colour = "purple")# +
-  facet_wrap(~soil, ncol = 4) + labs(title = "NH4, outliers removed")
+ridges_nh4_outlierfree <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NH4, outliers removed")
 
 boxplot_nh4 + boxplot_nh4_outlierfree
 ```
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-8-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -465,9 +497,9 @@ ridges_nh4 + ridges_nh4_outlierfree + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.0429
     Picking joint bandwidth of 0.0321
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-8-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-2.png)
 
-### 3.2.4 - NO2
+### 2.1.3 - NO2
 
 Because NO2 readings are virtually zero, there is only little point in
 removing outliers. Nevertheless, we can have a look at the data
@@ -478,26 +510,13 @@ Per sample
 <summary>Code</summary>
 
 ``` r
-boxplot_no2 <- test_outlier_nh4 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, colour = "purple") +
-  geom_text_repel(
-    aes(label = well_id), 
-    size = 2,
-    colour = "purple", alpha = 1, 
-    min.segment.length = 1)  + labs(title = "NO2")
+boxplot_no2 <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NO2")
 
-ridges_no2 <- test_outlier_nh4 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), color = cs, fill = cs)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~soil, ncol = 4) + labs(title = "NO2")
+ridges_no2 <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO2")
 
 boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
 ```
@@ -512,7 +531,7 @@ boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.000924
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-9-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-12-1.png)
 
 Few to remove
 
@@ -527,7 +546,7 @@ to_remove <- tibble(
   biol_unit_nb = biol_unit,
   well_id = wells, 
   std_sp = rep("NO2")
-) |> left_join(test_outlier_nh4)
+) |> left_join(Nmin_wash2)
 ```
 
 </details>
@@ -538,28 +557,15 @@ to_remove <- tibble(
 <summary>Code</summary>
 
 ``` r
-test_outlier_no2 <- test_outlier_nh4 |> remove_wells(to_remove)
+Nmin_wash3 <- Nmin_wash2 |> remove_wells(to_remove)
 
-boxplot_no2_2 <- test_outlier_no2 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = as.factor(biol_unit_nb), y = conc_mgN_L)) + 
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, colour = "purple") +
-  geom_text_repel(
-    aes(label = well_id), 
-    size = 2,
-    colour = "purple", alpha = 1, 
-    min.segment.length = 1)  + labs(title = "NO2, outliers removed")
+boxplot_no2_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NO2, outliers removed")
 
-ridges_no2_2 <- test_outlier_no2 |> 
-  filter(biol_unit_nb < 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), color = cs, fill = cs)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~soil, ncol = 4) + labs(title = "NO2, outliers removed")
+ridges_no2_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO2, outliers removed")
 
 boxplot_no2_2 + ridges_no2_2 + plot_layout(guides = "collect")
 ```
@@ -571,7 +577,7 @@ boxplot_no2_2 + ridges_no2_2 + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.000684
     Picking joint bandwidth of 0.000924
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-10-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -582,7 +588,7 @@ boxplot_no2 + boxplot_no2_2 + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-10-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-2.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -602,9 +608,11 @@ ridges_no2 + ridges_no2_2 + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.000684
     Picking joint bandwidth of 0.000924
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-10-3.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-3.png)
 
-### 3.2.3 - Standard soils
+## 2.2 - Nmin (Standard Soils)
+
+### 2.2.1 - NO3
 
 For NO3,
 
@@ -612,27 +620,13 @@ For NO3,
 <summary>Code</summary>
 
 ``` r
-boxplot_std_no3 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = soil, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1)  + labs(title = "Standard soil NO3")
+boxplot_std_no3 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO3") |> # 
+  boxplot_conc(x = "soil", colour = "soil") + labs(title = "Standard soil NO3")
 
-ridges_std_no3 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + labs(title = "Standard soil NO3")
+ridges_std_no3 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO3") |> # exclude sand and conv soil std
+  plot_ridges_conc(colour = "soil") + labs(title = "Standard soil NO3")
 
 boxplot_std_no3 + ridges_std_no3
 ```
@@ -641,7 +635,7 @@ boxplot_std_no3 + ridges_std_no3
 
     Picking joint bandwidth of 0.0687
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-14-1.png)
 
 I find that it looks good on a per-standard basis. But each had many
 samples, let’s look at a per-sample basis
@@ -650,27 +644,16 @@ samples, let’s look at a per-sample basis
 <summary>Code</summary>
 
 ``` r
-boxplot_std_no3_2 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1,)  + labs(title = "Standard soil NO3 per sample") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+boxplot_std_no3_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO3") |> # 
+  boxplot_conc(x = "map", colour = "soil") + 
+  labs(title = "Standard soil NO3 per sample") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-ridges_std_no3_2 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NO3") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NO3 per sample")
+ridges_std_no3_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO3") |> # exclude sand and conv soil std
+  plot_ridges_conc(groups = "map", colour = "soil") + 
+  facet_wrap(~map) + labs(title = "Standard soil NO3 per sample") 
 
 boxplot_std_no3_2 + ridges_std_no3_2 + plot_layout(guides = "collect")
 ```
@@ -725,9 +708,11 @@ boxplot_std_no3_2 + ridges_std_no3_2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0588
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-12-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-15-1.png)
 
 Still looks good, we keep it.
+
+### 2.2.2 - NH4
 
 For NH4, same, first per standard
 
@@ -735,27 +720,13 @@ For NH4, same, first per standard
 <summary>Code</summary>
 
 ``` r
-boxplot_std_nh4 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = soil, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1)  + labs(title = "Standard soil NH4")
+boxplot_std_nh4 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NH4") |> # 
+  boxplot_conc(x = "soil", colour = "soil") + labs(title = "Standard soil NH4")
 
-ridges_std_nh4 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + labs(title = "Standard soil NH4")
+ridges_std_nh4 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  plot_ridges_conc(colour = "soil") + labs(title = "Standard soil NH4")
 
 boxplot_std_nh4 + ridges_std_nh4 + plot_layout(guides = "collect")
 ```
@@ -764,7 +735,7 @@ boxplot_std_nh4 + ridges_std_nh4 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0297
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-16-1.png)
 
 Multimodal curve –\> dig into per-sample view
 
@@ -772,27 +743,16 @@ Multimodal curve –\> dig into per-sample view
 <summary>Code</summary>
 
 ``` r
-boxplot_std_nh4_2 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1,)  + labs(title = "Standard soil NH4, per sample") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+boxplot_std_nh4_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NH4") |> # 
+  boxplot_conc(x = "map", colour = "soil") + 
+  labs(title = "Standard soil NH4, per sample") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-ridges_std_nh4_2 <- test_outlier_no2 |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NH4, per sample")
+ridges_std_nh4_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb > 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  plot_ridges_conc(groups = "map", colour = "soil") + facet_wrap(~map) + 
+  labs(title = "Standard soil NH4, per sample")
 
 boxplot_std_nh4_2 + ridges_std_nh4_2 + plot_layout(guides = "collect")
 ```
@@ -846,7 +806,7 @@ boxplot_std_nh4_2 + ridges_std_nh4_2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.159
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-14-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-17-1.png)
 
 I find 2 wells to remove:
 
@@ -863,35 +823,24 @@ Let’s remove them and re-run the analysis
 samples <- c("109_t2_MR_R8", "110_t2_MR_R7")
 wells <- c("A5", "G9")
 
-to_remove <- test_outlier_no2 |> filter(
+to_remove <- Nmin_wash3 |> filter(
   ((map == samples[1] & well_id == wells[1]) |
     (map == samples[2] & well_id == wells[2])) &
     std_sp == "NH4"
 )
 
-test_outlier_nh4_std <- test_outlier_no2 |> remove_wells(to_remove)
+Nmin_wash4 <- Nmin_wash3 |> remove_wells(to_remove)
 
-boxplot_std_nh4_3 <- test_outlier_nh4_std |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1,)  + labs(title = "Standard soil NH4\nPer sample, outliers removed") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+boxplot_std_nh4_3 <- Nmin_wash4 |> 
+  filter(biol_unit_nb > 100, std_sp == "NH4") |> 
+  boxplot_conc(x = "map", colour = "soil") + 
+  labs(title = "Standard soil NH4\nPer sample, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-ridges_std_nh4_3 <- test_outlier_nh4_std |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter_out(std_sp == "NO2") |> 
-  filter(std_sp == "NH4") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NH4\nPer sample, outliers removed")
+ridges_std_nh4_3 <- Nmin_wash4 |> 
+  filter(biol_unit_nb > 100, std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "map", colour = "soil") + 
+  facet_wrap(~map) + labs(title = "Standard soil NH4\nPer sample, outliers removed")
 
 boxplot_std_nh4_3 + ridges_std_nh4_3 + plot_layout(guides = "collect")
 ```
@@ -945,7 +894,7 @@ boxplot_std_nh4_3 + ridges_std_nh4_3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.159
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-15-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-18-1.png)
 
 Compare before/after outlier removal
 
@@ -958,7 +907,7 @@ boxplot_std_nh4_2 + boxplot_std_nh4_3 + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-16-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1063,7 +1012,9 @@ ridges_std_nh4_2 + ridges_std_nh4_3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.159
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-16-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-2.png)
+
+### 2.2.3 - NO2
 
 For NO2, per standard
 
@@ -1071,25 +1022,13 @@ For NO2, per standard
 <summary>Code</summary>
 
 ``` r
-boxplot_std_no2 <- test_outlier_nh4_std |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = soil, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1)  + labs(title = "Standard soil NO2")
+boxplot_std_no2 <- Nmin_wash4 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO2") |> 
+  boxplot_conc(x = "soil", colour = "soil") + labs(title = "Standard soil NO2")
 
-ridges_std_no2 <- test_outlier_nh4_std |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(biol_unit_nb), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + labs(title = "Standard soil NO2")
+ridges_std_no2 <- Nmin_wash4 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO2") |> 
+  plot_ridges_conc(colour = "soil") + labs(title = "Standard soil NO2")
 
 boxplot_std_no2 + ridges_std_no2 + plot_layout(guides = "collect")
 ```
@@ -1098,7 +1037,7 @@ boxplot_std_no2 + ridges_std_no2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.000704
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-17-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-20-1.png)
 
 Then per sample
 
@@ -1106,25 +1045,16 @@ Then per sample
 <summary>Code</summary>
 
 ``` r
-boxplot_std_no2_2 <- test_outlier_nh4_std |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1,)  + labs(title = "Standard soil NO2 per sample") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+boxplot_std_no2_2 <- Nmin_wash4 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO2") |> 
+  boxplot_conc(x = "map", colour = "soil") + 
+  labs(title = "Standard soil NO2 per sample") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-ridges_std_no2_2 <- test_outlier_nh4_std |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NO2 per sample")
+ridges_std_no2_2 <- Nmin_wash4 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "map", colour = "soil") + facet_wrap(~map) + 
+  labs(title = "Standard soil NO2 per sample")
 
 boxplot_std_no2_2 + ridges_std_no2_2 + plot_layout(guides = "collect")
 ```
@@ -1178,7 +1108,7 @@ boxplot_std_no2_2 + ridges_std_no2_2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.00018
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-18-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-21-1.png)
 
 to remove: plate 110_t2_MR_R8, well H6
 
@@ -1186,40 +1116,31 @@ to remove: plate 110_t2_MR_R8, well H6
 <summary>Code</summary>
 
 ``` r
-to_remove <- test_outlier_nh4_std |> 
+to_remove <- Nmin_wash4 |> 
   filter(
     map == "110_t2_MR_R8",
     well_id == "H6",
     std_sp == "NO2")
 
-test_outlier_no2_std <- test_outlier_nh4_std |> remove_wells(to_remove)
+Nmin_wash5 <- Nmin_wash4 |> remove_wells(to_remove)
 
-boxplot_std_no2_3 <- test_outlier_no2_std |> 
-  filter(biol_unit_nb > 100) |> # 
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = map, y = conc_mgN_L, colour = soil)) +
-  theme_minimal() +
-  #geom_violin() +
-  geom_boxplot(outliers = FALSE) +
-  geom_point(alpha = 0.4, aes(colour = soil)) +
-  geom_text_repel(
-    aes(label = well_id, colour = soil), 
-    size = 2, alpha = 1, 
-    min.segment.length = 1,)  + labs(title = "Standard soil NO2\nPer sample, outliers removed") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+boxplot_std_no2_3 <- Nmin_wash5 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO2") |> 
+  boxplot_conc(x = "map", colour = "soil") + 
+  labs(title = "Standard soil NO2\nPer sample, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-ridges_std_no2_3 <- test_outlier_no2_std |> 
-  filter(biol_unit_nb > 100) |> # exclude sand and conv soil std
-  filter(std_sp == "NO2") |> 
-  ggplot(aes(x = conc_mgN_L, groups = as.factor(map), colour = soil, fill = soil)) + 
-  theme_minimal() +
-  geom_density_ridges(aes(y = biol_unit_nb), alpha = 0.3) + facet_wrap(~map) + labs(title = "Standard soil NO2\nPer sample, outliers removed")
+ridges_std_no2_3 <- Nmin_wash5 |> 
+  filter(biol_unit_nb > 100, std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "map", colour = "soil") + facet_wrap(~map) + 
+  labs(title = "Standard soil NO2\nPer sample, outliers removed")
 
 boxplot_std_no2_2 + boxplot_std_no2_3 + plot_layout(guides = "collect")
 ```
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-22-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1324,7 +1245,9 @@ ridges_std_no2_2 + ridges_std_no2_3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.00018
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-22-2.png)
+
+### 2.2.4 - All outliers removed Nmin
 
 Visually, I am satisfied with this outlier removal, so I save this
 cleaned table
@@ -1333,18 +1256,421 @@ cleaned table
 <summary>Code</summary>
 
 ``` r
-greenhouse_t2_Nmin_clean <- test_outlier_no2_std
+greenhouse_t2_Nmin_clean <- Nmin_wash5
 ```
 
 </details>
 
-## 3.3 - Per-sample mean
+## 2.3 - PMN
+
+### 2.3.1 - NO3
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-conc_mean <- greenhouse_t2_Nmin_clean |> 
+boxplot_pmn_no3 <- raw_greenhouse_PMN |> 
+  filter(std_sp == "NO3") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, scales = "free_y") + 
+  labs(title = "NO3")
+
+ridges_pmn_no3 <- raw_greenhouse_PMN |> 
+  filter(std_sp == "NO3") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3")
+
+# to be sure which well was out
+# raw_greenhouse_PMN |> 
+#   filter(std_sp == "NO3", soil == "Ref", incubation_time == "i4", tech_rep == "rt2") |> 
+#   boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + labs(title = "NO3")
+
+
+boxplot_pmn_no3 + ridges_pmn_no3 
+```
+
+</details>
+
+    Picking joint bandwidth of 0.00936
+
+    Picking joint bandwidth of 0.0127
+
+    Picking joint bandwidth of 0.00953
+
+    Picking joint bandwidth of 0.0145
+
+    Picking joint bandwidth of 0.0161
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-24-1.png)
+
+- Pot_ABC_i1_rt4: C7
+
+- Pot_Ref_i4_rt2: H5
+
+- Pot_Auto_i2_rt4: A10
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+to_remove <- raw_greenhouse_PMN |> 
+  filter((std_sp == "NO3") & 
+    ((map == "Pot_ABC_i1_rt4" & well_id == "C7") | 
+       (map == "Pot_Ref_i4_rt2" & well_id == "H5") |
+       (map == "Pot_Auto_i2_rt4" & well_id == "A10")) 
+  )
+
+PMN_wash1 <- raw_greenhouse_PMN |> remove_wells(to_remove)
+
+# check it out again
+boxplot_pmn_no3_outlierfree <- PMN_wash1 |> 
+  filter(std_sp == "NO3") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, scales = "free_y") + 
+  labs(title = "NO3, outlier removed")
+
+ridges_pmn_no3_outlierfree <- PMN_wash1 |> 
+  filter(std_sp == "NO3") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3, outlier removed")
+
+boxplot_pmn_no3_outlierfree + ridges_pmn_no3_outlierfree
+```
+
+</details>
+
+    Picking joint bandwidth of 0.00936
+
+    Picking joint bandwidth of 0.00895
+
+    Picking joint bandwidth of 0.00847
+
+    Picking joint bandwidth of 0.0145
+
+    Picking joint bandwidth of 0.0148
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-25-1.png)
+
+Compare before/after
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+boxplot_pmn_no3 + boxplot_pmn_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+</details>
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-26-1.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+ridges_pmn_no3 + ridges_pmn_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+</details>
+
+    Picking joint bandwidth of 0.00936
+
+    Picking joint bandwidth of 0.0127
+
+    Picking joint bandwidth of 0.00953
+
+    Picking joint bandwidth of 0.0145
+
+    Picking joint bandwidth of 0.0161
+
+    Picking joint bandwidth of 0.00936
+
+    Picking joint bandwidth of 0.00895
+
+    Picking joint bandwidth of 0.00847
+
+    Picking joint bandwidth of 0.0145
+
+    Picking joint bandwidth of 0.0148
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-26-2.png)
+
+### 2.3.2 - NH4
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+boxplot_pmn_nh4 <- PMN_wash1 |> 
+  filter(std_sp == "NH4") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NH4")
+
+ridges_pmn_nh4 <- PMN_wash1 |> 
+  filter(std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4")
+
+
+boxplot_pmn_nh4 + ridges_pmn_nh4 
+```
+
+</details>
+
+    Picking joint bandwidth of 0.0128
+
+    Picking joint bandwidth of 0.0144
+
+    Picking joint bandwidth of 0.016
+
+    Picking joint bandwidth of 0.0138
+
+    Picking joint bandwidth of 0.0188
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-27-1.png)
+
+- Pot_ABC_i2_rt3: A11
+
+- Pot_ABC_i4_rt2: H7
+
+- Pot_Ref_i1_rt2: C5
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+to_remove <- PMN_wash1 |> filter(
+  (std_sp == "NH4") & 
+    ((map == "Pot_ABC_i2_rt3" & well_id == "A11") |
+    (map == "Pot_ABC_i4_rt2" & well_id == "H7") |
+    (map == "Pot_Ref_i1_rt2" & well_id == "C5")))
+
+PMN_wash2 <- PMN_wash1 |> remove_wells(to_remove)
+
+boxplot_pmn_nh4_outlierfree <- PMN_wash2 |> 
+  filter(std_sp == "NH4") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NH4, outliers removed")
+
+ridges_pmn_nh4_outlierfree <- PMN_wash2 |> 
+  filter(std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4, outliers removed")
+
+
+boxplot_pmn_nh4_outlierfree + ridges_pmn_nh4_outlierfree
+```
+
+</details>
+
+    Picking joint bandwidth of 0.0128
+
+    Picking joint bandwidth of 0.012
+
+    Picking joint bandwidth of 0.0114
+
+    Picking joint bandwidth of 0.0138
+
+    Picking joint bandwidth of 0.0152
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-28-1.png)
+
+Compare before/after
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+boxplot_pmn_nh4 + boxplot_pmn_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+</details>
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-29-1.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+ridges_pmn_nh4 + ridges_pmn_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+</details>
+
+    Picking joint bandwidth of 0.0128
+
+    Picking joint bandwidth of 0.0144
+
+    Picking joint bandwidth of 0.016
+
+    Picking joint bandwidth of 0.0138
+
+    Picking joint bandwidth of 0.0188
+
+    Picking joint bandwidth of 0.0128
+
+    Picking joint bandwidth of 0.012
+
+    Picking joint bandwidth of 0.0114
+
+    Picking joint bandwidth of 0.0138
+
+    Picking joint bandwidth of 0.0152
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-29-2.png)
+
+### 2.3.3 - NO2
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+boxplot_pmn_no2 <- PMN_wash2 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NO2")
+
+ridges_pmn_no2 <- PMN_wash2 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2")
+
+
+boxplot_pmn_no2 + ridges_pmn_no2 
+```
+
+</details>
+
+    Picking joint bandwidth of 0.00398
+
+    Picking joint bandwidth of 0.00192
+
+    Picking joint bandwidth of 0.0433
+
+    Picking joint bandwidth of 0.0431
+
+    Picking joint bandwidth of 0.0858
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-30-1.png)
+
+- Pot_ABC_i0_rt4: C4
+
+- Pot_ABC_i1_rt4: B7
+
+- Pot_Auto_i0_rt4: C3
+
+- Pot_Auto_i1_rt4: B6
+
+- Pot_Ref_i0_rt4: C2 & B2
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+to_remove <- PMN_wash2 |> filter(
+  (std_sp == "NO2") &
+    ((map == "Pot_ABC_i0_rt4" & well_id == "C4") |
+    (map == "Pot_ABC_i1_rt4" & well_id == "B7") |
+    (map == "Pot_Auto_i0_rt4" & well_id == "C3") |
+    (map == "Pot_Auto_i1_rt4" & well_id == "B6") |
+    (map == "Pot_Ref_i0_rt4" & well_id %in% c("B2", "C2")))
+)
+
+PMN_wash3 <- PMN_wash2 |> remove_wells(to_remove)
+
+boxplot_pmn_no2_outlierfree <- PMN_wash3 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NO2, outliers removed")
+
+ridges_pmn_no2_outlierfree <- PMN_wash3 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2, outliers removed")
+
+
+boxplot_pmn_no2_outlierfree + ridges_pmn_no2_outlierfree 
+```
+
+</details>
+
+    Picking joint bandwidth of 0.000737
+
+    Picking joint bandwidth of 0.000599
+
+    Picking joint bandwidth of 0.0433
+
+    Picking joint bandwidth of 0.0431
+
+    Picking joint bandwidth of 0.0858
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-31-1.png)
+
+Compare before / after
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+boxplot_pmn_no2 + boxplot_pmn_no2_outlierfree + plot_layout(guides = "collect")
+```
+
+</details>
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-32-1.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+ridges_pmn_no2 + ridges_pmn_no2_outlierfree + plot_layout(guides = "collect")
+```
+
+</details>
+
+    Picking joint bandwidth of 0.00398
+
+    Picking joint bandwidth of 0.00192
+
+    Picking joint bandwidth of 0.0433
+
+    Picking joint bandwidth of 0.0431
+
+    Picking joint bandwidth of 0.0858
+
+    Picking joint bandwidth of 0.000737
+
+    Picking joint bandwidth of 0.000599
+
+    Picking joint bandwidth of 0.0433
+
+    Picking joint bandwidth of 0.0431
+
+    Picking joint bandwidth of 0.0858
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-32-2.png)
+
+### 2.3.4 - All outliers removed PMN
+
+Visually, I am satisfied with this outlier removal, so I save this
+cleaned table
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+greenhouse_t2_PMN_clean <- PMN_wash3
+```
+
+</details>
+
+# 3 - Per-sample mean
+
+## 3.1 - Nmin
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_mean_Nmin <- greenhouse_t2_Nmin_clean |> 
   select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
   group_by(plate_id, map, biol_unit_nb, std_sp) |> 
   summarise(
@@ -1367,7 +1693,7 @@ conc_mean <- greenhouse_t2_Nmin_clean |>
 <summary>Code</summary>
 
 ``` r
-conc_mean |> arrange(desc(std_sp), desc(coef_var))
+conc_mean_Nmin |> arrange(desc(std_sp), desc(coef_var))
 ```
 
 </details>
@@ -1392,7 +1718,7 @@ conc_mean |> arrange(desc(std_sp), desc(coef_var))
 <summary>Code</summary>
 
 ``` r
-conc_mean |> filter(coef_var > 10) |> 
+conc_mean_Nmin |> filter(coef_var > 10) |> 
   ggplot(aes(x = coef_var)) + geom_histogram()
 ```
 
@@ -1400,7 +1726,7 @@ conc_mean |> filter(coef_var > 10) |>
 
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-21-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-34-1.png)
 
 We still have quite a few samples with a high between-wells coefficient
 of variation. But with only 3 to 4 wells and sometimes very low values,
@@ -1413,7 +1739,7 @@ information from the absorbance dataset
 <summary>Code</summary>
 
 ``` r
-conc_export_ready <- conc_mean |> 
+conc_Nmin_export_ready <- conc_mean_Nmin |> 
   inner_join(
     raw_greenhouse_t2_Nmin |> 
       select(!c(well_id:abs_corrected, starts_with("conc"))) |> 
@@ -1424,14 +1750,90 @@ conc_export_ready <- conc_mean |>
 
     Joining with `by = join_by(plate_id, map, biol_unit_nb, std_sp)`
 
-# 3 - Export
+## 3.2 - PMN
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_mean_PMN <- greenhouse_t2_PMN_clean |> 
+  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(map, biol_unit_nb, std_sp) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+```
+
+</details>
+
+    `summarise()` has regrouped the output.
+    ℹ Summaries were computed grouped by map, biol_unit_nb, and std_sp.
+    ℹ Output is grouped by map and biol_unit_nb.
+    ℹ Use `summarise(.groups = "drop_last")` to silence this message.
+    ℹ Use `summarise(.by = c(map, biol_unit_nb, std_sp))` for per-operation
+      grouping (`?dplyr::dplyr_by`) instead.
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_mean_PMN |> arrange(desc(std_sp), desc(coef_var))
+```
+
+</details>
+
+    # A tibble: 240 × 6
+    # Groups:   map, biol_unit_nb [80]
+       map             biol_unit_nb std_sp conc_mgN_L  st_dev coef_var
+       <chr>           <chr>        <chr>       <dbl>   <dbl>    <dbl>
+     1 Pot_Auto_i0_rt2 Pot_Auto     NO3       0.00507 0.00781    154. 
+     2 Pot_Conv_i2_rt1 Pot_Conv     NO3       0.0120  0.0112      93.3
+     3 Pot_Auto_i1_rt4 Pot_Auto     NO3       0.0236  0.0191      80.8
+     4 Pot_Conv_i1_rt3 Pot_Conv     NO3       0.0188  0.0137      72.7
+     5 Pot_Conv_i1_rt4 Pot_Conv     NO3       0.0345  0.0207      60  
+     6 Pot_Conv_i0_rt1 Pot_Conv     NO3       0.0359  0.0205      57.1
+     7 Pot_Auto_i2_rt4 Pot_Auto     NO3       0.0146  0.00779     53.3
+     8 Pot_Auto_i2_rt2 Pot_Auto     NO3       0.0693  0.0356      51.3
+     9 Pot_ABC_i1_rt4  Pot_ABC      NO3       0.0326  0.0156      47.8
+    10 Pot_Conv_i3_rt2 Pot_Conv     NO3       0.0256  0.0112      43.5
+    # ℹ 230 more rows
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_mean_PMN |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram()
+```
+
+</details>
+
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+
+    Warning: Removed 1 row containing non-finite outside the scale range
+    (`stat_bin()`).
+
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-36-1.png)
+
+Same here, there are still quite a few samples with a high coefficient
+of variation, but with only 3 to 4 wells and sometimes very low values,
+this is unavoidable, so we move on
+
+Because there is no equivalence with biological unit nb of the rest of
+the data set, we cannot yet rejoin data sets, PMN will keep separate for
+now.
+
+# 4 - Export
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
 raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
-conc_export_ready |> write_rds("output/data/3_greenhouse_t2_conc_clean.rds")
+conc_Nmin_export_ready |> write_rds("output/data/3_greenhouse_t2_Nmin_clean.rds")
+conc_mean_PMN |> write_rds("output/data/3_greenhouse_PMN_clean.rds")
 ```
 
 </details>
