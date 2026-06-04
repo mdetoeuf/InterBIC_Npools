@@ -21,6 +21,14 @@ output: true
 
 # TO DO
 
+Still missing:
+
+- PMN
+
+- Possibly MR, but probably not so relevant bc very low activity
+
+- Not TDN (because incomplete)
+
 # Set up
 
 ```{r}
@@ -36,7 +44,8 @@ library(vegan) # for rda()
 library(patchwork)
 library(RColorBrewer)
 
-# data
+# function
+source("functions/plot_pca.R")
 
 ```
 
@@ -150,6 +159,11 @@ display.brewer.all(n = 3, type = "qual")
 display.brewer.pal(n = 3, name = "Accent")
 cs_colors <- brewer.pal(n = 3, name = "Accent")
 names(cs_colors) <- c("FB", "IC", "W")
+
+display.brewer.all(n = 4, type = "qual")
+display.brewer.pal(n = 4, name = "Set1")
+soil_colors <- brewer.pal(n = 4, name = "Set1")
+names(soil_colors) <- c("Conv", "Ref", "Auto", "ABC")
 ```
 
 ### 3.2.2 - Faba Bean
@@ -177,7 +191,7 @@ biplot(pca_fb, main = "PCA FB - scaling 2 = variable relationships preserved")
 
 ```
 
-Plot it
+Prepare data for plotting
 
 ```{r}
 #non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
@@ -195,37 +209,27 @@ var_scores <- var_scores |>
 
 PC_percent <- pca_fb$CA$eig / sum(pca_fb$CA$eig)
 
-#Nmin_w <- hclust(dist(scale(rda_matrix)), "ward.D")
-#cutree(Nmin_w, k = 4)
-
-#variable <- greenhouse$soil
-#var_lev <- levels(factor(variable))
-
 data_fb_pca <- left_join(data_fb, pot_scores, by = join_by(biol_unit_nb))
+```
 
+Plot it
 
+```{r}
+#| warning: false
 #dev.new()
-plot_pca_fb <- data_fb_pca |> 
-  ggplot(aes(x = PC1, y = PC2)) +
-  theme_minimal() +
-  geom_segment(
-    data = var_scores,
-    aes(xend = PC1, yend = PC2, x = 0, y =0),
-    colour = "grey30", linetype = 1,
-    arrow = arrow(length = unit(0.03, "npc"))
-  ) +
-  geom_text(
-    data = var_scores,
-    aes(x = PC1*0.9, y = PC2*1.1, label = variable),
-    colour = "grey30"
-  ) +
+plot_pca_fb_cs <- plot_pca(data_fb_pca, var_scores, PC_percent) +
   geom_point(aes( colour = cs)) +
-  scale_color_discrete(palette = c(cs_colors["FB"], cs_colors["IC"])) +
   labs(title = "PCA - Faba Bean") +
-  xlab(paste0("PC1 (", signif(PC_percent[1]*100, digits = 3), "%)")) +
-  ylab(paste0("PC2 (", signif(PC_percent[2]*100, digits = 3), "%)"))
+  scale_color_discrete(palette = c(cs_colors["FB"], cs_colors["IC"])) 
 
-#plot_pca_fb
+plot_pca_fb_cs
+
+plot_pca_fb_soil <- plot_pca(data_fb_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = soil, shape = cs)) +
+  labs(title = "PCA - Faba Bean") +
+  scale_color_discrete(palette = c(soil_colors)) 
+
+plot_pca_fb_soil
 ```
 
 ### 3.2.3 - Wheat
@@ -253,7 +257,7 @@ biplot(pca_w, main = "PCA Wheat - scaling 2 = variable relationships preserved")
 
 ```
 
-Plot it
+Prepare data for plotting
 
 ```{r}
 #non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
@@ -272,39 +276,43 @@ var_scores <- var_scores |>
 PC_percent <- pca_w$CA$eig / sum(pca_w$CA$eig)
 
 data_w_pca <- left_join(data_w, pot_scores, by = join_by(biol_unit_nb))
-
-#dev.new()
-plot_pca_w <- data_w_pca |> 
-  ggplot(aes(x = PC1, y = PC2)) +
-  theme_minimal() +
-  geom_segment(
-    data = var_scores,
-    aes(xend = PC1, yend = PC2, x = 0, y =0),
-    colour = "grey30", linetype = 1,
-    arrow = arrow(length = unit(0.03, "npc"))
-  ) +
-  geom_text(
-    data = var_scores,
-    aes(x = PC1*0.9, y = PC2*1.1, label = variable),
-    colour = "grey30"
-  ) +
-  geom_point(aes( colour = cs)) +
-  scale_color_discrete(palette = c(cs_colors["IC"], cs_colors["W"])) +
-  labs(title = "PCA - Wheat") +
-  xlab(paste0("PC1 (", signif(PC_percent[1]*100, digits = 3), "%)")) +
-  ylab(paste0("PC2 (", signif(PC_percent[2]*100, digits = 3), "%)"))
-
-#plot_pca_w
-
-
-
 ```
 
-### 3.2.4 - Both plots
+Plot it
+
+```{r}
+#dev.new()
+plot_pca_w_cs <- plot_pca(data_w_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = cs)) +
+  scale_color_discrete(palette = c(cs_colors["IC"], cs_colors["W"])) +
+  labs(title = "PCA - Wheat")
+  
+#plot_pca_w_cs
+
+plot_pca_w_soil <- plot_pca(data_w_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = soil, shape = cs)) +
+  labs(title = "PCA - Wheat") +
+  scale_color_discrete(palette = c(soil_colors)) 
+
+#plot_pca_w_soil
+```
+
+### 3.2.4 - All plots
 
 ```{r}
 #| warning: false
-plot_pca_fb + plot_pca_w + plot_layout(guides = "collect")
+plot_pca_fb_cs + plot_pca_w_cs + plot_layout(guides = "collect")
+
+plot_pca_fb_soil + plot_pca_w_soil + plot_layout(guides = "collect")
 ```
 
 # What now?
+
+According to the screeplots, I shouldn't even represent the first PCA (at least not with this version with only 4 variables).
+
+```{r}
+# TEST CHUNK
+
+
+
+```
