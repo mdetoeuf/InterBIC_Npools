@@ -2,6 +2,7 @@
 
 
 - [TO DO](#to-do)
+- [0 - Intro](#0---intro)
 - [Set up](#set-up)
 - [1 - Load and clean data](#1---load-and-clean-data)
 - [2 - Compute LER](#2---compute-ler)
@@ -11,10 +12,54 @@
     - [3.2.1 - Graphical parameters](#321---graphical-parameters)
     - [3.2.2 - Faba Bean](#322---faba-bean)
     - [3.2.3 - Wheat](#323---wheat)
-    - [3.2.4 - Both plots](#324---both-plots)
+    - [3.2.4 - All plots](#324---all-plots)
 - [What now?](#what-now)
 
 # TO DO
+
+Still missing:
+
+- PMN
+
+- Possibly MR, but probably not so relevant bc very low activity
+
+- Not TDN (because incomplete)
+
+# 0 - Intro
+
+For the greenhouse data sets, many bits and pieces are dropped along the
+way, so that only few variables are left in the end:
+
+- The whole t1 sampling is problematic due to the scattered sampling
+  over time
+
+- For t2:
+
+  - MicroResp experiment: still needs calibration, but responses were
+    really low, probably due to high sand levels
+
+  - PMN: samples had to be re-humidified because the container system
+    was not optimal and samples had become basically dry (see script on
+    data wrangling: curves show interesting trends, but don’t know what
+    to do with them)
+
+  - TDN & MBN: never got the protocol from Sang, and did a mistake by
+    not adjusting the serial dilution of the standard curve –\> samples
+    out of range
+
+  - WHC is not intrinsically interesting, though we have the data as
+    well (was needed for MicroResp)
+
+In the end, what is left here is not much to work with:
+
+- yield data (plant biomass, plant height, nb of stems / tillers)
+
+- Nmin data at t2 (NO2, NO3, NH4 –\> Nmin and ratios)
+
+- LER can be derived from yield data (but = aggregated data –\> no
+  incorporation in PCA possible)
+
+What is still dormant is weed data. Relevant? not sure…
 
 # Set up
 
@@ -28,7 +73,8 @@ library(vegan) # for rda()
 library(patchwork)
 library(RColorBrewer)
 
-# data
+# function
+source("functions/plot_pca.R")
 ```
 
 # 1 - Load and clean data
@@ -251,6 +297,21 @@ display.brewer.pal(n = 3, name = "Accent")
 ``` r
 cs_colors <- brewer.pal(n = 3, name = "Accent")
 names(cs_colors) <- c("FB", "IC", "W")
+
+display.brewer.all(n = 4, type = "qual")
+```
+
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-7-3.png)
+
+``` r
+display.brewer.pal(n = 4, name = "Set1")
+```
+
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-7-4.png)
+
+``` r
+soil_colors <- brewer.pal(n = 4, name = "Set1")
+names(soil_colors) <- c("Conv", "Ref", "Auto", "ABC")
 ```
 
 ### 3.2.2 - Faba Bean
@@ -300,7 +361,7 @@ biplot(pca_fb, main = "PCA FB - scaling 2 = variable relationships preserved")
 
 ![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-8-2.png)
 
-Plot it
+Prepare data for plotting
 
 ``` r
 #non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
@@ -318,38 +379,33 @@ var_scores <- var_scores |>
 
 PC_percent <- pca_fb$CA$eig / sum(pca_fb$CA$eig)
 
-#Nmin_w <- hclust(dist(scale(rda_matrix)), "ward.D")
-#cutree(Nmin_w, k = 4)
-
-#variable <- greenhouse$soil
-#var_lev <- levels(factor(variable))
-
 data_fb_pca <- left_join(data_fb, pot_scores, by = join_by(biol_unit_nb))
-
-
-#dev.new()
-plot_pca_fb <- data_fb_pca |> 
-  ggplot(aes(x = PC1, y = PC2)) +
-  theme_minimal() +
-  geom_segment(
-    data = var_scores,
-    aes(xend = PC1, yend = PC2, x = 0, y =0),
-    colour = "grey30", linetype = 1,
-    arrow = arrow(length = unit(0.03, "npc"))
-  ) +
-  geom_text(
-    data = var_scores,
-    aes(x = PC1*0.9, y = PC2*1.1, label = variable),
-    colour = "grey30"
-  ) +
-  geom_point(aes( colour = cs)) +
-  scale_color_discrete(palette = c(cs_colors["FB"], cs_colors["IC"])) +
-  labs(title = "PCA - Faba Bean") +
-  xlab(paste0("PC1 (", signif(PC_percent[1]*100, digits = 3), "%)")) +
-  ylab(paste0("PC2 (", signif(PC_percent[2]*100, digits = 3), "%)"))
-
-#plot_pca_fb
 ```
+
+Plot it
+
+``` r
+#dev.new()
+plot_pca_fb_cs <- plot_pca(data_fb_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = cs)) +
+  labs(title = "PCA - Faba Bean") +
+  scale_color_discrete(palette = c(cs_colors["FB"], cs_colors["IC"])) 
+
+plot_pca_fb_cs
+```
+
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-10-1.png)
+
+``` r
+plot_pca_fb_soil <- plot_pca(data_fb_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = soil, shape = cs)) +
+  labs(title = "PCA - Faba Bean") +
+  scale_color_discrete(palette = c(soil_colors)) 
+
+plot_pca_fb_soil
+```
+
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-10-2.png)
 
 ### 3.2.3 - Wheat
 
@@ -389,16 +445,16 @@ summary(pca_w)
 screeplot(pca_w, bstick = TRUE, npcs = length(pca_w$CA$eig))
 ```
 
-![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-10-1.png)
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-11-1.png)
 
 ``` r
 #biplot(pca_fb, scaling = 1, main = "PCA - scaling 1 = object relationships preserved")
 biplot(pca_w, main = "PCA Wheat - scaling 2 = variable relationships preserved")
 ```
 
-![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-10-2.png)
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-11-2.png)
 
-Plot it
+Prepare data for plotting
 
 ``` r
 #non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
@@ -417,37 +473,46 @@ var_scores <- var_scores |>
 PC_percent <- pca_w$CA$eig / sum(pca_w$CA$eig)
 
 data_w_pca <- left_join(data_w, pot_scores, by = join_by(biol_unit_nb))
-
-#dev.new()
-plot_pca_w <- data_w_pca |> 
-  ggplot(aes(x = PC1, y = PC2)) +
-  theme_minimal() +
-  geom_segment(
-    data = var_scores,
-    aes(xend = PC1, yend = PC2, x = 0, y =0),
-    colour = "grey30", linetype = 1,
-    arrow = arrow(length = unit(0.03, "npc"))
-  ) +
-  geom_text(
-    data = var_scores,
-    aes(x = PC1*0.9, y = PC2*1.1, label = variable),
-    colour = "grey30"
-  ) +
-  geom_point(aes( colour = cs)) +
-  scale_color_discrete(palette = c(cs_colors["IC"], cs_colors["W"])) +
-  labs(title = "PCA - Wheat") +
-  xlab(paste0("PC1 (", signif(PC_percent[1]*100, digits = 3), "%)")) +
-  ylab(paste0("PC2 (", signif(PC_percent[2]*100, digits = 3), "%)"))
-
-#plot_pca_w
 ```
 
-### 3.2.4 - Both plots
+Plot it
 
 ``` r
-plot_pca_fb + plot_pca_w + plot_layout(guides = "collect")
+#dev.new()
+plot_pca_w_cs <- plot_pca(data_w_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = cs)) +
+  scale_color_discrete(palette = c(cs_colors["IC"], cs_colors["W"])) +
+  labs(title = "PCA - Wheat")
+  
+#plot_pca_w_cs
+
+plot_pca_w_soil <- plot_pca(data_w_pca, var_scores, PC_percent) +
+  geom_point(aes( colour = soil, shape = cs)) +
+  labs(title = "PCA - Wheat") +
+  scale_color_discrete(palette = c(soil_colors)) 
+
+#plot_pca_w_soil
 ```
 
-![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-12-1.png)
+### 3.2.4 - All plots
+
+``` r
+plot_pca_fb_cs + plot_pca_w_cs + plot_layout(guides = "collect")
+```
+
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-14-1.png)
+
+``` r
+plot_pca_fb_soil + plot_pca_w_soil + plot_layout(guides = "collect")
+```
+
+![](5_t2_greenhouse_ler_pca_files/figure-commonmark/unnamed-chunk-14-2.png)
 
 # What now?
+
+According to the screeplots, I shouldn’t even represent the first PCA
+(at least not with this version with only 4 variables).
+
+``` r
+# TEST CHUNK
+```

@@ -29,6 +29,32 @@ Still missing:
 
 - Not TDN (because incomplete)
 
+# 0 - Intro
+
+For the greenhouse data sets, many bits and pieces are dropped along the way, so that only few variables are left in the end:
+
+- The whole t1 sampling is problematic due to the scattered sampling over time
+
+- For t2:
+
+  - MicroResp experiment: still needs calibration, but responses were really low, probably due to high sand levels
+
+  - PMN: samples had to be re-humidified because the container system was not optimal and samples had become basically dry (see script on data wrangling: curves show interesting trends, but don't know what to do with them)
+
+  - TDN & MBN: never got the protocol from Sang, and did a mistake by not adjusting the serial dilution of the standard curve –\> samples out of range
+
+  - WHC is not intrinsically interesting, though we have the data as well (was needed for MicroResp)
+
+In the end, what is left here is not much to work with:
+
+- yield data (plant biomass, plant height, nb of stems / tillers)
+
+- Nmin data at t2 (NO2, NO3, NH4 –\> Nmin and ratios)
+
+- LER can be derived from yield data (but = aggregated data –\> no incorporation in PCA possible)
+
+What is still dormant is weed data. Relevant? not sure...
+
 # Set up
 
 ```{r}
