@@ -6,6 +6,11 @@
 - [1 - Import data](#1---import-data)
   - [1.1 - Non-absorbance data from
     AELab](#11---non-absorbance-data-from-aelab)
+    - [1.1.1 - Raw data](#111---raw-data)
+    - [1.1.2 - Lab data on a per pot
+      basis](#112---lab-data-on-a-per-pot-basis)
+    - [1.1.3 - Lab data to get water content needed for
+      PMN.](#113---lab-data-to-get-water-content-needed-for-pmn)
   - [1.2 - Microresp Data (TO DO?)](#12---microresp-data-to-do)
   - [1.3 - Absorbance data](#13---absorbance-data)
     - [1.3.1 - Nmin: Subset t2, greenhouse data set, no bare
@@ -64,6 +69,8 @@ source("functions/plot_qc_sample_conc.R")
 
 ## 1.1 - Non-absorbance data from AELab
 
+### 1.1.1 - Raw data
+
 <details class="code-fold">
 <summary>Code</summary>
 
@@ -95,6 +102,10 @@ raw_data_pot <- read_csv(
     ℹ Use `spec()` to retrieve the full column specification for this data. ℹ
     Specify the column types or set `show_col_types = FALSE` to quiet this message.
     • `` -> `...173`
+
+### 1.1.2 - Lab data on a per pot basis
+
+(biological units = pots of t2)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -143,6 +154,36 @@ raw_greenhouse_t2
     #   flush_dm_tare_tr1 <dbl>, flush_dm_g_fw_tr1 <dbl>, flush_dm_g_dw_tr1 <dbl>,
     #   flush_dm_tare_tr2 <dbl>, flush_dm_g_fw_tr2 <dbl>, flush_dm_g_dw_tr2 <dbl>,
     #   flush_dm_tare_tr3 <dbl>, flush_dm_g_fw_tr3 <dbl>, …
+
+### 1.1.3 - Lab data to get water content needed for PMN.
+
+Unfortunately, WC was not computed separately, but can only be derived
+from the WHC manip.
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+pmn_wc <- raw_data_pot |> 
+  select(biol_unit_nb, expe, soil, sampling_time, starts_with("whc")) |> 
+  filter(sampling_time == "t0", !is.na(whc_tare_tube_g)) |> 
+  #dm = g dry soil / g fresh soil       
+  # wc = 1 - dm
+  mutate(
+    dm = (whc_g_dw_g - whc_tare_dish_g) / (whc_g_fw_g - whc_tare_tube_g),
+    wc = 1-dm,
+    .keep = "unused",
+    .after = sampling_time
+  ) |> 
+  summarize(
+    .by = "soil",
+    dm = mean(dm),
+    wc = mean(wc)
+  ) |> 
+  mutate(biol_unit_nb = paste0("Pot_", soil))
+```
+
+</details>
 
 ## 1.2 - Microresp Data (TO DO?)
 
@@ -375,7 +416,7 @@ boxplot_no3 + boxplot_no3_outlierfree
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-9-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -399,7 +440,7 @@ ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.0115
     Picking joint bandwidth of 0.00758
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-9-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-2.png)
 
 ### 2.1.2 - NH4
 
@@ -477,7 +518,7 @@ boxplot_nh4 + boxplot_nh4_outlierfree
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -497,7 +538,7 @@ ridges_nh4 + ridges_nh4_outlierfree + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.0429
     Picking joint bandwidth of 0.0321
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-11-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-2.png)
 
 ### 2.1.3 - NO2
 
@@ -531,7 +572,7 @@ boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.000924
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-12-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-14-1.png)
 
 Few to remove
 
@@ -577,7 +618,7 @@ boxplot_no2_2 + ridges_no2_2 + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.000684
     Picking joint bandwidth of 0.000924
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-15-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -588,7 +629,7 @@ boxplot_no2 + boxplot_no2_2 + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-15-2.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -608,7 +649,7 @@ ridges_no2 + ridges_no2_2 + plot_layout(guides = "collect")
     Picking joint bandwidth of 0.000684
     Picking joint bandwidth of 0.000924
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-13-3.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-15-3.png)
 
 ## 2.2 - Nmin (Standard Soils)
 
@@ -635,7 +676,7 @@ boxplot_std_no3 + ridges_std_no3
 
     Picking joint bandwidth of 0.0687
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-14-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-16-1.png)
 
 I find that it looks good on a per-standard basis. But each had many
 samples, let’s look at a per-sample basis
@@ -708,7 +749,7 @@ boxplot_std_no3_2 + ridges_std_no3_2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0588
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-15-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-17-1.png)
 
 Still looks good, we keep it.
 
@@ -735,7 +776,7 @@ boxplot_std_nh4 + ridges_std_nh4 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0297
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-16-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-18-1.png)
 
 Multimodal curve –\> dig into per-sample view
 
@@ -806,7 +847,7 @@ boxplot_std_nh4_2 + ridges_std_nh4_2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.159
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-17-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-1.png)
 
 I find 2 wells to remove:
 
@@ -894,7 +935,7 @@ boxplot_std_nh4_3 + ridges_std_nh4_3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.159
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-18-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-20-1.png)
 
 Compare before/after outlier removal
 
@@ -907,7 +948,7 @@ boxplot_std_nh4_2 + boxplot_std_nh4_3 + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-21-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1012,7 +1053,7 @@ ridges_std_nh4_2 + ridges_std_nh4_3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.159
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-19-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-21-2.png)
 
 ### 2.2.3 - NO2
 
@@ -1037,7 +1078,7 @@ boxplot_std_no2 + ridges_std_no2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.000704
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-20-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-22-1.png)
 
 Then per sample
 
@@ -1108,7 +1149,7 @@ boxplot_std_no2_2 + ridges_std_no2_2 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.00018
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-21-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-23-1.png)
 
 to remove: plate 110_t2_MR_R8, well H6
 
@@ -1140,7 +1181,7 @@ boxplot_std_no2_2 + boxplot_std_no2_3 + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-22-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-24-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1245,7 +1286,7 @@ ridges_std_no2_2 + ridges_std_no2_3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.00018
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-22-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-24-2.png)
 
 ### 2.2.4 - All outliers removed Nmin
 
@@ -1300,7 +1341,7 @@ boxplot_pmn_no3 + ridges_pmn_no3
 
     Picking joint bandwidth of 0.0161
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-24-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-26-1.png)
 
 - Pot_ABC_i1_rt4: C7
 
@@ -1347,7 +1388,7 @@ boxplot_pmn_no3_outlierfree + ridges_pmn_no3_outlierfree
 
     Picking joint bandwidth of 0.0148
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-25-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-27-1.png)
 
 Compare before/after
 
@@ -1360,7 +1401,7 @@ boxplot_pmn_no3 + boxplot_pmn_no3_outlierfree + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-26-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-28-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1391,7 +1432,7 @@ ridges_pmn_no3 + ridges_pmn_no3_outlierfree + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0148
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-26-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-28-2.png)
 
 ### 2.3.2 - NH4
 
@@ -1425,7 +1466,7 @@ boxplot_pmn_nh4 + ridges_pmn_nh4
 
     Picking joint bandwidth of 0.0188
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-27-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-29-1.png)
 
 - Pot_ABC_i2_rt3: A11
 
@@ -1471,7 +1512,7 @@ boxplot_pmn_nh4_outlierfree + ridges_pmn_nh4_outlierfree
 
     Picking joint bandwidth of 0.0152
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-28-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-30-1.png)
 
 Compare before/after
 
@@ -1484,7 +1525,7 @@ boxplot_pmn_nh4 + boxplot_pmn_nh4_outlierfree + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-29-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-31-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1515,7 +1556,7 @@ ridges_pmn_nh4 + ridges_pmn_nh4_outlierfree + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0152
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-29-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-31-2.png)
 
 ### 2.3.3 - NO2
 
@@ -1549,7 +1590,7 @@ boxplot_pmn_no2 + ridges_pmn_no2
 
     Picking joint bandwidth of 0.0858
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-30-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-32-1.png)
 
 - Pot_ABC_i0_rt4: C4
 
@@ -1602,7 +1643,7 @@ boxplot_pmn_no2_outlierfree + ridges_pmn_no2_outlierfree
 
     Picking joint bandwidth of 0.0858
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-31-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-33-1.png)
 
 Compare before / after
 
@@ -1615,7 +1656,7 @@ boxplot_pmn_no2 + boxplot_pmn_no2_outlierfree + plot_layout(guides = "collect")
 
 </details>
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-32-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-34-1.png)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -1646,7 +1687,7 @@ ridges_pmn_no2 + ridges_pmn_no2_outlierfree + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0858
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-32-2.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-34-2.png)
 
 ### 2.3.4 - All outliers removed PMN
 
@@ -1726,7 +1767,7 @@ conc_mean_Nmin |> filter(coef_var > 10) |>
 
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-34-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-36-1.png)
 
 We still have quite a few samples with a high between-wells coefficient
 of variation. But with only 3 to 4 wells and sometimes very low values,
@@ -1815,15 +1856,24 @@ conc_mean_PMN |> filter(coef_var > 10) |>
     Warning: Removed 1 row containing non-finite outside the scale range
     (`stat_bin()`).
 
-![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-36-1.png)
+![](3_t2_greenhouse_raw_data_import_tidy_files/figure-commonmark/unnamed-chunk-38-1.png)
 
 Same here, there are still quite a few samples with a high coefficient
 of variation, but with only 3 to 4 wells and sometimes very low values,
 this is unavoidable, so we move on
 
-Because there is no equivalence with biological unit nb of the rest of
-the data set, we cannot yet rejoin data sets, PMN will keep separate for
-now.
+Now, we can add the data on wc to get a full dataset
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_PMN_export_ready <- conc_mean_PMN |> left_join(pmn_wc)
+```
+
+</details>
+
+    Joining with `by = join_by(biol_unit_nb)`
 
 # 4 - Export
 
@@ -1833,7 +1883,7 @@ now.
 ``` r
 raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
 conc_Nmin_export_ready |> write_rds("output/data/3_greenhouse_t2_Nmin_clean.rds")
-conc_mean_PMN |> write_rds("output/data/3_greenhouse_PMN_clean.rds")
+conc_PMN_export_ready |> write_rds("output/data/3_greenhouse_PMN_clean.rds")
 ```
 
 </details>

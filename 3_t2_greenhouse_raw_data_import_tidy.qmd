@@ -47,6 +47,8 @@ source("functions/plot_qc_sample_conc.R")
 
 ## 1.1 - Non-absorbance data from AELab
 
+### 1.1.1 - Raw data
+
 ```{r}
 # import other "wet lab" raw data
 raw_data_pot <- read_csv(
@@ -61,7 +63,13 @@ raw_data_pot <- read_csv(
   ) |> clean_names() |> 
   rename(sample_short = short) |> 
   filter(expe == "Pot")
+```
 
+### 1.1.2 - Lab data on a per pot basis 
+
+(biological units = pots of t2)
+
+```{r}
 raw_greenhouse_t2 <- raw_data_pot |> 
   filter(sampling_time == "t2") |> 
   # remove bare soil
@@ -81,6 +89,30 @@ raw_greenhouse_t2 <- raw_data_pot |>
 
 # Check it out
 raw_greenhouse_t2
+```
+
+### 1.1.3 - Lab data to get water content needed for PMN. 
+
+Unfortunately, WC was not computed separately, but can only be derived from the WHC manip.
+
+```{r}
+pmn_wc <- raw_data_pot |> 
+  select(biol_unit_nb, expe, soil, sampling_time, starts_with("whc")) |> 
+  filter(sampling_time == "t0", !is.na(whc_tare_tube_g)) |> 
+  #dm = g dry soil / g fresh soil       
+  # wc = 1 - dm
+  mutate(
+    dm = (whc_g_dw_g - whc_tare_dish_g) / (whc_g_fw_g - whc_tare_tube_g),
+    wc = 1-dm,
+    .keep = "unused",
+    .after = sampling_time
+  ) |> 
+  summarize(
+    .by = "soil",
+    dm = mean(dm),
+    wc = mean(wc)
+  ) |> 
+  mutate(biol_unit_nb = paste0("Pot_", soil))
 ```
 
 ## 1.2 - Microresp Data (TO DO?)
@@ -753,12 +785,16 @@ conc_mean_PMN |> filter(coef_var > 10) |>
 
 Same here, there are still quite a few samples with a high coefficient of variation, but with only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
 
-Because there is no equivalence with biological unit nb of the rest of the data set, we cannot yet rejoin data sets, PMN will keep separate for now.
+Now, we can add the data on wc to get a full dataset
+
+```{r}
+conc_PMN_export_ready <- conc_mean_PMN |> left_join(pmn_wc)
+```
 
 # 4 - Export
 
 ```{r}
 raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
 conc_Nmin_export_ready |> write_rds("output/data/3_greenhouse_t2_Nmin_clean.rds")
-conc_mean_PMN |> write_rds("output/data/3_greenhouse_PMN_clean.rds")
+conc_PMN_export_ready |> write_rds("output/data/3_greenhouse_PMN_clean.rds")
 ```
