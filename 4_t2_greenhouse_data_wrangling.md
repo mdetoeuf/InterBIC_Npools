@@ -4,27 +4,35 @@
 - [TO DO](#to-do)
 - [Set up](#set-up)
 - [1 - Subset data](#1---subset-data)
+  - [1.1 - Yield data](#11---yield-data)
+  - [1.2 - Flush data (from K2SO4
+    extraction)](#12---flush-data-from-k2so4-extraction)
+  - [1.3 - Nmin data (from absorbance
+    pipeline)](#13---nmin-data-from-absorbance-pipeline)
+  - [1.4 - PMN data (from absorbance
+    pipeline)](#14---pmn-data-from-absorbance-pipeline)
 - [2 - Compute new variables](#2---compute-new-variables)
-  - [2.1 - dry matter content](#21---dry-matter-content)
+  - [2.1 - dry matter content (t2
+    samples)](#21---dry-matter-content-t2-samples)
     - [2.1.1 - Principle and equations](#211---principle-and-equations)
     - [2.1.2 - Pivot data so that technical replicates are above each
       other, not next to each
       other](#212---pivot-data-so-that-technical-replicates-are-above-each-other-not-next-to-each-other)
-  - [2.2 - Nmin concentrations in ppm](#22---nmin-concentrations-in-ppm)
+  - [2.2 - Nmin concentrations in ppm (t2
+    samples)](#22---nmin-concentrations-in-ppm-t2-samples)
+  - [2.3 - PMN concentration in ppm](#23---pmn-concentration-in-ppm)
   - [2.3 - Yield variables](#23---yield-variables)
     - [2.3.1 - Human error check](#231---human-error-check)
     - [2.3.2 - Compute per plant clean yield
       data](#232---compute-per-plant-clean-yield-data)
-  - [2.4 - Join all data](#24---join-all-data)
+  - [2.4 - Join all data (except PMN)](#24---join-all-data-except-pmn)
 - [3 - Deal with standard soils](#3---deal-with-standard-soils)
 - [**°°° !!! TO DO !!! °°°**](#--to-do--)
 - [4 - Export](#4---export)
 
 # TO DO
 
-For PMN:
-
-- water content can only be obtained from the WHC experiment (CHECK!)
+Move the PMN curve to script nb 5 !
 
 Deal with standard soils.
 
@@ -46,10 +54,13 @@ library(tidyverse)
 library(ggridges) # for geom_density_ridges()
 library(ggrepel) # for geom_text_repel()
 library(patchwork)
+library(janitor)
 
 # data
 lab <- read_rds("output/data/3_greenhouse_t2_raw_lab.rds")
-Nmin <- read_rds("output/data/3_greenhouse_t2_conc_clean.rds") 
+Nmin <- read_rds("output/data/3_greenhouse_t2_Nmin_clean.rds") 
+PMN <- read_rds("output/data/3_greenhouse_PMN_clean.rds")
+PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
 #lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
@@ -57,7 +68,7 @@ Nmin <- read_rds("output/data/3_greenhouse_t2_conc_clean.rds")
 
 # 1 - Subset data
 
-Yield data
+## 1.1 - Yield data
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -69,7 +80,7 @@ yield_data <- lab |>
 
 </details>
 
-Flush data (from K2SO4 extraction)
+## 1.2 - Flush data (from K2SO4 extraction)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -83,70 +94,35 @@ raw_flush <- lab |>
 
 </details>
 
-From Nmin data (from absorbance pipeline)
+## 1.3 - Nmin data (from absorbance pipeline)
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-raw_Nmin <- Nmin |> 
-  # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
-  mutate(
-    sampling_time = paste0(
-      "t", 
-      str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 1)),
-    expe = str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 2),
-    expe = case_when(expe %in% c("P", "G") ~ "Pot", .default = expe),
-    .before = plate_id) |>
-  # filter based on sampling_time
-  filter(sampling_time == "t2", expe == "Pot") |> 
-  # separate_wider_delim(
-  #   cols = map,
-  #   names = c("biol_unit_nb"),
-  #   delim = "_",
-  #   too_many = "drop", 
-  #   cols_remove = FALSE
-  # ) |> 
-  mutate(biol_unit_nb = as.double(biol_unit_nb))
-  
-# Check it out
-raw_Nmin
+Nmin_sample <- Nmin |> filter(biol_unit_nb < 100)
+Nmin_std <- Nmin |> filter_out(biol_unit_nb < 100)
 ```
 
 </details>
 
-    # A tibble: 253 × 17
-    # Groups:   plate_id, map, biol_unit_nb [253]
-       plate_id map           biol_unit_nb std_sp conc_mgN_L st_dev coef_var dataset
-       <chr>    <chr>                <dbl> <chr>       <dbl>  <dbl>    <dbl> <chr>  
-     1 NH4_2P1  109_t2_MR_R1…          109 NH4       0.0556  0.0285    51.3  Nmint1…
-     2 NH4_2P1  109_t2_MR_R5           109 NH4       0.00617 0.0285   462.   Nmint1…
-     3 NH4_2P1  109_t2_MR_R6           109 NH4       0.00617 0.0285   462.   Nmint1…
-     4 NH4_2P1  10_t2                   10 NH4       0.0309  0          0    Nmint1…
-     5 NH4_2P1  110_t2_MR_R1…          110 NH4       0.191   0.0247    12.9  Nmint1…
-     6 NH4_2P1  110_t2_MR_R12          110 NH4       0.167   0.0247    14.8  Nmint1…
-     7 NH4_2P1  110_t2_MR_R13          110 NH4       0.340   0.0247     7.27 Nmint1…
-     8 NH4_2P1  110_t2_MR_R8           110 NH4       0.377   0.0403    10.7  Nmint1…
-     9 NH4_2P1  17_t2                   17 NH4       0.0309  0.0403   131.   Nmint1…
-    10 NH4_2P1  18_t2                   18 NH4       0.344   0.0755    22.0  Nmint1…
-    # ℹ 243 more rows
-    # ℹ 9 more variables: sampling_time <chr>, expe <chr>, target_sp <chr>,
-    #   std_unit <chr>, slope <dbl>, adj_r_squared <dbl>, lm_p <dbl>, cs <fct>,
-    #   soil <fct>
+## 1.4 - PMN data (from absorbance pipeline)
+
+The PMN data is missing 1 key information: weight of fresh soil in the
+sub-sample that undergoes the KCl extraction.
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
-Nmin_sample <- raw_Nmin |> filter(biol_unit_nb < 100)
-Nmin_std <- raw_Nmin |> filter_out(biol_unit_nb < 100)
+PMN_fw_greenhouse <- PMN_fw |> filter_out(expe == "Field")
 ```
 
 </details>
 
 # 2 - Compute new variables
 
-## 2.1 - dry matter content
+## 2.1 - dry matter content (t2 samples)
 
 ### 2.1.1 - Principle and equations
 
@@ -345,7 +321,7 @@ flush_std <- flush_clean |> filter_out(biol_unit_nb < 100)
 
 </details>
 
-## 2.2 - Nmin concentrations in ppm
+## 2.2 - Nmin concentrations in ppm (t2 samples)
 
 First, we
 
@@ -483,6 +459,236 @@ Nmin_all_variables <- Nmin_ppm_wider |>
 ```
 
 </details>
+
+## 2.3 - PMN concentration in ppm
+
+Here, we
+
+- join PMN_fw (data set containing fresh weight of the subsample that
+  underwent the incubation) with the absorbance derived concentration
+  data in mg N / L
+
+<!-- -->
+
+- compute the ratio between weight of fresh soil and volume of
+  extractant (150ml) –\> ~30g/150ml
+
+- Derive the concentration in ppm from mg N/L, ratio and dry matter
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+volume_kcl <- 150
+PMN_ppm <- PMN |> 
+  left_join(PMN_fw_greenhouse) |> 
+  mutate(
+    ratio = fw / 150,
+    conc_ppm = conc_mgN_L / (ratio * dm)
+  )
+```
+
+</details>
+
+    Joining with `by = join_by(map, soil)`
+
+Now, we want the concentration in separate columns as above for Nmin,
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_wider <- PMN_ppm |> 
+  pivot_wider(
+  names_from = std_sp,
+  names_prefix = "ppm_",
+  values_from = conc_ppm,
+  id_cols = c(map, biol_unit_nb, soil, dm, wc, expe, incub_time, rep_tech, fw, ratio)
+) |> 
+  rename(ppm_NO3_uncorrected = ppm_NO3)
+```
+
+</details>
+
+Then, we can do the NO3 correction and other computation of variables
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+dates <- c("2023-12-5", "2023-12-12", "2023-12-17", "2023-12-26", "2024-01-02") |> as.Date()
+incub_days <- dates - dates[1]
+names(incub_days) <- PMN_wider$incub_time |> unique() |> sort()
+
+PMN_all_variables <- PMN_wider |> 
+  mutate(
+    ppm_NO3 = ppm_NO3_uncorrected - ppm_NO2,
+    ppm_Nmin = ppm_NO3_uncorrected + ppm_NH4,
+    NO3_Nmin = ppm_NO3 / ppm_Nmin,
+    NH4_Nmin = ppm_NH4 / ppm_Nmin,
+    NO3_NH4 = ppm_NO3 / ppm_NH4,
+    incub_day = incub_days[incub_time],
+    soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC"))
+  ) |> 
+  # remove uncorrected NO3
+  select(!ppm_NO3_uncorrected) 
+
+#check correspondence incubation vs dates
+PMN_all_variables |> ungroup() |> select(incub_time, incub_day) |> unique()
+```
+
+</details>
+
+    # A tibble: 5 × 2
+      incub_time incub_day
+      <chr>      <drtn>   
+    1 i0          0 days  
+    2 i1          7 days  
+    3 i2         12 days  
+    4 i3         21 days  
+    5 i4         28 days  
+
+Finally, we ca compute the slope of the curve.
+
+> [!IMPORTANT]
+>
+> ### Statistical issue
+>
+> We have 4 technical replicates per incubation time, but rep 1 of
+> incubation time 1 has no particular relationship to rep 1 of
+> incubation time 2. It would make little sense to compute 4 different
+> slopes and then take the mean of the 4 slopes to get a boxplot and the
+> option of an anova with comparison of means (of slopes).
+
+According to AI (see full doc):
+
+- ANCOVA, (independant measurements bc subsamples evolve separately) .
+
+  - linear model with interaction term: outcome ~ group \* predictor
+
+  - –\> try with lm(ppm_Nmin ~ soil \* incub_days)
+
+  - Details see doc
+
+Finally, we can plot the curve of the potential mineralization of
+Nitrogen (PMN)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_plot <- PMN_all_variables |> 
+  ggplot(aes(x = incub_day, y = ppm_Nmin, group = soil, colour = soil, fill = soil)) +
+  theme_minimal() +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Potential Mineralization of Nitrogen (PMN)",
+    subtitle = "Nmin as sum of NO2-, NO3-, NH4+") +
+  xlab("Time since incubation at 28°C [days]") +
+  ylab("Mineral Nitrogen in the soil [ppm]")
+
+# for annotation: extract data from smooth curve
+smooth_data <- ggplot_build(PMN_plot)$data[[2]]
+```
+
+</details>
+
+    Don't know how to automatically pick scale for object of type <difftime>.
+    Defaulting to continuous.
+    `geom_smooth()` using formula = 'y ~ x'
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# get its maximum value to anker the annotation
+annotations <- smooth_data |> 
+  slice_max(x, by = group) |> 
+  mutate(soil = levels(PMN_all_variables$soil))
+#c("#F8766D", "#7CAE00", "#00BFC4", "#C77CFF") 
+
+# Also annotate date of humidification
+day_water <- as.Date("2023-12-20")
+  
+PMN_plot_all <- PMN_plot + 
+  geom_text(
+    data = annotations,
+    aes(x = x+0.5, y = y, colour = soil, label = soil), 
+    hjust = 0, size = 5) +
+  xlim(c(0,30)) +
+  theme(legend.position = "none") 
+```
+
+</details>
+
+Looks nice, but if we facet… The curves… are not linear at all. Probably
+due to re-humidification in-between:
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_plot_all_annotated <- PMN_plot_all +
+  annotate(
+    geom = "segment", colour = "red",
+    x = day_water - dates[1] - 2, xend = day_water - dates[1],
+    y = 7, yend = 5,
+    arrow = arrow(type = "closed", length = unit(0.02, "npc"))) +
+  annotate(
+    geom = "text", colour = "red",
+    x = day_water - dates[1] - 2,
+    y = 7, hjust = 1.05,
+    label = "Re-humidification of samples"
+  )
+
+#PMN_plot_all_annotated
+```
+
+</details>
+
+Look at all 3 versions
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_plot_all
+```
+
+</details>
+
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](4_t2_greenhouse_data_wrangling_files/figure-commonmark/unnamed-chunk-18-1.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_plot_all_annotated
+```
+
+</details>
+
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](4_t2_greenhouse_data_wrangling_files/figure-commonmark/unnamed-chunk-18-2.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_plot_all_annotated + facet_wrap(~soil)
+```
+
+</details>
+
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](4_t2_greenhouse_data_wrangling_files/figure-commonmark/unnamed-chunk-18-3.png)
+
+–\> I would plead for the abandon of this measure !
 
 ## 2.3 - Yield variables
 
@@ -674,7 +880,7 @@ yield_clean <- yield_per_plant
 
 </details>
 
-## 2.4 - Join all data
+## 2.4 - Join all data (except PMN)
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -692,6 +898,8 @@ data_to_export <- Nmin_all_variables |> left_join(yield_clean)
 # **°°° !!! TO DO !!! °°°**
 
 # 4 - Export
+
+We don’t export PMN data for now, as it seems like a dead-end..
 
 <details class="code-fold">
 <summary>Code</summary>
