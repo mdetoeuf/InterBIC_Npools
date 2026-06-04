@@ -69,6 +69,40 @@ TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 The previous chunk (absorbance and plate map data) demonstrates the usage of the Skanit format version of the import, but the rest of this pipeline does not require the Skanit data, so it is no longer used passed this import step. However, the output format should, in theory, be strictly identical to other format options, so that the object `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or `Nmin_abs`. Please reach out if you encounter any difficulty.
 :::
 
+For PMN, import will be similar, but we generate the plate map from a list of samples
+
+```{r}
+sample_list <- read_csv("raw_data/PMN/PMN_sample_list.csv") |> 
+  select(plate_id, short)
+samples <- sample_list$short 
+plate_ids <- sample_list$plate_id |> unique()
+n_samples_per_plate <- length(samples) / length(plate_ids)
+
+tibble_map_pmn <- map_plates(
+  samples, 
+  n_samples_per_plate, 
+  plate_ids,column_curves = c(1,12), column_blank = 8)
+
+#check it out
+tibble_map_pmn
+
+tibble_map_pmn |> write_csv("../raw_data/PMN_map_fromR_to_check.csv")
+```
+
+After a manual check that all plate maps are correct (it was, but if not, it is easy to move one or two cells in excel), we saved the file under a different name for re-import. It seems that the headers were not identified as such, so we filter out the first row.
+
+```{r}
+PMN_map <- csv_to_tibble("raw_data/PMN/PMN_map_manually_checked.csv") |> 
+  filter_out(row == "row")
+PMN_abs <- txt_to_tibble("raw_data/PMN")
+```
+
+It appears that the plates are not in the same order between map and abs, but this should not be a problem. Check it out anyway:
+
+```{r}
+PMN_map ; PMN_abs
+```
+
 # 2 - Verticalize plates
 
 Here, we transform data from plate format to "verticalized" format: 1 row per well position (well_id –\> 96 rows) and 1 column per "plate" (actually 2 columns per physical plate: absorbance data plate and mapping plate).
@@ -86,8 +120,11 @@ Nmin_t3_vertical <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
 # TDN
 TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
 
+# PMN
+PMN_vertical <- join_abs_map(PMN_abs, PMN_map, dataset = "PMN-")
+
 ## Check them out
-Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical
 ```
 
 Then, we use the `dplyr::left_join()` function to join all plate data in a single data table. Note the distinct column names with their dataset and abs/map-related prefixes
@@ -96,10 +133,11 @@ Then, we use the `dplyr::left_join()` function to join all plate data in a singl
 # join all 3 in a single table with all "plate data"
 all_vertical <- Nmin_t1t2_vertical |> 
   left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
-  left_join(TDN_vertical, by = join_by(row, column))
+  left_join(TDN_vertical, by = join_by(row, column)) |> 
+  left_join(PMN_vertical, by = join_by(row, column)) 
 
 # look at the structure of variable names
-sample(names(all_vertical),size = 20)
+sample(names(all_vertical),size = 30)
 
 # check it out  
 all_vertical
@@ -141,13 +179,16 @@ TDN_metadata <- read_csv(
   ) |> 
   mutate(std_column = as.character(std_column)) |> 
   mutate(dataset = "TDN")
+
+PMN_metadata <- read_csv("raw_data/PMN/PMN_metadata.csv", show_col_types = FALSE) |> 
+  mutate(dataset = "PMN")
 ```
 
 Then we join them in one big metadata file. ! this only works because the 3 metadata files have strictly the same structure (same column names in the same order, containing the same data type (string, numeric, ...)).
 
 ```{r}
 # join csv's
-(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata))
+(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata))
 ```
 
 Keep only relevant columns.
