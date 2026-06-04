@@ -8,6 +8,10 @@ Morgane de Toeuf
 - [4 - Add plate metadata](#4---add-plate-metadata)
 - [5 - Export](#5---export)
 
+To Do
+
+- Add PNR data as well (Cloé)
+
 # Set up
 
 ``` r
@@ -149,6 +153,104 @@ TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 > `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or
 > `Nmin_abs`. Please reach out if you encounter any difficulty.
 
+For PMN, import will be similar, but we generate the plate map from a
+list of samples
+
+``` r
+sample_list <- read_csv("raw_data/PMN/PMN_sample_list.csv") |> 
+  select(plate_id, short)
+```
+
+    Rows: 540 Columns: 9
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (8): plate_id, Expe, Soil, incub_time, sampling_time, rep_tech, 1st_Well...
+    dbl (1): Biol_unit_Nb
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
+samples <- sample_list$short 
+plate_ids <- sample_list$plate_id |> unique()
+n_samples_per_plate <- length(samples) / length(plate_ids)
+
+tibble_map_pmn <- map_plates(
+  samples, 
+  n_samples_per_plate, 
+  plate_ids,column_curves = c(1,12), column_blank = 8)
+
+#check it out
+tibble_map_pmn
+```
+
+    # A tibble: 270 × 13
+       row   X1    X2    X3    X4    X5    X6    X7    X8    X9    X10   X11   X12  
+       <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr>
+     1 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+     2 A     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     3 B     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     4 C     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     5 D     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     6 E     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+     7 F     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+     8 G     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+     9 H     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+    10 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+    # ℹ 260 more rows
+
+``` r
+tibble_map_pmn |> write_csv("../raw_data/PMN_map_fromR_to_check.csv")
+```
+
+After a manual check that all plate maps are correct (it was, but if
+not, it is easy to move one or two cells in excel), we saved the file
+under a different name for re-import. It seems that the headers were not
+identified as such, so we filter out the first row.
+
+``` r
+PMN_map <- csv_to_tibble("raw_data/PMN/PMN_map_manually_checked.csv") |> 
+  filter_out(row == "row")
+PMN_abs <- txt_to_tibble("raw_data/PMN")
+```
+
+It appears that the plates are not in the same order between map and
+abs, but this should not be a problem. Check it out anyway:
+
+``` r
+PMN_map ; PMN_abs
+```
+
+    # A tibble: 270 × 13
+       row   X1    X2    X3    X4    X5    X6    X7    X8    X9    X10   X11   X12  
+       <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr>
+     1 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+     2 A     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     3 B     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     4 C     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     5 D     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  Fiel… Fiel… Fiel… Std  
+     6 E     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+     7 F     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+     8 G     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+     9 H     Std   Fiel… Fiel… Fiel… Fiel… Fiel… Fiel… extr  empty empty empty Std  
+    10 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+    # ℹ 260 more rows
+
+    # A tibble: 270 × 13
+       row   X1    X2    X3    X4    X5    X6    X7    X8    X9    X10   X11   X12  
+       <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr>
+     1 NH4_… 1     2     3     4     5     6     7     8     9     10    11    12   
+     2 A     0.039 0.041 0.040 0.040 0.040 0.041 0.041 0.041 0.041 0.041 0.042 0.038
+     3 B     0.043 0.040 0.040 0.040 0.039 0.041 0.040 0.042 0.041 0.042 0.042 0.043
+     4 C     0.047 0.040 0.040 0.040 0.039 0.041 0.040 0.041 0.046 0.041 0.042 0.049
+     5 D     0.060 0.040 0.040 0.040 0.039 0.040 0.039 0.040 0.043 0.041 0.041 0.056
+     6 E     0.066 0.043 0.042 0.043 0.042 0.041 0.041 0.040 0.042 0.039 0.038 0.066
+     7 F     0.075 0.042 0.042 0.043 0.042 0.041 0.041 0.041 0.042 0.039 0.041 0.075
+     8 G     0.116 0.042 0.042 0.043 0.041 0.041 0.041 0.041 0.042 0.039 0.039 0.104
+     9 H     0.139 0.043 0.044 0.042 0.041 0.042 0.041 0.041 0.042 0.039 0.039 0.131
+    10 NH4_… 1     2     3     4     5     6     7     8     9     10    11    12   
+    # ℹ 260 more rows
+
 # 2 - Verticalize plates
 
 Here, we transform data from plate format to “verticalized” format: 1
@@ -172,8 +274,11 @@ Nmin_t3_vertical <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
 # TDN
 TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
 
+# PMN
+PMN_vertical <- join_abs_map(PMN_abs, PMN_map, dataset = "PMN-")
+
 ## Check them out
-Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical
 ```
 
     # A tibble: 96 × 200
@@ -239,6 +344,27 @@ Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical
     #   `TDN-abs-NO3_TDN_12` <chr>, `TDN-abs-NO3_TDN_13` <chr>,
     #   `TDN-abs-NO3_TDN_14` <chr>, `TDN-abs-NO3_TDN_15` <chr>, …
 
+    # A tibble: 96 × 62
+       row   column `PMN-abs-NH4_PC1` `PMN-abs-NH4_PC2` `PMN-abs-NH4_PF1`
+       <chr> <chr>  <chr>             <chr>             <chr>            
+     1 A     1      0.039             0.039             0.039            
+     2 A     2      0.041             0.040             0.043            
+     3 A     3      0.040             0.044             0.043            
+     4 A     4      0.040             0.044             0.043            
+     5 A     5      0.040             0.041             0.043            
+     6 A     6      0.041             0.044             0.042            
+     7 A     7      0.041             0.044             0.044            
+     8 A     8      0.041             0.041             0.041            
+     9 A     9      0.041             0.043             0.043            
+    10 A     10     0.041             0.044             0.043            
+    # ℹ 86 more rows
+    # ℹ 57 more variables: `PMN-abs-NH4_PF2` <chr>, `PMN-abs-NH4_PF3` <chr>,
+    #   `PMN-abs-NH4_PF4` <chr>, `PMN-abs-NH4_PP1` <chr>, `PMN-abs-NH4_PP2` <chr>,
+    #   `PMN-abs-NH4_PP3` <chr>, `PMN-abs-NH4_PP4` <chr>, `PMN-abs-NO2_PC1` <chr>,
+    #   `PMN-abs-NO2_PC2` <chr>, `PMN-abs-NO2_PF1` <chr>, `PMN-abs-NO2_PF2` <chr>,
+    #   `PMN-abs-NO2_PF3` <chr>, `PMN-abs-NO2_PF4` <chr>, `PMN-abs-NO2_PP1` <chr>,
+    #   `PMN-abs-NO2_PP2` <chr>, `PMN-abs-NO2_PP3` <chr>, …
+
 Then, we use the `dplyr::left_join()` function to join all plate data in
 a single data table. Note the distinct column names with their dataset
 and abs/map-related prefixes
@@ -247,26 +373,30 @@ and abs/map-related prefixes
 # join all 3 in a single table with all "plate data"
 all_vertical <- Nmin_t1t2_vertical |> 
   left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
-  left_join(TDN_vertical, by = join_by(row, column))
+  left_join(TDN_vertical, by = join_by(row, column)) |> 
+  left_join(PMN_vertical, by = join_by(row, column)) 
 
 # look at the structure of variable names
-sample(names(all_vertical),size = 20)
+sample(names(all_vertical),size = 30)
 ```
 
-     [1] "Nmint1t2-abs-NH4_2F4_2" "Nmint1t2-map-NO3_2P6_2" "Nmint3-map-NO3_R6R7_2" 
-     [4] "Nmint1t2-abs-NO3_2F2_1" "Nmint1t2-map-NO3_2F3_2" "Nmint1t2-map-NH4_2P3"  
-     [7] "Nmint1t2-map-NH4_2F2_1" "TDN-abs-NO3_TDN_15"     "Nmint1t2-map-NO3_2P6_1"
-    [10] "TDN-abs-NO3_TDN_21"     "Nmint1t2-map-NO2_2F3_1" "Nmint1t2-map-NO3_1F3"  
-    [13] "TDN-map-NO2_TDN_06"     "Nmint1t2-map-NH4_1F1"   "Nmint1t2-abs-NO2_1F1"  
-    [16] "Nmint1t2-abs-NO2_2P7_1" "TDN-abs-NO3_TDN_04"     "Nmint3-map-NO3_R5R6_1" 
-    [19] "Nmint3-abs-NH4_R5R6_2"  "Nmint3-map-NH4_R2R3_1" 
+     [1] "Nmint1t2-abs-NO2_2F4_2" "Nmint1t2-map-NO2_2F6_2" "Nmint1t2-map-NH4_2P6_3"
+     [4] "Nmint3-map-NO2_R4R5_2"  "PMN-map-NO2_PF3"        "Nmint1t2-abs-NH4_2P6_1"
+     [7] "Nmint1t2-abs-NO2_2P6_3" "Nmint1t2-map-NO3_2F2_1" "Nmint1t2-abs-NO3_1G4"  
+    [10] "PMN-abs-NH4_PC2"        "TDN-map-NO3_TDN_18"     "TDN-map-NO3_TDN_11"    
+    [13] "Nmint1t2-map-NO3_2P6_2" "Nmint3-abs-NH4_R4R5_1"  "Nmint3-map-NH4_R5R6_1" 
+    [16] "PMN-map-NH4_PP2"        "Nmint3-abs-NH4_R2R3_2"  "TDN-map-NO3_TDN_07"    
+    [19] "Nmint3-abs-NH4_R6R7_1"  "Nmint1t2-map-NO2_2P1"   "PMN-abs-NH4_PP3"       
+    [22] "TDN-map-NO2_TDN_01"     "Nmint1t2-abs-NO3_2F6_2" "Nmint3-map-NO2_R7R8_2" 
+    [25] "Nmint1t2-map-NO2_1G1"   "TDN-abs-NO3_TDN_35"     "Nmint1t2-map-NH4_2P5"  
+    [28] "Nmint1t2-abs-NH4_2P6_2" "Nmint1t2-map-NO3_2F6_2" "TDN-map-NO2_TDN_14"    
 
 ``` r
 # check it out  
 all_vertical
 ```
 
-    # A tibble: 96 × 390
+    # A tibble: 96 × 450
        row   column `Nmint1t2-abs-NH4_1F1` `Nmint1t2-abs-NH4_1F2_1`
        <chr> <chr>  <chr>                  <chr>                   
      1 A     1      0.039                  0.039                   
@@ -280,7 +410,7 @@ all_vertical
      9 A     9      0.043                  0.042                   
     10 A     10     0.042                  0.041                   
     # ℹ 86 more rows
-    # ℹ 386 more variables: `Nmint1t2-abs-NH4_1F2_2` <chr>,
+    # ℹ 446 more variables: `Nmint1t2-abs-NH4_1F2_2` <chr>,
     #   `Nmint1t2-abs-NH4_1F3` <chr>, `Nmint1t2-abs-NH4_1F4` <chr>,
     #   `Nmint1t2-abs-NH4_1F5` <chr>, `Nmint1t2-abs-NH4_1G1` <chr>,
     #   `Nmint1t2-abs-NH4_1G2` <chr>, `Nmint1t2-abs-NH4_1G3` <chr>,
@@ -303,7 +433,7 @@ column called `unique_well_id`.
 (all_raw_abs_tidy <- vertical_to_tidy(all_vertical))
 ```
 
-    # A tibble: 18,624 × 8
+    # A tibble: 21,504 × 8
        row   column well_id unique_well_id dataset  plate_id  map   abs  
        <chr> <chr>  <chr>   <chr>          <chr>    <chr>     <chr> <chr>
      1 A     1      A1      A1_NH4_1F1     Nmint1t2 NH4_1F1   Std   0.039
@@ -316,7 +446,7 @@ column called `unique_well_id`.
      8 A     1      A1      A1_NH4_1G2     Nmint1t2 NH4_1G2   Std   0.039
      9 A     1      A1      A1_NH4_1G3     Nmint1t2 NH4_1G3   Std   0.038
     10 A     1      A1      A1_NH4_1G4     Nmint1t2 NH4_1G4   Std   0.038
-    # ℹ 18,614 more rows
+    # ℹ 21,494 more rows
 
 # 4 - Add plate metadata
 
@@ -388,6 +518,9 @@ TDN_metadata <- read_csv(
   ) |> 
   mutate(std_column = as.character(std_column)) |> 
   mutate(dataset = "TDN")
+
+PMN_metadata <- read_csv("raw_data/PMN/PMN_metadata.csv", show_col_types = FALSE) |> 
+  mutate(dataset = "PMN")
 ```
 
 Then we join them in one big metadata file. ! this only works because
@@ -396,10 +529,10 @@ in the same order, containing the same data type (string, numeric, …)).
 
 ``` r
 # join csv's
-(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata))
+(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata))
 ```
 
-    # A tibble: 194 × 18
+    # A tibble: 224 × 18
        plate_id  date  time  sampling_time std_column std_sp std_unit    std_prep
        <chr>     <chr> <lgl> <chr>         <chr>      <chr>  <chr>       <chr>   
      1 NH4_1F1   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
@@ -412,7 +545,7 @@ in the same order, containing the same data type (string, numeric, …)).
      8 NH4_1G2   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
      9 NH4_1G3   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
     10 NH4_1G4   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
-    # ℹ 184 more rows
+    # ℹ 214 more rows
     # ℹ 10 more variables: std_conc <chr>, sample_dilution <chr>,
     #   extractant_column <dbl>, extractant_sp <chr>, extractant_unit <chr>,
     #   extractant_conc <dbl>, empty_column <chr>, wait_min <chr>, dataset <chr>,
