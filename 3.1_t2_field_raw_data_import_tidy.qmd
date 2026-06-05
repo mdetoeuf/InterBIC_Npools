@@ -97,6 +97,8 @@ raw_field_t2_lab
 
 Unfortunately, WC was not computed separately, but can only be derived from the WHC manip.
 
+! Although WC was computed per bloc (4 blocs per soil), PMN was done on a pooled sample from the 4 blocs. So we compute here only one mean value of wc per soil, that is the mean of the 4 blocs.
+
 ```{r}
 pmn_wc <- raw_data_field |> 
   select(biol_unit_nb, expe, soil, bloc, sampling_time, starts_with("whc")) |> 
@@ -109,7 +111,7 @@ pmn_wc <- raw_data_field |>
     .keep = "unused",
     .after = sampling_time
   ) |> 
-  group_by(biol_unit_nb, soil, bloc) |> 
+  group_by(soil) |> 
   summarize(
     dm = mean(dm),
     wc = mean(wc)
@@ -293,6 +295,12 @@ field_TDN_clean
 
 # 2 - Tidy data: per-sample outlier removal
 
+::: callout-note
+## Not all graphs are displayed
+
+Many graphs are created to do this analysis. There is quite some computing needed to display each graph, so I set as "comment" those that are part of the iterative process of outlier removal, and only display "satisfying" graphs
+:::
+
 ## 2.1 - Nmin
 
 So we will compute the per-sample average, for the field dataset. But first, let's have a look at the distribution of concentrations before taking the average: are there clear outliers?
@@ -311,7 +319,7 @@ ridges_no3 <- raw_field_t2_Nmin |>
   plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
   facet_wrap(~soil, ncol = 3) + labs(title = "NO3")
 
-boxplot_no3 + ridges_no3
+#boxplot_no3 + ridges_no3
 ```
 
 Those are obvious outliers (wave really bimodal, outlier point clear)
@@ -359,7 +367,7 @@ ridges_nh4 <- Nmin_wash1 |>
   plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
   facet_wrap(~soil, ncol = 3) + labs(title = "NH4")
 
-boxplot_nh4 + ridges_nh4
+#boxplot_nh4 + ridges_nh4
 ```
 
 Here are those where I would remove
@@ -419,7 +427,7 @@ ridges_no2 <- Nmin_wash2 |>
   plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
   facet_wrap(~soil, ncol = 3) + labs(title = "NO2")
 
-boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
+#boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
 ```
 
 - 86_t2_z3: H4
@@ -490,7 +498,7 @@ ridges_pmn_no3 <- raw_field_PMN |>
   plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
   facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3")
 
-boxplot_pmn_no3 + ridges_pmn_no3 
+#boxplot_pmn_no3 + ridges_pmn_no3 
 ```
 
 - Field_Ref_i3_rt2: E2
@@ -552,7 +560,7 @@ ridges_pmn_nh4 <- PMN_wash1 |>
   facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4")
 
 
-boxplot_pmn_nh4 + ridges_pmn_nh4 
+#boxplot_pmn_nh4 + ridges_pmn_nh4 
 ```
 
 - Field_Auto_i0_rt3: B3
@@ -600,7 +608,7 @@ ridges_pmn_no2 <- PMN_wash2 |>
   facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2")
 
 
-boxplot_pmn_no2 + ridges_pmn_no2 
+#boxplot_pmn_no2 + ridges_pmn_no2 
 ```
 
 Possibly masking other outliers, so maybe a second round is needed
@@ -628,7 +636,7 @@ ridges_pmn_no2 <- PMN_wash3 |>
   facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2")
 
 
-boxplot_pmn_no2 + ridges_pmn_no2 
+#boxplot_pmn_no2 + ridges_pmn_no2 
 ```
 
 - Field_Ref_i4_rt3: H5
@@ -675,26 +683,114 @@ field_t2_PMN_clean <- PMN_wash4
 
 ## 2.4 - TDN
 
+Tiny correction to the dataframe to help readibility of graphs
+
+```{r}
+tdn_simpler <- field_TDN_clean |> 
+  filter(dilution == "2x", std_sp == "NO3") |> 
+  mutate(sample = paste0(biol_unit_nb, "_", zone))
+```
+
 ### 2.4.1 - NO3
 
 ```{r}
-boxplot_tdn_no3 <- field_TDN_clean |> 
-  filter(biol_unit_nb != 112, std_sp == "NO3") |> 
-  boxplot_conc(x = "zone") + labs(title = "NO3") + 
+boxplot_tdn_no3 <- tdn_simpler |> 
+  filter(biol_unit_nb != 112) |> 
+  boxplot_conc(x = "sample", colour = "zone") + labs(title = "NO3") + 
   theme(axis.text.x = element_text(angle = 90)) +
-  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free")
 
-ridges_tdn_no3 <- field_TDN_clean |> 
-  filter(biol_unit_nb != 112, std_sp == "NO3") |>  # exclude sand and conv soil std
-  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
-  facet_wrap(~soil, ncol = 3) + labs(title = "NO3")
+ridges_tdn_no3 <- tdn_simpler |> 
+  filter(biol_unit_nb != 112) |> 
+  plot_ridges_conc(y = "sample",colour = "zone", groups = "map") + 
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free") + labs(title = "NO3")
+
+#boxplot_tdn_no3 + ridges_tdn_no3 + plot_layout(guides = "collect")
+```
+
+- 95_t2_z2_CFE.2x: D11,
+
+- 100_t2_z1_CFE.2x: C5
+
+- 83_t2_z2_CFE.2x: C10
+
+- 82_t2_z3_CFE.2x: C5
+
+- 96_t2_z3_NF.2x: C10
+
+- 94_t2_z3_NF.2x: B4
+
+- 90_t2_z3_NF.2x: D2
+
+- 99_t2_z2_NF.2x: D2
+
+- 86_t2_z3_NF.2x: B7
+
+- 82_t2_z1_NF.2x: B4
+
+```{r}
+to_remove <- tdn_simpler |> 
+  filter((std_sp == "NO3") &(
+    (map == "95_t2_z2_CFE.2x" & well_id == "D11") | 
+      (map == "100_t2_z1_CFE.2x" & well_id == "C5") | 
+      (map == "83_t2_z2_CFE.2x" & well_id == "C10") | 
+      (map == "82_t2_z3_CFE.2x" & well_id == "C5") | 
+      (map == "96_t2_z3_NF.2x" & well_id == "C10") | 
+      (map == "94_t2_z3_NF.2x" & well_id == "B4") | 
+      (map == "90_t2_z3_NF.2x" & well_id == "D2") | 
+      (map == "99_t2_z2_NF.2x" & well_id == "D2") | 
+      (map == "86_t2_z3_NF.2x" & well_id == "B7") | 
+      (map == "82_t2_z1_NF.2x" & well_id == "B4")))
+
+TDN_wash1 <- tdn_simpler |> remove_wells(to_remove)
+
+boxplot_tdn_no3_outlierfree <- TDN_wash1 |> 
+  filter(biol_unit_nb != 112) |> 
+  boxplot_conc(x = "sample", colour = "zone") + labs(title = "NO3, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free")
+
+ridges_tdn_no3_outlierfree <- TDN_wash1 |> 
+  filter(biol_unit_nb != 112) |> 
+  plot_ridges_conc(y = "sample",colour = "zone", groups = "map") + 
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free") + labs(title = "NO3, outliers removed")
+
+boxplot_tdn_no3 + boxplot_tdn_no3_outlierfree + plot_layout(guides = "collect")
+ridges_tdn_no3 + ridges_tdn_no3_outlierfree + plot_layout(guides = "collect")
 ```
 
 ### 2.4.2 - NO2
 
+We skip this for now as I don't think that NO2 is relevant!
+
+### 2.4.3 - Standard soil
+
+```{r}
+boxplot_tdn_std <- TDN_wash1 |> 
+  filter(biol_unit_nb == 112) |> 
+  boxplot_conc(x = "sample") + labs(title = "Standard soil") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~fumigation, scales = "free")
+
+ridges_tdn_std <- TDN_wash1 |> 
+  filter(biol_unit_nb == 112) |> 
+  plot_ridges_conc(y = "sample",colour = "zone", groups = "map") + 
+  facet_wrap(~fumigation, ncol = 3, scales = "free") + labs(title = "Standard soil")
+
+boxplot_tdn_std + ridges_tdn_std + plot_layout(guides = "collect")
+```
+
+All good.
+
 ### 2.4.3 - All outliers removed TDN
 
-## 2.5 - PNR
+Save the new data
+
+```{r}
+Field_t2_TDN_clean <- TDN_wash1
+```
+
+## 2.5 - PNR - TO DO
 
 ### 2.5.1 - NO3
 
@@ -702,56 +798,62 @@ ridges_tdn_no3 <- field_TDN_clean |>
 
 ### 2.5.3 - All outliers removed PNR
 
-# °°° !!! FROM HERE: STILL GREENHOUSE CODE !!! °°°
-
 # 3 - Per-sample mean
 
 ## 3.1 - Nmin
 
 ```{r}
-conc_mean_Nmin <- greenhouse_t2_Nmin_clean |> 
-  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
-  group_by(plate_id, map, biol_unit_nb, std_sp) |> 
+conc_mean_Nmin <- Field_t2_Nmin_clean |> 
+  select(map, plate_id, biol_unit_nb, zone, std_sp, conc_mgN_L) |> 
+  group_by(plate_id, map, biol_unit_nb, zone, std_sp) |> 
   summarise(
     mean = mean(conc_mgN_L),
     st_dev = sd(conc_mgN_L)) |> 
   mutate(coef_var = 100*st_dev / mean) |> 
-  rename(conc_mgN_L = mean)
+  rename(conc_mgN_L = mean) |> ungroup()
 
+#biggest coef var quite high
+conc_mean_Nmin |> arrange(desc(coef_var))
+
+# but not too bad when look only at NO3
 conc_mean_Nmin |> arrange(desc(std_sp), desc(coef_var))
 
 conc_mean_Nmin |> filter(coef_var > 10) |> 
-  ggplot(aes(x = coef_var)) + geom_histogram()
+  ggplot(aes(x = coef_var)) + geom_histogram() + facet_wrap(~std_sp, ncol = 1)
 ```
 
-We still have quite a few samples with a high between-wells coefficient of variation. But with only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
+We still have quite a few samples with a high between-wells coefficient of variation, but mostly with NO2 and NH4 (very low values). With only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
 
 Now, finally, we re-join this mean value to the rest of the relevant information from the absorbance dataset
 
 ```{r}
 conc_Nmin_export_ready <- conc_mean_Nmin |> 
+  select(!st_dev:coef_var) |> 
   inner_join(
-    raw_greenhouse_t2_Nmin |> 
-      select(!c(well_id:abs_corrected, starts_with("conc"))) |> 
+    raw_field_t2_Nmin |> 
+      select(!c(well_id:abs_corrected, starts_with("conc"), slope:lm_p, target_sp)) |> 
       unique())
 ```
 
 ## 3.2 - PMN
 
 ```{r}
-conc_mean_PMN <- greenhouse_t2_PMN_clean |> 
+conc_mean_PMN <- field_t2_PMN_clean |> 
   select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
   group_by(map, biol_unit_nb, std_sp) |> 
   summarise(
     mean = mean(conc_mgN_L),
     st_dev = sd(conc_mgN_L)) |> 
-  mutate(coef_var = 100*st_dev / mean) |> 
+  mutate(
+    coef_var = 100*st_dev / mean,
+    soil = str_extract(biol_unit_nb, "_(\\w*)", group = 1)) |> 
   rename(conc_mgN_L = mean)
 
 conc_mean_PMN |> arrange(desc(std_sp), desc(coef_var))
+field_t2_PMN_clean |> filter(map == "Field_ABC_i1_rt4", std_sp == "NO3")
 
 conc_mean_PMN |> filter(coef_var > 10) |> 
-  ggplot(aes(x = coef_var)) + geom_histogram()
+  ggplot(aes(x = coef_var)) + geom_histogram() + xlim(0,100)
 ```
 
 Same here, there are still quite a few samples with a high coefficient of variation, but with only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
@@ -759,17 +861,55 @@ Same here, there are still quite a few samples with a high coefficient of variat
 Now, we can add the data on wc to get a full dataset
 
 ```{r}
-conc_PMN_export_ready <- conc_mean_PMN |> left_join(pmn_wc)
+conc_PMN_export_ready <- conc_mean_PMN |> 
+  # get dm and wc
+  left_join(pmn_wc) |> 
+  # get important categorical variables
+  left_join(
+    field_t2_PMN_clean |> 
+      select(map, dataset, expe, incubation_time, tech_rep, sampling_time) |> 
+      unique())
 ```
 
 ## 3.3 - TDN
+
+```{r}
+conc_mean_TDN <- Field_t2_TDN_clean |> 
+  select(map, biol_unit_nb, std_sp, conc_mgN_L, fumigation) |> 
+  group_by(std_sp, fumigation, biol_unit_nb, map) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(
+    coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+
+conc_mean_TDN |> arrange(desc(std_sp), desc(coef_var))
+conc_mean_TDN |> arrange(desc(coef_var))
+
+
+conc_mean_TDN |> 
+  ggplot(aes(x = coef_var)) + geom_histogram() 
+```
+
+For once, it's looking pretty good!
+
+```{r}
+conc_TDN_export_ready <- conc_mean_TDN |> 
+  # get relevant categorical data
+  left_join(
+    Field_t2_TDN_clean |> 
+      select(map, dataset, sampling_time, zone, fumigation, dilution) |> 
+      unique())
+```
 
 ## 3.4 - PNR
 
 # 4 - Export
 
 ```{r}
-raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
-conc_Nmin_export_ready |> write_rds("output/data/3_greenhouse_t2_Nmin_clean.rds")
-conc_PMN_export_ready |> write_rds("output/data/3_greenhouse_PMN_clean.rds")
+raw_field_t2_lab |> write_rds("output/data/3_field_t2_raw_lab.rds")
+conc_Nmin_export_ready |> write_rds("output/data/3_field_t2_Nmin_clean.rds")
+conc_PMN_export_ready |> write_rds("output/data/3_field_PMN_clean.rds")
+conc_TDN_export_ready |> write_rds("output/data/3_field_TDN_clean.rds")
 ```
