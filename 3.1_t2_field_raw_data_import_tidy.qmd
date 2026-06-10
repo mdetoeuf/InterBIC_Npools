@@ -23,11 +23,7 @@ output: true
 
 - Import MicroResp
 - Import PNR
-- (PMN)
-- TDN
-- Nmin t2
 - Nmin t3?
-- yield CRA
 - soil CRA
 - 
 
@@ -292,6 +288,96 @@ field_TDN_clean
 ```
 
 ### 1.3.4 - TO DO: PNR
+
+## 1.4 - Data from the CRA-W
+
+### 1.4.1 - Yield data
+
+In the row data, there is a column under the headers containing units. So we skip this in the import, re-adding column names
+
+```{r}
+colnames <- read_csv("../raw_data/SYCBIO_Froment-feverole_2024_MDeToeuf.csv",n_max = 0) |> clean_names() |> names()
+yield_raw <- read_csv(
+  "../raw_data/SYCBIO_Froment-feverole_2024_MDeToeuf.csv", skip = 2, col_names = colnames, show_col_types = FALSE)
+```
+
+Now we tidy this data set:
+
+- rename –\> translate headers + add unit
+
+- Remove empty rows (missing IC samples in Ref soil)
+
+- Recompute (check) computed values
+
+  - For yield: from kg / plot to t/ha :
+
+    - /1000 : kg –\> t
+
+    - X 10000 : m2 –\> ha (in denominator)
+
+    - /(10 X plot_width) : nb of square meters per plot (width x 10m of harvesting)
+
+- (then keep only recomputed ones, remove original raw)
+
+```{r}
+yield_full <- yield_raw |> 
+  rename(
+    year = annee,
+    crop = culture,
+    biol_unit_nb = code_placeau,
+    harvest_date = date_de_recolte,
+    yield_per_plot = rdt_brut_parcelle,
+    harvester_width_m = largeur_de_mesure,
+    water_content_1_percent = humidite_1,
+    water_content_2_percent = humidite_2,
+    test_weight_1_kg_per_hl = ps_1,
+    test_weight_2_kg_per_hl = ps_2,
+    protein_percent_dw = mpt_nx5_7
+  ) |> 
+  filter_out(is.na(yield_per_plot)) |> 
+  rowwise() |> 
+  mutate(
+    soil = case_when(sd_c == 3 ~ "ABC", sd_c == 2 ~ "Auto", sd_c == 1 ~ "Ref", .default = "which_soil?" ),
+    crop = case_when(crop == "Froment" ~ "Wheat", crop == "Féverole" ~ "Faba bean", .default = "which crop?"),
+    test_weight_kg_per_hl = mean(c(test_weight_1_kg_per_hl, test_weight_2_kg_per_hl), na.rm = TRUE),
+    water_content_percent = mean(c(water_content_1_percent, water_content_2_percent), na.rm = TRUE),
+    grain_yield_t_per_ha = yield_per_plot/harvester_width_m,
+    grain_yield_15p_t_per_ha = grain_yield_t_per_ha * (100 - water_content_percent) / 85) 
+
+# Check computed values
+
+```
+
+Then check re-computed values: all rounding errors. Still, prefer to compute it here
+
+```{r}
+# Water content
+sum(yield_full$hum_moy != yield_full$water_content_percent)
+yield_full |> filter(hum_moy != water_content_percent) |> select(biol_unit_nb, hum_moy, water_content_percent)
+
+# test weight
+sum(yield_full$ps_moy != yield_full$test_weight_kg_per_hl)
+yield_full |> filter(ps_moy != test_weight_kg_per_hl) |> select(biol_unit_nb, ps_moy, test_weight_kg_per_hl)
+
+# yield in tons per ha
+sum(yield_full$rdt_brut_ha != yield_full$grain_yield_t_per_ha)
+yield_full |> filter(rdt_brut_ha != grain_yield_t_per_ha) |> select(biol_unit_nb, rdt_brut_ha, grain_yield_t_per_ha)
+
+#yield 15% humidity
+sum(yield_full$rdt_15_percent_ha != yield_full$grain_yield_15p_t_per_ha)
+yield_full |> filter(rdt_15_percent_ha != grain_yield_15p_t_per_ha) |> select(biol_unit_nb, rdt_15_percent_ha, grain_yield_15p_t_per_ha)
+
+```
+
+Now, keep only useful columns
+
+```{r}
+yield_tidy <- yield_full |> 
+  select(
+    year, crop, soil, biol_unit_nb, harvest_date, 
+    grain_yield_15p_t_per_ha, protein_percent_dw,
+    grain_yield_t_per_ha, water_content_percent, test_weight_kg_per_hl)
+```
 
 # 2 - Tidy data: per-sample outlier removal
 
@@ -912,4 +998,5 @@ raw_field_t2_lab |> write_rds("output/data/3_field_t2_raw_lab.rds")
 conc_Nmin_export_ready |> write_rds("output/data/3_field_t2_Nmin_clean.rds")
 conc_PMN_export_ready |> write_rds("output/data/3_field_PMN_clean.rds")
 conc_TDN_export_ready |> write_rds("output/data/3_field_TDN_clean.rds")
+yield_tidy |> write_rds("output/data/3_field_yield_clean.rds")
 ```

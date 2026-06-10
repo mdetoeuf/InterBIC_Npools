@@ -11,5 +11,7 @@ raw_data/Nmin_t3/
 raw_data/PMN/
 raw_data/PNR/
 raw_data/TDN/
+raw_data/test_Elsa.rds
+user_scripts/
 output/
 .positai
