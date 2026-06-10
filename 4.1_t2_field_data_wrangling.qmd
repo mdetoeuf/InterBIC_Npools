@@ -21,8 +21,6 @@ output: true
 
 # TO DO
 
-# °°° !! STILL ALL FROM GREENHOUSE; TO BE ADAPTED !! °°°
-
 Move the PMN curve to script nb 5 !
 
 Deal with standard soils.
@@ -50,43 +48,33 @@ lab <- read_rds("output/data/3_field_t2_raw_lab.rds")
 Nmin <- read_rds("output/data/3_field_t2_Nmin_clean.rds") 
 PMN <- read_rds("output/data/3_field_PMN_clean.rds")
 TDN <- read_rds("output/data/3_field_TDN_clean.rds")
-#PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
+yield <- read_rds("output/data/3_field_yield_clean.rds")
+PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
 #lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
 # 1 - Subset data
 
-## 1.1 - Yield data
+## 1.1 - Flush data (from K2SO4 extraction)
 
 ```{r}
-yield_data <- lab |> 
-  select(biol_unit_nb:sampling_time, starts_with("yd")) 
+raw_flush <- lab |> select(!starts_with(c("yd", "whc", "rt")) & !run_id_mr)
 ```
 
-## 1.2 - Flush data (from K2SO4 extraction)
-
-```{r}
-raw_flush <- lab |> 
-  select(
-    !starts_with(c("yd", "whc")) &
-      !cra_trial:sd_c)
-```
-
-## 1.3 - Nmin data (from absorbance pipeline)
+## 1.2 - Nmin data (from absorbance pipeline)
 
 ```{r}
 
-Nmin_sample <- Nmin |> filter(biol_unit_nb < 100)
-Nmin_std <- Nmin |> filter_out(biol_unit_nb < 100)
+Nmin_sample <- Nmin |> filter(biol_unit_nb < 112)
+Nmin_std <- Nmin |> filter_out(biol_unit_nb < 112)
 ```
 
-## 1.4 - PMN data (from absorbance pipeline)
+## 1.3 - fw for PMN
 
 The PMN data is missing 1 key information: weight of fresh soil in the sub-sample that undergoes the KCl extraction.
 
 ```{r}
-
-PMN_fw_greenhouse <- PMN_fw |> filter_out(expe == "Field")
+PMN_fw_field <- PMN_fw |> filter(expe == "Field")
 ```
 
 # 2 - Compute new variables
@@ -197,8 +185,8 @@ flush_clean
 Now, we divide the data in 2 subsets: sample data and standard soil data (several reps, messes up the analysis (for now))
 
 ```{r}
-flush_sample <- flush_clean |> filter(biol_unit_nb < 100)
-flush_std <- flush_clean |> filter_out(biol_unit_nb < 100)
+flush_sample <- flush_clean |> filter(biol_unit_nb < 112)
+flush_std <- flush_clean |> filter_out(biol_unit_nb < 112)
 ```
 
 ## 2.2 - Nmin concentrations in ppm (t2 samples)
@@ -212,20 +200,18 @@ First, we
 - do some data housecleaning
 
 ```{r}
-Nmin_sample |> arrange(biol_unit_nb) 
+Nmin_sample |> arrange(biol_unit_nb, zone) 
 
 Nmin_ppm_sample <- Nmin_sample |> 
   # join both data tables
   left_join(flush_sample) |> 
   # compute concentration in ppm
   mutate(conc_ppm = conc_mgN_L / (ratio_nf * dm)) |> 
-  # remove again the bare soils
-  filter_out(is.na(sample_short)) |> 
   # select relevant columns
   select(!c(
     #dataset, 
     expe, 
-    target_sp:lm_p, 
+    std_unit, 
     starts_with("sampl"), starts_with("ratio"),
     map, plate_id, conc_mgN_L)) |> 
   arrange(biol_unit_nb)
@@ -238,8 +224,6 @@ Now, we pivot the data so that each N-sp receives its own column
 
 ```{r}
 Nmin_ppm_wider <- Nmin_ppm_sample |>
-  ungroup() |>  
-  select(!c(plate_id, map, st_dev, coef_var)) |> 
   pivot_wider(
     names_from = std_sp,
     values_from = conc_ppm,
@@ -275,19 +259,15 @@ Nmin_all_variables <- Nmin_ppm_wider |>
 Here, we
 
 - join PMN_fw (data set containing fresh weight of the subsample that underwent the incubation) with the absorbance derived concentration data in mg N / L
-
-<!-- -->
-
 - compute the ratio between weight of fresh soil and volume of extractant (150ml) –\> \~30g/150ml
-
 - Derive the concentration in ppm from mg N/L, ratio and dry matter
 
 ```{r}
 volume_kcl <- 150
 PMN_ppm <- PMN |> 
-  left_join(PMN_fw_greenhouse) |> 
+  left_join(PMN_fw_field) |> 
   mutate(
-    ratio = fw / 150,
+    ratio = fw / volume_kcl,
     conc_ppm = conc_mgN_L / (ratio * dm)
   )
 ```
@@ -300,12 +280,16 @@ PMN_wider <- PMN_ppm |>
   names_from = std_sp,
   names_prefix = "ppm_",
   values_from = conc_ppm,
-  id_cols = c(map, biol_unit_nb, soil, dm, wc, expe, incub_time, rep_tech, fw, ratio)
+  id_cols = c(map, biol_unit_nb, soil, dm, wc, expe, incub_time, tech_rep, fw, ratio)
 ) |> 
   rename(ppm_NO3_uncorrected = ppm_NO3)
 ```
 
 Then, we can do the NO3 correction and other computation of variables
+
+# °°° !! FROM HERE: STILL ALL FROM GREENHOUSE; TO BE ADAPTED !! °°°
+
+!!! CHANGE DATES to correct ones!!!
 
 ```{r}
 dates <- c("2023-12-5", "2023-12-12", "2023-12-17", "2023-12-26", "2024-01-02") |> as.Date()
@@ -320,7 +304,7 @@ PMN_all_variables <- PMN_wider |>
     NH4_Nmin = ppm_NH4 / ppm_Nmin,
     NO3_NH4 = ppm_NO3 / ppm_NH4,
     incub_day = incub_days[incub_time],
-    soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC"))
+    soil = factor(soil, levels = c("Ref", "Auto", "ABC"))
   ) |> 
   # remove uncorrected NO3
   select(!ppm_NO3_uncorrected) 
@@ -417,70 +401,6 @@ PMN_plot_all_annotated + facet_wrap(~soil)
 
 ### 2.3.1 - Human error check
 
-First, we compute the number of plants of each species in each pot
-
-```{r}
-nb_plant <- yield_data |> 
-  rowwise() |> 
-  relocate(starts_with(c("yd_rs_f_h", "yd_rs_f_s", "yd_rs_w_h", "yd_rs_w_ti"))) |> 
-  mutate(
-    # compute nb of plants of each sp
-    nb_fb = case_when(
-      !is.na(yd_rs_f_stem1) & !is.na(yd_rs_f_stem2) ~ 2,
-      !is.na(yd_rs_f_stem1) & is.na(yd_rs_f_stem2) ~ 1
-    ),
-    nb_w = case_when(
-      !is.na(yd_rs_w_till1) & !is.na(yd_rs_w_till2) ~ 2,
-      !is.na(yd_rs_w_till1) & is.na(yd_rs_w_till2) ~ 1
-    ))
-```
-
-First, we check the comments written during experimentation
-
-```{r}
-nb_plant |> 
-  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
-  filter(!is.na(yd_rs_comment)) |> print(width = 110)
-```
-
-And we correct the data accordingly
-
-- pot #14: change nb of wheat plants to 1
-
-- pot #19: on n'en fait rien de cette info...?
-
-- Pot #27: Changer IC en W pour cs, et IC en SC pour crop_diversity
-
-- Pot #30: on ne fait rien de cette info, mais si nb est outlier, on sait pourquoi...
-
-- Pot #55: changer IC en F (cs) et en SC (crop_diversity)
-
-```{r}
-nb_plant_clean <- nb_plant |> 
-  mutate(
-    nb_w = case_when(biol_unit_nb == 14 ~ 1, .default = nb_w),
-    cs = case_when(
-      biol_unit_nb == 27 ~ "W",
-      biol_unit_nb == 55 ~ "F",
-      .default = cs
-    ),
-    crop_diversity = case_when(
-      biol_unit_nb %in% c(27, 55) ~ "SC",
-      .default = crop_diversity
-    )
-  )
-```
-
-Check the modifications
-
-```{r}
-nb_plant_clean |> 
-  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
-  filter(!is.na(yd_rs_comment)) |> print(width = 110)
-```
-
-All good.
-
 ### 2.3.2 - Compute per plant clean yield data
 
 Compute per plant versions of weight, plant height and stem/till number
@@ -533,6 +453,6 @@ data_to_export <- Nmin_all_variables |> left_join(yield_clean)
 We don't export PMN data for now, as it seems like a dead-end..
 
 ```{r}
-data_to_export |> write_rds("output/data/4_t2_greenhouse_transformed.rds")
+data_to_export |> write_rds("output/data/4.1_t2_field_transformed.rds")
 
 ```
