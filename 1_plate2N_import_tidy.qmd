@@ -39,6 +39,8 @@ All object names ending with "abs" contain absorbance data, all object names end
 
 Here we import all our datasets, with various functions from the package `plate2N`. The output is displayed each time a new function is used.
 
+## 1.1 - Nmin, TDN
+
 ```{r}
 # Nmin for t1 and t2
 (Nmin_t1t2_abs <- txt_to_tibble("raw_data/Nmin/"))
@@ -68,6 +70,8 @@ TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 
 The previous chunk (absorbance and plate map data) demonstrates the usage of the Skanit format version of the import, but the rest of this pipeline does not require the Skanit data, so it is no longer used passed this import step. However, the output format should, in theory, be strictly identical to other format options, so that the object `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or `Nmin_abs`. Please reach out if you encounter any difficulty.
 :::
+
+## 1.2 - PMN
 
 For PMN, import will be similar, but we generate the plate map from a list of samples
 
@@ -101,6 +105,122 @@ It appears that the plates are not in the same order between map and abs, but th
 
 ```{r}
 PMN_map ; PMN_abs
+```
+
+## 1.3 - PNR
+
+For the slurry test, aw also generate the plate map from a list of samples. First, import it and extract relevant info
+
+```{r}
+soil_sample_list <- read_csv("raw_data/PNR/PNR_sample_list.csv", show_col_types = FALSE) |> 
+  mutate(
+    zone = str_extract(samples, ".*_(\\w\\d)$", group = 1),
+    biol_unit_nb = str_extract(samples, "(\\w*)_(\\w*)", group = 1),
+    biol_unit_nb = as.double(case_when(biol_unit_nb == "Std_soil" ~ "210", .default = biol_unit_nb)),
+    batch = rep(paste0("R", seq(1:8)),10) |> sort()
+  ) 
+
+# check it out
+soil_sample_list
+```
+
+Now we only have once every sample. We need to duplicate them for each incubation time: T0, T2, T4, T6, T24, T26 and 1x for ctrl, then pivot it into 1 long list, and attribute to each slurry sample its extractant identifier
+
+```{r}
+slurry_samples <- soil_sample_list |> 
+  mutate(
+    T0 = paste0(soil_sample_list$samples, "_T0"),
+    T6 = paste0(soil_sample_list$samples, "_T6"),
+    T2 = paste0(soil_sample_list$samples, "_T2"),
+    T24 = paste0(soil_sample_list$samples, "_T24"),
+    T4 = paste0(soil_sample_list$samples, "_T4"),
+    T26 = paste0(soil_sample_list$samples, "_T26"),
+    ctrl = paste0(soil_sample_list$samples, "_ctrl")
+  ) |> 
+  pivot_longer(cols = T0:ctrl, names_to = "incubation",values_to = "slurry_sample") |> 
+  mutate(
+    extr_id = rep(c(rep("extr_pnr",6), "extr_ctrl"), 80)) 
+
+# check it out
+slurry_samples
+```
+
+Then we create a table with "fake samples" = blank controls (will take the spot of 2 samples in the plate mapping, but will later be handled as extractant).
+
+```{r}
+blank_ctrl <- slurry_samples |> 
+  select(batch) |> 
+  unique() |> 
+  mutate(slurry_sample = "blank_ctrl", reshuffle = 11)
+
+```
+
+We extract only "control" slurry samples (those that got the negative control buffer, and did not undergo the incubation, add the "fake samples" (blanks for control) then reorder them to fit the plate mapping.
+
+```{r}
+ctrl <- slurry_samples |> 
+  filter(incubation == "ctrl") |> 
+  mutate(
+    reshuffle = rep(c(seq(1,9,2),seq(2,10,2)),8),
+    col_to_order = "end"
+  ) |> 
+  bind_rows(blank_ctrl) |> bind_rows(blank_ctrl) |> 
+  arrange(batch,reshuffle) 
+```
+
+Then we extract only the samples that received ammonium (the complement to the negative controls) and format the table to fit the one of the negative controls
+
+```{r}
+nh4 <- slurry_samples |> 
+  filter(incubation != "ctrl") |> 
+  mutate(col_to_order = "begin", reshuffle = 0)
+```
+
+Finally, we reassemble all subsets: real, incubated samples with negative control (including the "fake sample" bkanks)
+
+```{r}
+map_list <- nh4 |> 
+  bind_rows(ctrl) |> 
+  arrange(batch,reshuffle) |> 
+  mutate(
+    plate_nb_per_batch = rep(sort(rep(1:4, 18)), 8),
+    plate_id_generic = paste0("PNR_", batch, "_", plate_nb_per_batch),
+    plate_id_NO2 = paste0("NO2_", plate_id_generic),
+    plate_id_NO3 = paste0("NO3_", plate_id_generic))
+
+# check it out
+map_list
+```
+
+Now, we can finally construct the plate mapping
+
+```{r}
+samples <- map_list$samples
+plate_ids <- map_list$plate_id_generic |> unique()
+plate_ids_NO2 <- map_list$plate_id_NO2 |> unique()
+plate_ids_NO3 <- map_list$plate_id_NO3 |> unique()
+
+ 
+
+n_samples_per_plate <- length(samples) / length(plate_ids)
+
+tibble_map_pnr <- map_plates(
+  samples = rep(samples,2), 
+  n_samples_per_plate, 
+  plate_ids = c(
+    paste0("NO3_",plate_ids), 
+    paste0("NO2_",plate_ids)), 
+  column_curves = c(1,12), 
+  column_blank = 2, rename_na = "extr_ctrl")
+
+#check it out
+tibble_map_pnr
+```
+
+Only for double-checking: export it to csv for easier reading
+
+```{r}
+tibble_map_pnr |> write_csv("../raw_data/PNR_map_fromR_to_check.csv")
 ```
 
 # 2 - Verticalize plates
