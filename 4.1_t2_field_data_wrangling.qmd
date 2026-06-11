@@ -21,11 +21,31 @@ output: true
 
 # TO DO
 
-Move the PMN curve to script nb 5 !
+- Incorporate
 
-Deal with standard soils.
+  - PNR
 
-- Problem: they have same biological unit nb. –\> a preliminary outlier removal needs to be ran separately, then average per biol_unit_nb, then it can be rejoined...
+  - Nmin t3?
+
+  - MicroResp
+
+- Deal with standard soils.
+
+  - Problem: they have same biological unit nb. –\> a preliminary outlier removal needs to be ran separately, then average per biol_unit_nb, then it can be rejoined...
+
+- Move the PMN curve to script nb 5 ?
+
+# Intro
+
+What failed:
+
+- PMN? (see graphs below) –\> re-humidification necessary, curve failed
+
+- yield at t2
+
+  - quadrat: mess in the data - misunderstanding from colleagues at the field
+
+  - plant-level: was interesting to compare to RS measurements, but possibly biased as an absolute measure of yield bc in IC: plants were selected for being close to each other -\> possibly not representative of the field
 
 # Set up
 
@@ -458,53 +478,59 @@ TDN_sample <-
 TDN_sample
 ```
 
-# °°° !! FROM HERE: STILL ALL FROM GREENHOUSE; TO BE ADAPTED !! °°°
-
 ## 2.5 - Yield variables
 
-### 2.5.1 - Human error check
-
-### 2.5.2 - Compute per plant clean yield data
-
-Compute per plant versions of weight, plant height and stem/till number
-
-```{r}
-yield_per_plant <- nb_plant_clean |> 
-  rowwise() |> 
-  mutate(
-    height_per_fb = mean(c_across(starts_with("yd_rs_f_h")), na.rm = TRUE),
-    stem_per_fb = mean(c_across(starts_with("yd_rs_f_s")), na.rm = TRUE),
-    height_per_w = mean(c_across(starts_with("yd_rs_w_h")), na.rm = TRUE),
-    till_per_w = mean(c_across(starts_with("yd_rs_w_ti")), na.rm = TRUE),
-    
-    fw_fb_per_pot = yd_rs_f_biom_1_2plants_raw_fw_g - yd_rs_f_tare_g,
-    fw_w_per_pot = yd_rs_w_biom_1_2plants_raw_fw_g - yd_rs_w_tare_g,
-    dw_fb_per_pot = yd_rs_f_biom_1_2plants_raw_dw_g - yd_rs_f_tare_g,
-    dw_w_per_pot = yd_rs_w_biom_1_2plants_raw_dw_g - yd_rs_w_tare_g,
-    
-    fw_fb_per_plant = fw_fb_per_pot / nb_fb,
-    fw_w_per_plant = fw_w_per_pot / nb_w,
-    dw_fb_per_plant = dw_fb_per_pot / nb_fb,
-    dw_w_per_plant = dw_w_per_pot / nb_w,
-    
-    .keep = "unused"
-    ) 
-
-# check it out
-yield_per_plant
-```
-
-Save it in clean data set to join and export
-
-```{r}
-yield_clean <- yield_per_plant
-```
+Compute per plant clean yield data: Only if we are interested in the per-plant yield information –\> then get started from the greenhouse script
 
 ## 2.6 - Join all data (except PMN)
 
-```{r}
+Overview of all generated data
 
-data_to_export <- Nmin_all_variables |> left_join(yield_clean)
+```{r}
+flush_clean
+
+Nmin_all_variables
+
+PMN_all_variables
+
+TDN_sample
+
+yield
+```
+
+We only need to export Nmin and TDN for now.
+
+- We don't export PMN data for now, as it seems like a dead-end..
+
+- Yield has not been changed for now –\> no need to re-export it
+
+- flush data has been used and is probably not necessary anymore. Anyway, possibly useful stuff is also in other data sets (dm, wc)
+
+TDN_sample has 2 observations more than Nmin_all_variables. Let's see which ones
+
+- 99-z1
+
+- 101-z3
+
+```{r}
+obs_Nmin <- Nmin_all_variables |> select(biol_unit_nb, zone) |> unique()
+obs_TDN <- TDN_sample |> select(biol_unit_nb, zone) |> unique()
+
+# find missing ones
+anti_join(obs_TDN, obs_Nmin)
+```
+
+### TODO: Missing samples from the start ? –\> check!
+
+Now we join both datasets
+
+```{r}
+Npools_t2 <- TDN_sample |> 
+  # remove dataset info because both tables have different info stored
+  select(!dataset) |> 
+  left_join(
+  Nmin_all_variables |> select(!dataset), 
+  by = join_by(biol_unit_nb, zone, soil, crop_diversity, cs, bloc))
 ```
 
 # 3 - Deal with standard soils
@@ -513,9 +539,6 @@ data_to_export <- Nmin_all_variables |> left_join(yield_clean)
 
 # 4 - Export
 
-We don't export PMN data for now, as it seems like a dead-end..
-
 ```{r}
-data_to_export |> write_rds("output/data/4.1_t2_field_transformed.rds")
-
+Npools_t2 |> write_rds("output/data/4.1_t2_field_Npools.rds")
 ```
