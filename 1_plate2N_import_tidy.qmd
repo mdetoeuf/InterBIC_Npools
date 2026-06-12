@@ -109,7 +109,9 @@ PMN_map ; PMN_abs
 
 ## 1.3 - PNR
 
-For the slurry test, aw also generate the plate map from a list of samples. First, import it and extract relevant info
+### 1.3.1 - PNR mapping
+
+For the slurry test, we also generate the plate map from a list of samples. First, import it and extract relevant info
 
 ```{r}
 soil_sample_list <- read_csv("raw_data/PNR/PNR_sample_list.csv", show_col_types = FALSE) |> 
@@ -184,7 +186,7 @@ map_list <- nh4 |>
   arrange(batch,reshuffle) |> 
   mutate(
     plate_nb_per_batch = rep(sort(rep(1:4, 18)), 8),
-    plate_id_generic = paste0("PNR_", batch, "_", plate_nb_per_batch),
+    plate_id_generic = paste0(batch, "_", plate_nb_per_batch),
     plate_id_NO2 = paste0("NO2_", plate_id_generic),
     plate_id_NO3 = paste0("NO3_", plate_id_generic))
 
@@ -195,12 +197,10 @@ map_list
 Now, we can finally construct the plate mapping
 
 ```{r}
-samples <- map_list$samples
+samples <- map_list$slurry_sample
 plate_ids <- map_list$plate_id_generic |> unique()
-plate_ids_NO2 <- map_list$plate_id_NO2 |> unique()
-plate_ids_NO3 <- map_list$plate_id_NO3 |> unique()
-
- 
+#plate_ids_NO2 <- map_list$plate_id_NO2 |> unique()
+#plate_ids_NO3 <- map_list$plate_id_NO3 |> unique()
 
 n_samples_per_plate <- length(samples) / length(plate_ids)
 
@@ -223,6 +223,41 @@ Only for double-checking: export it to csv for easier reading
 tibble_map_pnr |> write_csv("../raw_data/PNR_map_fromR_to_check.csv")
 ```
 
+Double-checked, all good
+
+```{r}
+(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE))
+```
+
+### 1.3.2 - PNR absorbance data
+
+```{r}
+PNR_raw_abs <- read_csv("raw_data/PNR/PNR_abs.csv", show_col_types = FALSE, skip = 5, comment = "INPUT") |> 
+  filter(!if_all(everything(), is.na))
+
+# replace names with something more handy
+names(PNR_raw_abs) <- names(tibble_example)
+
+# create table to construct plate_ids in the order of the file
+plate_ids <- PNR_raw_abs |> 
+  filter(str_extract(X5, "NO") == "NO") |> 
+  select(X3, X5) |> 
+  mutate(plate_ids = paste0(X5, "_", X3))
+
+# cf structure: plate ids should appear from row 3, every 11th row
+row_id <- seq(3,nrow(PNR_raw_abs), 11)
+
+# replace those cells by plate ids
+PNR_raw_abs$row[row_id] <- plate_ids$plate_ids
+
+# then remove useless rows
+PNR_abs <- PNR_raw_abs |> 
+  filter(row %in% c(LETTERS[1:8], plate_ids$plate_ids))
+
+# check it out
+PNR_abs
+```
+
 # 2 - Verticalize plates
 
 Here, we transform data from plate format to "verticalized" format: 1 row per well position (well_id –\> 96 rows) and 1 column per "plate" (actually 2 columns per physical plate: absorbance data plate and mapping plate).
@@ -243,8 +278,11 @@ TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
 # PMN
 PMN_vertical <- join_abs_map(PMN_abs, PMN_map, dataset = "PMN-")
 
+# PNR
+PNR_vertical <- join_abs_map(PNR_abs, PNR_map, dataset = "PNR-")
+
 ## Check them out
-Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical
 ```
 
 Then, we use the `dplyr::left_join()` function to join all plate data in a single data table. Note the distinct column names with their dataset and abs/map-related prefixes
@@ -254,7 +292,8 @@ Then, we use the `dplyr::left_join()` function to join all plate data in a singl
 all_vertical <- Nmin_t1t2_vertical |> 
   left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
   left_join(TDN_vertical, by = join_by(row, column)) |> 
-  left_join(PMN_vertical, by = join_by(row, column)) 
+  left_join(PMN_vertical, by = join_by(row, column)) |> 
+  left_join(PNR_vertical, by = join_by(row, column))
 
 # look at the structure of variable names
 sample(names(all_vertical),size = 30)
@@ -302,13 +341,16 @@ TDN_metadata <- read_csv(
 
 PMN_metadata <- read_csv("raw_data/PMN/PMN_metadata.csv", show_col_types = FALSE) |> 
   mutate(dataset = "PMN")
+
+PNR_metadata <- read_csv("raw_data/PNR/PNR_metadata.csv", show_col_types = FALSE) |> 
+  mutate(dataset = "PNR")
 ```
 
 Then we join them in one big metadata file. ! this only works because the 3 metadata files have strictly the same structure (same column names in the same order, containing the same data type (string, numeric, ...)).
 
 ```{r}
 # join csv's
-(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata))
+(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata, PNR_metadata))
 ```
 
 Keep only relevant columns.

@@ -3,6 +3,11 @@ Morgane de Toeuf
 
 - [Set up](#set-up)
 - [1 - Import data](#1---import-data)
+  - [1.1 - Nmin, TDN](#11---nmin-tdn)
+  - [1.2 - PMN](#12---pmn)
+  - [1.3 - PNR](#13---pnr)
+    - [1.3.1 - PNR mapping](#131---pnr-mapping)
+    - [1.3.2 - PNR absorbance data](#132---pnr-absorbance-data)
 - [2 - Verticalize plates](#2---verticalize-plates)
 - [3 - tidy table](#3---tidy-table)
 - [4 - Add plate metadata](#4---add-plate-metadata)
@@ -32,6 +37,8 @@ wells, standard curve and extractant (K2SO4) respectively)
 
 Here we import all our datasets, with various functions from the package
 `plate2N`. The output is displayed each time a new function is used.
+
+## 1.1 - Nmin, TDN
 
 ``` r
 # Nmin for t1 and t2
@@ -153,6 +160,8 @@ TDN_abs <- csv_to_tibble("raw_data/TDN/TDN_data.csv")
 > `Skanit_abs` should, in theory, be interchangeable with `TDN_abs` or
 > `Nmin_abs`. Please reach out if you encounter any difficulty.
 
+## 1.2 - PMN
+
 For PMN, import will be similar, but we generate the plate map from a
 list of samples
 
@@ -251,6 +260,279 @@ PMN_map ; PMN_abs
     10 NH4_… 1     2     3     4     5     6     7     8     9     10    11    12   
     # ℹ 260 more rows
 
+## 1.3 - PNR
+
+### 1.3.1 - PNR mapping
+
+For the slurry test, we also generate the plate map from a list of
+samples. First, import it and extract relevant info
+
+``` r
+soil_sample_list <- read_csv("raw_data/PNR/PNR_sample_list.csv", show_col_types = FALSE) |> 
+  mutate(
+    zone = str_extract(samples, ".*_(\\w\\d)$", group = 1),
+    biol_unit_nb = str_extract(samples, "(\\w*)_(\\w*)", group = 1),
+    biol_unit_nb = as.double(case_when(biol_unit_nb == "Std_soil" ~ "210", .default = biol_unit_nb)),
+    batch = rep(paste0("R", seq(1:8)),10) |> sort()
+  ) 
+
+# check it out
+soil_sample_list
+```
+
+    # A tibble: 80 × 4
+       samples     zone  biol_unit_nb batch
+       <chr>       <chr>        <dbl> <chr>
+     1 83_z3       z3              83 R1   
+     2 87_z1       z1              87 R1   
+     3 88_z1       z1              88 R1   
+     4 90_z3       z3              90 R1   
+     5 91_z3       z3              91 R1   
+     6 92_z2       z2              92 R1   
+     7 95_z3       z3              95 R1   
+     8 97_z1       z1              97 R1   
+     9 103_z2      z2             103 R1   
+    10 Std_soil_R1 R1             210 R1   
+    # ℹ 70 more rows
+
+Now we only have once every sample. We need to duplicate them for each
+incubation time: T0, T2, T4, T6, T24, T26 and 1x for ctrl, then pivot it
+into 1 long list, and attribute to each slurry sample its extractant
+identifier
+
+``` r
+slurry_samples <- soil_sample_list |> 
+  mutate(
+    T0 = paste0(soil_sample_list$samples, "_T0"),
+    T6 = paste0(soil_sample_list$samples, "_T6"),
+    T2 = paste0(soil_sample_list$samples, "_T2"),
+    T24 = paste0(soil_sample_list$samples, "_T24"),
+    T4 = paste0(soil_sample_list$samples, "_T4"),
+    T26 = paste0(soil_sample_list$samples, "_T26"),
+    ctrl = paste0(soil_sample_list$samples, "_ctrl")
+  ) |> 
+  pivot_longer(cols = T0:ctrl, names_to = "incubation",values_to = "slurry_sample") |> 
+  mutate(
+    extr_id = rep(c(rep("extr_pnr",6), "extr_ctrl"), 80)) 
+
+# check it out
+slurry_samples
+```
+
+    # A tibble: 560 × 7
+       samples zone  biol_unit_nb batch incubation slurry_sample extr_id  
+       <chr>   <chr>        <dbl> <chr> <chr>      <chr>         <chr>    
+     1 83_z3   z3              83 R1    T0         83_z3_T0      extr_pnr 
+     2 83_z3   z3              83 R1    T6         83_z3_T6      extr_pnr 
+     3 83_z3   z3              83 R1    T2         83_z3_T2      extr_pnr 
+     4 83_z3   z3              83 R1    T24        83_z3_T24     extr_pnr 
+     5 83_z3   z3              83 R1    T4         83_z3_T4      extr_pnr 
+     6 83_z3   z3              83 R1    T26        83_z3_T26     extr_pnr 
+     7 83_z3   z3              83 R1    ctrl       83_z3_ctrl    extr_ctrl
+     8 87_z1   z1              87 R1    T0         87_z1_T0      extr_pnr 
+     9 87_z1   z1              87 R1    T6         87_z1_T6      extr_pnr 
+    10 87_z1   z1              87 R1    T2         87_z1_T2      extr_pnr 
+    # ℹ 550 more rows
+
+Then we create a table with “fake samples” = blank controls (will take
+the spot of 2 samples in the plate mapping, but will later be handled as
+extractant).
+
+``` r
+blank_ctrl <- slurry_samples |> 
+  select(batch) |> 
+  unique() |> 
+  mutate(slurry_sample = "blank_ctrl", reshuffle = 11)
+```
+
+We extract only “control” slurry samples (those that got the negative
+control buffer, and did not undergo the incubation, add the “fake
+samples” (blanks for control) then reorder them to fit the plate
+mapping.
+
+``` r
+ctrl <- slurry_samples |> 
+  filter(incubation == "ctrl") |> 
+  mutate(
+    reshuffle = rep(c(seq(1,9,2),seq(2,10,2)),8),
+    col_to_order = "end"
+  ) |> 
+  bind_rows(blank_ctrl) |> bind_rows(blank_ctrl) |> 
+  arrange(batch,reshuffle) 
+```
+
+Then we extract only the samples that received ammonium (the complement
+to the negative controls) and format the table to fit the one of the
+negative controls
+
+``` r
+nh4 <- slurry_samples |> 
+  filter(incubation != "ctrl") |> 
+  mutate(col_to_order = "begin", reshuffle = 0)
+```
+
+Finally, we reassemble all subsets: real, incubated samples with
+negative control (including the “fake sample” bkanks)
+
+``` r
+map_list <- nh4 |> 
+  bind_rows(ctrl) |> 
+  arrange(batch,reshuffle) |> 
+  mutate(
+    plate_nb_per_batch = rep(sort(rep(1:4, 18)), 8),
+    plate_id_generic = paste0(batch, "_", plate_nb_per_batch),
+    plate_id_NO2 = paste0("NO2_", plate_id_generic),
+    plate_id_NO3 = paste0("NO3_", plate_id_generic))
+
+# check it out
+map_list
+```
+
+    # A tibble: 576 × 13
+       samples zone  biol_unit_nb batch incubation slurry_sample extr_id 
+       <chr>   <chr>        <dbl> <chr> <chr>      <chr>         <chr>   
+     1 83_z3   z3              83 R1    T0         83_z3_T0      extr_pnr
+     2 83_z3   z3              83 R1    T6         83_z3_T6      extr_pnr
+     3 83_z3   z3              83 R1    T2         83_z3_T2      extr_pnr
+     4 83_z3   z3              83 R1    T24        83_z3_T24     extr_pnr
+     5 83_z3   z3              83 R1    T4         83_z3_T4      extr_pnr
+     6 83_z3   z3              83 R1    T26        83_z3_T26     extr_pnr
+     7 87_z1   z1              87 R1    T0         87_z1_T0      extr_pnr
+     8 87_z1   z1              87 R1    T6         87_z1_T6      extr_pnr
+     9 87_z1   z1              87 R1    T2         87_z1_T2      extr_pnr
+    10 87_z1   z1              87 R1    T24        87_z1_T24     extr_pnr
+    # ℹ 566 more rows
+    # ℹ 6 more variables: col_to_order <chr>, reshuffle <dbl>,
+    #   plate_nb_per_batch <int>, plate_id_generic <chr>, plate_id_NO2 <chr>,
+    #   plate_id_NO3 <chr>
+
+Now, we can finally construct the plate mapping
+
+``` r
+samples <- map_list$slurry_sample
+plate_ids <- map_list$plate_id_generic |> unique()
+#plate_ids_NO2 <- map_list$plate_id_NO2 |> unique()
+#plate_ids_NO3 <- map_list$plate_id_NO3 |> unique()
+
+n_samples_per_plate <- length(samples) / length(plate_ids)
+
+tibble_map_pnr <- map_plates(
+  samples = rep(samples,2), 
+  n_samples_per_plate, 
+  plate_ids = c(
+    paste0("NO3_",plate_ids), 
+    paste0("NO2_",plate_ids)), 
+  column_curves = c(1,12), 
+  column_blank = 2, rename_na = "extr_ctrl")
+
+#check it out
+tibble_map_pnr
+```
+
+    # A tibble: 576 × 13
+       row   X1    X2    X3    X4    X5    X6    X7    X8    X9    X10   X11   X12  
+       <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr>
+     1 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+     2 A     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     3 B     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     4 C     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     5 D     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     6 E     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     7 F     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     8 G     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     9 H     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+    10 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+    # ℹ 566 more rows
+
+Only for double-checking: export it to csv for easier reading
+
+``` r
+tibble_map_pnr |> write_csv("../raw_data/PNR_map_fromR_to_check.csv")
+```
+
+Double-checked, all good
+
+``` r
+(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE))
+```
+
+    # A tibble: 576 × 13
+       row   X1    X2    X3    X4    X5    X6    X7    X8    X9    X10   X11   X12  
+       <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr>
+     1 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+     2 A     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     3 B     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     4 C     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     5 D     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     6 E     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     7 F     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     8 G     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+     9 H     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
+    10 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
+    # ℹ 566 more rows
+
+### 1.3.2 - PNR absorbance data
+
+``` r
+PNR_raw_abs <- read_csv("raw_data/PNR/PNR_abs.csv", show_col_types = FALSE, skip = 5, comment = "INPUT") |> 
+  filter(!if_all(everything(), is.na))
+```
+
+    New names:
+    • `` -> `...1`
+    • `` -> `...2`
+    • `` -> `...3`
+    • `` -> `...4`
+    • `` -> `...5`
+    • `` -> `...6`
+    • `` -> `...7`
+    • `` -> `...8`
+    • `` -> `...9`
+    • `` -> `...10`
+    • `` -> `...11`
+    • `` -> `...12`
+    • `` -> `...13`
+
+``` r
+# replace names with something more handy
+names(PNR_raw_abs) <- names(tibble_example)
+
+# create table to construct plate_ids in the order of the file
+plate_ids <- PNR_raw_abs |> 
+  filter(str_extract(X5, "NO") == "NO") |> 
+  select(X3, X5) |> 
+  mutate(plate_ids = paste0(X5, "_", X3))
+
+# cf structure: plate ids should appear from row 3, every 11th row
+row_id <- seq(3,nrow(PNR_raw_abs), 11)
+
+# replace those cells by plate ids
+PNR_raw_abs$row[row_id] <- plate_ids$plate_ids
+
+# then remove useless rows
+PNR_abs <- PNR_raw_abs |> 
+  filter(row %in% c(LETTERS[1:8], plate_ids$plate_ids))
+
+# check it out
+PNR_abs
+```
+
+    # A tibble: 576 × 13
+       row         X1    X2 X3       X4 X5       X6    X7    X8    X9    X10    X11
+       <chr>    <dbl> <dbl> <chr> <dbl> <chr> <dbl> <dbl> <dbl> <dbl>  <dbl>  <dbl>
+     1 NO3_R1_1 1     2     3     4     5     6     7     8     9     10     11    
+     2 A        0.076 0.079 0.17  0.177 0.18  0.146 0.138 0.14  0.137  0.132  0.136
+     3 B        0.079 0.077 0.163 0.166 0.17  0.138 0.132 0.137 0.133  0.131  0.133
+     4 C        0.084 0.076 0.159 0.164 0.166 0.14  0.13  0.136 0.132  0.131  0.132
+     5 D        0.093 0.076 0.159 0.165 0.17  0.137 0.129 0.134 0.129  0.128  0.131
+     6 E        0.104 0.075 0.176 0.211 0.214 0.14  0.168 0.163 0.137  0.166  0.171
+     7 F        0.151 0.075 0.172 0.207 0.21  0.136 0.161 0.161 0.134  0.165  0.171
+     8 G        0.24  0.075 0.176 0.207 0.211 0.137 0.164 0.163 0.13   0.164  0.171
+     9 H        0.34  0.077 0.182 0.215 0.218 0.143 0.173 0.167 0.14   0.175  0.175
+    10 NO3_R1_2 1     2     3     4     5     6     7     8     9     10     11    
+    # ℹ 566 more rows
+    # ℹ 1 more variable: X12 <dbl>
+
 # 2 - Verticalize plates
 
 Here, we transform data from plate format to “verticalized” format: 1
@@ -277,8 +559,11 @@ TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
 # PMN
 PMN_vertical <- join_abs_map(PMN_abs, PMN_map, dataset = "PMN-")
 
+# PNR
+PNR_vertical <- join_abs_map(PNR_abs, PNR_map, dataset = "PNR-")
+
 ## Check them out
-Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical
 ```
 
     # A tibble: 96 × 200
@@ -365,6 +650,27 @@ Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical
     #   `PMN-abs-NO2_PF3` <chr>, `PMN-abs-NO2_PF4` <chr>, `PMN-abs-NO2_PP1` <chr>,
     #   `PMN-abs-NO2_PP2` <chr>, `PMN-abs-NO2_PP3` <chr>, …
 
+    # A tibble: 96 × 130
+       row   column `PNR-abs-NO3_R1_1` `PNR-abs-NO3_R1_2` `PNR-abs-NO3_R1_3`
+       <chr> <chr>  <chr>              <chr>              <chr>             
+     1 A     1      0.076              0.075              0.076             
+     2 A     2      0.079              0.076              0.084             
+     3 A     3      0.17               0.107              0.1               
+     4 A     4      0.177              0.112              0.104             
+     5 A     5      0.18               0.119              0.111             
+     6 A     6      0.146              0.136              0.12              
+     7 A     7      0.138              0.132              0.123             
+     8 A     8      0.14               0.133              0.124             
+     9 A     9      0.137              0.1                0.109             
+    10 A     10     0.132              0.104              0.108             
+    # ℹ 86 more rows
+    # ℹ 125 more variables: `PNR-abs-NO3_R1_4` <chr>, `PNR-abs-NO3_R2_1` <chr>,
+    #   `PNR-abs-NO3_R2_2` <chr>, `PNR-abs-NO3_R2_3` <chr>,
+    #   `PNR-abs-NO3_R2_4` <chr>, `PNR-abs-NO3_R3_1` <chr>,
+    #   `PNR-abs-NO3_R3_2` <chr>, `PNR-abs-NO3_R3_3` <chr>,
+    #   `PNR-abs-NO3_R3_4` <chr>, `PNR-abs-NO3_R4_1` <chr>,
+    #   `PNR-abs-NO3_R4_2` <chr>, `PNR-abs-NO3_R4_3` <chr>, …
+
 Then, we use the `dplyr::left_join()` function to join all plate data in
 a single data table. Note the distinct column names with their dataset
 and abs/map-related prefixes
@@ -374,29 +680,30 @@ and abs/map-related prefixes
 all_vertical <- Nmin_t1t2_vertical |> 
   left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
   left_join(TDN_vertical, by = join_by(row, column)) |> 
-  left_join(PMN_vertical, by = join_by(row, column)) 
+  left_join(PMN_vertical, by = join_by(row, column)) |> 
+  left_join(PNR_vertical, by = join_by(row, column))
 
 # look at the structure of variable names
 sample(names(all_vertical),size = 30)
 ```
 
-     [1] "Nmint1t2-abs-NO2_2F4_2" "Nmint1t2-map-NO2_2F6_2" "Nmint1t2-map-NH4_2P6_3"
-     [4] "Nmint3-map-NO2_R4R5_2"  "PMN-map-NO2_PF3"        "Nmint1t2-abs-NH4_2P6_1"
-     [7] "Nmint1t2-abs-NO2_2P6_3" "Nmint1t2-map-NO3_2F2_1" "Nmint1t2-abs-NO3_1G4"  
-    [10] "PMN-abs-NH4_PC2"        "TDN-map-NO3_TDN_18"     "TDN-map-NO3_TDN_11"    
-    [13] "Nmint1t2-map-NO3_2P6_2" "Nmint3-abs-NH4_R4R5_1"  "Nmint3-map-NH4_R5R6_1" 
-    [16] "PMN-map-NH4_PP2"        "Nmint3-abs-NH4_R2R3_2"  "TDN-map-NO3_TDN_07"    
-    [19] "Nmint3-abs-NH4_R6R7_1"  "Nmint1t2-map-NO2_2P1"   "PMN-abs-NH4_PP3"       
-    [22] "TDN-map-NO2_TDN_01"     "Nmint1t2-abs-NO3_2F6_2" "Nmint3-map-NO2_R7R8_2" 
-    [25] "Nmint1t2-map-NO2_1G1"   "TDN-abs-NO3_TDN_35"     "Nmint1t2-map-NH4_2P5"  
-    [28] "Nmint1t2-abs-NH4_2P6_2" "Nmint1t2-map-NO3_2F6_2" "TDN-map-NO2_TDN_14"    
+     [1] "TDN-abs-NO2_TDN_12"     "TDN-map-NO3_TDN_36_1"   "TDN-map-NO3_TDN_26"    
+     [4] "Nmint1t2-map-NH4_2F1_2" "Nmint3-abs-NH4_R1R2_2"  "PNR-map-NO2_PNR_R6_1"  
+     [7] "PNR-map-NO3_PNR_R8_4"   "Nmint1t2-map-NO2_1F2_1" "PNR-map-NO2_PNR_R3_1"  
+    [10] "Nmint1t2-map-NO3_1F2_2" "Nmint3-map-NO2_R4R5_1"  "Nmint1t2-abs-NH4_2F2_2"
+    [13] "TDN-abs-NO3_TDN_18"     "TDN-abs-NO3_TDN_05"     "Nmint1t2-map-NO2_2F5_1"
+    [16] "PMN-abs-NO2_PF2"        "TDN-map-NO3_TDN_28"     "PNR-abs-NO3_R6_2"      
+    [19] "Nmint1t2-map-NO3_1F3"   "Nmint3-map-NH4_R2R3_1"  "Nmint1t2-map-NO3_2F4_2"
+    [22] "PNR-map-NO2_PNR_R1_1"   "PNR-map-NO2_PNR_R3_3"   "Nmint1t2-abs-NH4_1F2_1"
+    [25] "TDN-map-NO3_TDN_33"     "Nmint3-map-NO3_R4R5_2"  "Nmint1t2-abs-NO3_2P7_1"
+    [28] "Nmint1t2-map-NO2_2P6_2" "PNR-abs-NO3_R8_1"       "Nmint1t2-abs-NO3_2F1_2"
 
 ``` r
 # check it out  
 all_vertical
 ```
 
-    # A tibble: 96 × 450
+    # A tibble: 96 × 578
        row   column `Nmint1t2-abs-NH4_1F1` `Nmint1t2-abs-NH4_1F2_1`
        <chr> <chr>  <chr>                  <chr>                   
      1 A     1      0.039                  0.039                   
@@ -410,7 +717,7 @@ all_vertical
      9 A     9      0.043                  0.042                   
     10 A     10     0.042                  0.041                   
     # ℹ 86 more rows
-    # ℹ 446 more variables: `Nmint1t2-abs-NH4_1F2_2` <chr>,
+    # ℹ 574 more variables: `Nmint1t2-abs-NH4_1F2_2` <chr>,
     #   `Nmint1t2-abs-NH4_1F3` <chr>, `Nmint1t2-abs-NH4_1F4` <chr>,
     #   `Nmint1t2-abs-NH4_1F5` <chr>, `Nmint1t2-abs-NH4_1G1` <chr>,
     #   `Nmint1t2-abs-NH4_1G2` <chr>, `Nmint1t2-abs-NH4_1G3` <chr>,
@@ -433,7 +740,7 @@ column called `unique_well_id`.
 (all_raw_abs_tidy <- vertical_to_tidy(all_vertical))
 ```
 
-    # A tibble: 21,504 × 8
+    # A tibble: 33,792 × 8
        row   column well_id unique_well_id dataset  plate_id  map   abs  
        <chr> <chr>  <chr>   <chr>          <chr>    <chr>     <chr> <chr>
      1 A     1      A1      A1_NH4_1F1     Nmint1t2 NH4_1F1   Std   0.039
@@ -446,7 +753,7 @@ column called `unique_well_id`.
      8 A     1      A1      A1_NH4_1G2     Nmint1t2 NH4_1G2   Std   0.039
      9 A     1      A1      A1_NH4_1G3     Nmint1t2 NH4_1G3   Std   0.038
     10 A     1      A1      A1_NH4_1G4     Nmint1t2 NH4_1G4   Std   0.038
-    # ℹ 21,494 more rows
+    # ℹ 33,782 more rows
 
 # 4 - Add plate metadata
 
@@ -521,6 +828,9 @@ TDN_metadata <- read_csv(
 
 PMN_metadata <- read_csv("raw_data/PMN/PMN_metadata.csv", show_col_types = FALSE) |> 
   mutate(dataset = "PMN")
+
+PNR_metadata <- read_csv("raw_data/PNR/PNR_metadata.csv", show_col_types = FALSE) |> 
+  mutate(dataset = "PNR")
 ```
 
 Then we join them in one big metadata file. ! this only works because
@@ -529,10 +839,10 @@ in the same order, containing the same data type (string, numeric, …)).
 
 ``` r
 # join csv's
-(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata))
+(all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata, PNR_metadata))
 ```
 
-    # A tibble: 224 × 18
+    # A tibble: 288 × 19
        plate_id  date  time  sampling_time std_column std_sp std_unit    std_prep
        <chr>     <chr> <lgl> <chr>         <chr>      <chr>  <chr>       <chr>   
      1 NH4_1F1   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
@@ -545,11 +855,11 @@ in the same order, containing the same data type (string, numeric, …)).
      8 NH4_1G2   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
      9 NH4_1G3   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
     10 NH4_1G4   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
-    # ℹ 214 more rows
-    # ℹ 10 more variables: std_conc <chr>, sample_dilution <chr>,
+    # ℹ 278 more rows
+    # ℹ 11 more variables: std_conc <chr>, sample_dilution <chr>,
     #   extractant_column <dbl>, extractant_sp <chr>, extractant_unit <chr>,
     #   extractant_conc <dbl>, empty_column <chr>, wait_min <chr>, dataset <chr>,
-    #   wavelength <chr>
+    #   wavelength <chr>, row <chr>
 
 Keep only relevant columns.
 
