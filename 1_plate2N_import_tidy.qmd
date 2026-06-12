@@ -225,8 +225,11 @@ tibble_map_pnr |> write_csv("../raw_data/PNR_map_fromR_to_check.csv")
 
 Double-checked, all good
 
+!! Uncomment if need to re-import!!
+
 ```{r}
-(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE))
+#(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE))
+PNR_map <- tibble_map_pnr
 ```
 
 ### 1.3.2 - PNR absorbance data
@@ -300,6 +303,7 @@ sample(names(all_vertical),size = 30)
 
 # check it out  
 all_vertical
+
 ```
 
 # 3 - tidy table
@@ -384,6 +388,7 @@ Then, export them as .rds
 
 ```{r}
 
+#all_raw_abs_tidy |> filter(dataset == "PNR")
 
 all_raw_abs_TDN |> write_rds("output/data/1_all_raw_abs_TDN.rds")
 all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
