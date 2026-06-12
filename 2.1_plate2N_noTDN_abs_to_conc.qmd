@@ -19,6 +19,8 @@ output: true
 - PMN: check in paper maps if there are wells to remove
 - FOR Nmin t3
   - Check in lab notebook of Cloé: which dilutions for NH4? Courbes sont bizarrement décalées (facteur 2 quasi! ) –\> a l'air ok! (effectivement concentrations différentes, mais données probablement correctes)
+- PNR !!!
+  - Plate NO2_R6_1 and NO2_R6_2: missing extractant –\> take average from plates NO2_R6_3 and NO2_R6_4 if stable enough
 
 # Set up
 
@@ -44,6 +46,8 @@ all_plate_metadata <- read_rds("output/data/1_all_plate_metadata_noTDN.rds")
 Joining plate data and metadata
 
 ```{r}
+
+#all_raw_abs_tidy |> filter(dataset == "PNR")
 raw_meta <- all_raw_abs_tidy |> 
   left_join(all_plate_metadata, by = join_by(dataset, plate_id))
 ```
@@ -57,6 +61,7 @@ wells that "we know" are failed wells, imported
 ```{r}
 (failed_wells <- read_csv("raw_data/failed_wells.csv", show_col_types = FALSE))
 
+#raw_meta |> filter(dataset == "PNR")
 raw_abs_tidy <- raw_meta |> remove_wells(failed_wells)
 ```
 
@@ -104,6 +109,8 @@ Obtain curve concentrations from metadata
 Extract Std wells, add unique curve ID, then add curve_concentration
 
 ```{r}
+#raw_abs_clean |> filter(dataset == "PNR")
+#curve_concentration |> filter(dataset == "PNR")
 std_data <- raw_abs_clean |> 
   extract_std_data() |> 
   select(!std_conc) |> 
@@ -137,47 +144,46 @@ std_data |>
   facet_wrap(~plate_id, scales = "free")
 ```
 
-In this case, all "untrusted wells" (A1 in 4 panels of the last plot) are to be removed, as the values in A1 are clearly out of the curve (not rare: failure to eject liquid with the automated pipette). Although for NH4_PP1, the wrong A-well is in column 12, so in this case due to another issue. Nevertheless, the misalignment with the curve is obvious enough to be considered for removal.
+"Untrusted wells" are all A1 or A12 shown in 7 panels (but 8 cures) of the plot above. Most of those wells are indeed to be removed as they clearly fall outside of the curve drawn by the other wells. However, for plates NO2_R2_1 and NO2_R2_4, the reason why A1 (or A12) is not the smallest recorded absorbance is because another well is off, i.e., well E12. Those A-wells thus should be kept. Therefore, we cannot compute the average of standard blanks from `std_blank$trusted` as this would exclude those wells as well.
+
+Note that for NH4_PP1, the "untrusted" A-well is in column 12, so in this case due to another issue (not the forgotten discharge of automated pipette). Nevertheless, the misalignment with the curve is obvious enough to be considered for removal.
 
 ::: callout-tip
-## When we trust some "untrusted" wells
+## When we decide to trust some "untrusted" wells
 
-Should there be a choice, where only some of those wells need to be removed, but not all, the function `remove_wells()` can be used on `blank$all` to remove the selection of really-untrusted wells, which would generate a new version of "trusted wells", from which the average values need to be recomputed manually.
+Should there be a choice, where only some of the untrusted wells need to be removed, but not all, the function `remove_wells()` can be used on `blank$all` to remove the selection of really-untrusted wells, which would generate a new version of "trusted wells", from which the average values need to be computed manually.
 :::
 
+Uncomment the following chunk in case all untrusted wells are, indeed, to be removed
+
 ```{r}
-#| eval: false
-#| include: false
-# EXAMPLE, NOT NEEDED IN THIS PIPELINE
-# get info on wells to remove
+#std_blank_avg <- std_blank$trusted |> std_blank_average()
+```
 
-      # (suspicious_wells <- std_blank$untrusted |> 
-      #   ungroup() |> 
-      #   select(dataset, plate_id, well_id))
+Find a way to compose a `to_remove` table that only contains the wells that we want to remove
 
-# Here, those wells are in blank$all, which we can use to remove the wells
-      # blank <- std_blank$all |> ungroup() |> remove_wells(suspicious_wells)
+```{r}
+to_remove <- std_blank$untrusted |> 
+  filter_out(dataset == "PNR" & plate_id != "NO3_R1_4")
+```
 
-# In this case, std_blank is the same as std_blank$trusted, but we could decide to keep some
-      # sum(blank != std_blank$trusted)
-      # 
-      # std_blank_avg <- blank |>
-      #     dplyr::summarise(
-      #       .by = c(dataset, plate_id),
-      #       blank_avg = mean(abs),
-      #       blank_sdev = stats::sd(abs)
-      #     ) |>
-      #     dplyr::mutate(blank_coeff_var_percent = 100 * blank_sdev / blank_avg)
+Then create a new trusted version of `std_blank`.
 
-
+```{r}
+std_blank_clean <- std_blank$all |> remove_wells(to_remove)
 ```
 
 Checking how many blanks have been removed
 
 ```{r}
 
-nrow(std_blank$all) ; nrow(std_blank$untrusted) ; nrow(std_blank$trusted) 
+nrow(std_blank$all) ; nrow(to_remove) ; nrow(std_blank_clean) 
+```
 
+Then compute the average
+
+```{r}
+(std_blank_avg <- std_blank_clean |> std_blank_average())
 ```
 
 ::: {#loss-of-std-blank .callout-caution}
@@ -203,9 +209,8 @@ std_corrected <-
     raw_wells_data = std_data|> 
       ungroup() |> 
       filter_out(row == "A"),
-    per_plate_avg_blank = std_blank$average |> rename(blank_avg = blank_avg),
-    map_to_exclude = ""
-  )
+    per_plate_avg_blank = std_blank_avg,
+    map_to_exclude = "")
 ```
 
 Because the logic is similar, we will first go into blank-correction of sample data before finalizing work on the standard curves (applying linear regression model)
