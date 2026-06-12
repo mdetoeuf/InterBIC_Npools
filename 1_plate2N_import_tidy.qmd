@@ -141,7 +141,7 @@ slurry_samples <- soil_sample_list |>
   ) |> 
   pivot_longer(cols = T0:ctrl, names_to = "incubation",values_to = "slurry_sample") |> 
   mutate(
-    extr_id = rep(c(rep("extr_pnr",6), "extr_ctrl"), 80)) 
+    extr_id = rep(c(rep("extr",6), "blank_ctrl"), 80)) 
 
 # check it out
 slurry_samples
@@ -211,7 +211,7 @@ tibble_map_pnr <- map_plates(
     paste0("NO3_",plate_ids), 
     paste0("NO2_",plate_ids)), 
   column_curves = c(1,12), 
-  column_blank = 2, rename_na = "extr_ctrl")
+  column_blank = 2, rename_na = "blank_ctrl")
 
 #check it out
 tibble_map_pnr
@@ -397,4 +397,10 @@ all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
 all_plate_metadata_TDN |> write_rds("output/data/1_all_plate_metadata_TDN.rds")
 all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rds")
 
+```
+
+Also export info concerning PNR that will be needed downstream
+
+```{r}
+slurry_samples |> write_rds("output/data/1_slurry_sample_PNR.rds")
 ```
