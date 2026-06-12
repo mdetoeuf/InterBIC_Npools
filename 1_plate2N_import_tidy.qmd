@@ -228,7 +228,8 @@ Double-checked, all good
 !! Uncomment if need to re-import!!
 
 ```{r}
-#(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE))
+#(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE) |> rename(plate_id = row))
+
 PNR_map <- tibble_map_pnr
 ```
 

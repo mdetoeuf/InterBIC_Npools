@@ -452,24 +452,13 @@ tibble_map_pnr |> write_csv("../raw_data/PNR_map_fromR_to_check.csv")
 
 Double-checked, all good
 
-``` r
-(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE))
-```
+!! Uncomment if need to re-import!!
 
-    # A tibble: 576 × 13
-       row   X1    X2    X3    X4    X5    X6    X7    X8    X9    X10   X11   X12  
-       <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr> <chr>
-     1 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
-     2 A     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     3 B     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     4 C     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     5 D     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     6 E     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     7 F     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     8 G     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-     9 H     Std   extr  83_z… 83_z… 83_z… 87_z… 87_z… 87_z… 88_z… 88_z… 88_z… Std  
-    10 NO3_… 1     2     3     4     5     6     7     8     9     10    11    12   
-    # ℹ 566 more rows
+``` r
+#(PNR_map <-  read_csv("raw_data/PNR/PNR_map_fromR_checked.csv", show_col_types = FALSE) |> rename(plate_id = row))
+
+PNR_map <- tibble_map_pnr
+```
 
 ### 1.3.2 - PNR absorbance data
 
@@ -687,16 +676,16 @@ all_vertical <- Nmin_t1t2_vertical |>
 sample(names(all_vertical),size = 30)
 ```
 
-     [1] "TDN-abs-NO2_TDN_12"     "TDN-map-NO3_TDN_36_1"   "TDN-map-NO3_TDN_26"    
-     [4] "Nmint1t2-map-NH4_2F1_2" "Nmint3-abs-NH4_R1R2_2"  "PNR-map-NO2_PNR_R6_1"  
-     [7] "PNR-map-NO3_PNR_R8_4"   "Nmint1t2-map-NO2_1F2_1" "PNR-map-NO2_PNR_R3_1"  
-    [10] "Nmint1t2-map-NO3_1F2_2" "Nmint3-map-NO2_R4R5_1"  "Nmint1t2-abs-NH4_2F2_2"
-    [13] "TDN-abs-NO3_TDN_18"     "TDN-abs-NO3_TDN_05"     "Nmint1t2-map-NO2_2F5_1"
-    [16] "PMN-abs-NO2_PF2"        "TDN-map-NO3_TDN_28"     "PNR-abs-NO3_R6_2"      
-    [19] "Nmint1t2-map-NO3_1F3"   "Nmint3-map-NH4_R2R3_1"  "Nmint1t2-map-NO3_2F4_2"
-    [22] "PNR-map-NO2_PNR_R1_1"   "PNR-map-NO2_PNR_R3_3"   "Nmint1t2-abs-NH4_1F2_1"
-    [25] "TDN-map-NO3_TDN_33"     "Nmint3-map-NO3_R4R5_2"  "Nmint1t2-abs-NO3_2P7_1"
-    [28] "Nmint1t2-map-NO2_2P6_2" "PNR-abs-NO3_R8_1"       "Nmint1t2-abs-NO3_2F1_2"
+     [1] "PNR-abs-NO2_R7_1"       "PNR-map-NO2_R7_1"       "TDN-abs-NO2_TDN_05"    
+     [4] "TDN-map-NO3_TDN_32"     "PMN-map-NH4_PC2"        "Nmint3-map-NH4_R5R6_1" 
+     [7] "Nmint1t2-map-NO2_2P6_3" "Nmint3-abs-NH4_R4R5_1"  "TDN-abs-NO3_TDN_01"    
+    [10] "PNR-abs-NO2_R2_1"       "Nmint3-map-NO2_R5R6_1"  "Nmint3-map-NO2_R6R7_2" 
+    [13] "PMN-map-NH4_PP2"        "Nmint3-abs-NH4_R7R8_2"  "PNR-abs-NO3_R1_4"      
+    [16] "PNR-map-NO2_R6_3"       "PNR-abs-NO2_R2_2"       "Nmint1t2-map-NO2_2F4_2"
+    [19] "Nmint1t2-map-NO2_2P3"   "PNR-abs-NO2_R5_4"       "Nmint1t2-map-NO2_2F4_1"
+    [22] "TDN-map-NO2_TDN_16"     "PNR-map-NO3_R5_2"       "Nmint1t2-map-NO3_1F2_1"
+    [25] "PNR-abs-NO3_R2_4"       "PMN-map-NO2_PP3"        "Nmint1t2-abs-NO3_2P2"  
+    [28] "Nmint1t2-abs-NH4_2P7_2" "TDN-map-NO3_TDN_13"     "Nmint3-abs-NH4_R1R2_1" 
 
 ``` r
 # check it out  
@@ -740,7 +729,7 @@ column called `unique_well_id`.
 (all_raw_abs_tidy <- vertical_to_tidy(all_vertical))
 ```
 
-    # A tibble: 33,792 × 8
+    # A tibble: 27,648 × 8
        row   column well_id unique_well_id dataset  plate_id  map   abs  
        <chr> <chr>  <chr>   <chr>          <chr>    <chr>     <chr> <chr>
      1 A     1      A1      A1_NH4_1F1     Nmint1t2 NH4_1F1   Std   0.039
@@ -753,7 +742,7 @@ column called `unique_well_id`.
      8 A     1      A1      A1_NH4_1G2     Nmint1t2 NH4_1G2   Std   0.039
      9 A     1      A1      A1_NH4_1G3     Nmint1t2 NH4_1G3   Std   0.038
     10 A     1      A1      A1_NH4_1G4     Nmint1t2 NH4_1G4   Std   0.038
-    # ℹ 33,782 more rows
+    # ℹ 27,638 more rows
 
 # 4 - Add plate metadata
 
@@ -842,7 +831,7 @@ in the same order, containing the same data type (string, numeric, …)).
 (all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata, PNR_metadata))
 ```
 
-    # A tibble: 288 × 19
+    # A tibble: 288 × 18
        plate_id  date  time  sampling_time std_column std_sp std_unit    std_prep
        <chr>     <chr> <lgl> <chr>         <chr>      <chr>  <chr>       <chr>   
      1 NH4_1F1   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
@@ -856,10 +845,10 @@ in the same order, containing the same data type (string, numeric, …)).
      9 NH4_1G3   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
     10 NH4_1G4   <NA>  NA    t1            1-12       NH4    mg NH4+ L-1 H2O     
     # ℹ 278 more rows
-    # ℹ 11 more variables: std_conc <chr>, sample_dilution <chr>,
+    # ℹ 10 more variables: std_conc <chr>, sample_dilution <chr>,
     #   extractant_column <dbl>, extractant_sp <chr>, extractant_unit <chr>,
     #   extractant_conc <dbl>, empty_column <chr>, wait_min <chr>, dataset <chr>,
-    #   wavelength <chr>, row <chr>
+    #   wavelength <chr>
 
 Keep only relevant columns.
 
@@ -894,6 +883,8 @@ all_plate_metadata_noTDN <- all_plate_metadata_keep |>
 Then, export them as .rds
 
 ``` r
+#all_raw_abs_tidy |> filter(dataset == "PNR")
+
 all_raw_abs_TDN |> write_rds("output/data/1_all_raw_abs_TDN.rds")
 all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
 
