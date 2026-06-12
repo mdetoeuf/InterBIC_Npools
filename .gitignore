@@ -5,6 +5,7 @@ InterBIC_Npools.Rproj
 0_general.qmd
 0_general.md
 2.1.1_abs_data_QC_files/
+raw_data/
 raw_data/Missing_samples_redo/
 raw_data/Nmin/
 raw_data/Nmin_t3/
