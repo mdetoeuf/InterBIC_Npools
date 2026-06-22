@@ -16,3 +16,4 @@ raw_data/test_Elsa.rds
 user_scripts/
 output/
 .positai
+.DS_Store
