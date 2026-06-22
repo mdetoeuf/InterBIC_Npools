@@ -535,5 +535,5 @@ Npools_t2 <- TDN_sample |>
 
 ```{r}
 Npools_t2 |> write_rds("output/data/4.1_t2_field_Npools.rds")
-PMN_trusted |> write_rds("output/data/4.1_t2_field_PMN.rds")
+PMN_trusted |> write_rds("output/data/4.1_field_PMN.rds")
 ```

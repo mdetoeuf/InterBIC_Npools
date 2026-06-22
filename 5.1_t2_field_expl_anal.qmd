@@ -241,19 +241,17 @@ According to AI (see full doc):
 ```{r}
 my_lm <- lm(data = PMN, ppm_Nmin ~ soil * incub_time)
 summary(my_lm)
+
+anova(my_lm)
 ```
 
-The adjusted R-squared is not huge: 0.6, but the p-value is low enough (2.6 e-5)
+The Anova (in this case ANCOVA) says:
 
-Significant are: the intercept, the effect of incubation time 3 and 4. In other terms:
+- effect of soil
 
-- There is an effect of
+- effect of incub_time ++ (duh)
 
-  - incubation time (duh!)
-
-  - intercept (starting point)
-
-  - but not of the slope (not surprising considering the plots)
+- but no effect of the interaction –\> slopes are not different (no rejection of H0 = slopes are the same)
 
 ```{r}
 
@@ -268,7 +266,7 @@ PMN_plot <- PMN |>
   geom_point() +
   geom_smooth(method = "lm") +
   labs(
-    title = "Potential Mineralization of Nitrogen (PMN)",
+    title = "Potential Mineralization of Nitrogen (PMN) - Field",
     subtitle = "Mineral N as sum of NO2-, NO3-, NH4+\nNo statistical difference between slopes, only intercept",
     caption = "Modelled with lm(ppm_Nmin ~ soil * incub_time)") +
   xlab("Time since incubation at 28°C [days]") +
