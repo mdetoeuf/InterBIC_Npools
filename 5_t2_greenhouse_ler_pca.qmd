@@ -69,6 +69,7 @@ library(tidyverse)
 library(vegan) # for rda()
 library(patchwork)
 library(RColorBrewer)
+library(emmeans) # for post-hoc test (after ANCOVA of PMN)
 
 # function
 source("functions/plot_pca.R")
@@ -84,7 +85,7 @@ greenhouse <- read_rds("output/data/4_t2_greenhouse_transformed.rds") |>
   )) |> 
   relocate(yd_rs_comment, .after = last_col())
 
-str(greenhouse)
+PMN <- read_rds("output/data/4_greehouse_PMN.rds")
 ```
 
 Problem: for now, the statistical unit is the pot (1 row per pot). But some variables cannot be regrouped for both plant species. Consequently, there are some missing data, see here:
@@ -169,7 +170,135 @@ plot_ler_w <- ler_total |>
 plot_ler_total + plot_ler_fb + plot_ler_w
 ```
 
-# 3 - PCA
+# 3 - PMN
+
+## 3.1 - ANCOVA
+
+With the PMN data, we can compute the slope of the curve.
+
+::: callout-important
+## Statistical issue
+
+We have 4 technical replicates per incubation time, but rep 1 of incubation time 1 has no particular relationship to rep 1 of incubation time 2. It would make little sense to compute 4 different slopes and then take the mean of the 4 slopes to get a boxplot and the option of an anova with comparison of means (of slopes).
+:::
+
+According to AI (see full doc):
+
+- Analysis of CoVariance, ANCOVA, (independant measurements bc subsamples evolve separately) .
+
+  - linear model with interaction term: outcome \~ group \* predictor
+
+  - --\> try with lm(ppm_Nmin \~ soil \* incub_days)
+
+  - Details see doc
+
+```{r}
+PMN_continuous <- PMN |> mutate(incub_day = as.integer(incub_day))
+
+my_lm <- lm(data = PMN_continuous, ppm_Nmin ~ incub_day * soil)
+summary(my_lm)
+
+anova(my_lm)
+```
+
+The Anova (in this case ANCOVA) says:
+
+- Effect of incubation time (duh)
+
+- effect of soil
+
+- interaction effect –\> reject H0 = slopes are equal
+
+—\> need of a post-hoc test, with Tukey adjustment
+
+- conv ≠ Ref, ABC
+
+- Ref = ABC, Ref = Auto
+
+- Auto ≠ ABC
+
+```{r}
+slope_trends <- emtrends(my_lm, pairwise ~ soil, var = "incub_day")
+
+summary(slope_trends)
+
+# see the slopes
+slope_trends$emtrends
+
+# see the pairwise contrasts with adjusted p-values (Tukey method)
+slope_trends$contrasts
+```
+
+Checking model assumptions
+
+```{r}
+library(performance)
+plot_check_ancova <- check_model(my_lm) 
+plot <- plot(plot_check_ancova) + patchwork::plot_annotation(title = "QC: Checking model assumptions for ANCOVA of PMN - Greenhouse data")
+
+# check it out
+plot
+
+# save it
+ggsave("output/figures/greenhouse/qc_pmn_ancova.pdf", plot,height = 8, width = 13.5)
+```
+
+## 3.2 - Plot PMN
+
+```{r}
+dates <- c("2023-12-5", "2023-12-26", "2024-01-02") |> as.Date()
+incub_days <- dates - dates[1]
+names(incub_days) <- PMN$incub_time |> unique() |> sort()
+
+# Plot
+# plot again
+PMN_plot <- PMN |> 
+  ggplot(aes(x = incub_day, y = ppm_Nmin, group = soil, colour = soil, fill = soil)) +
+  theme_minimal() +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Potential Mineralization of Nitrogen (PMN) - Greenhouse",
+    subtitle = "Mineral N as sum of NO2-, NO3-, NH4+\nSlopes are statistically different (Conv ≠ Ref, ABC; Auto ≠ ABC)",
+    caption = "Modelled with lm(ppm_Nmin ~ incub_time * soil)\nPost-Hoc with emtrends() and Tukey correction") +
+  xlab("Time since incubation at 28°C [days]") +
+  ylab("Mineral Nitrogen in the soil [ppm]")
+
+# for annotation: extract data from smooth curve
+smooth_data <- ggplot_build(PMN_plot)$data[[2]]
+
+# get its maximum value to anker the annotation
+annotations <- smooth_data |> 
+  slice_max(x, by = group) |> 
+  mutate(soil = levels(PMN$soil))
+#c("#F8766D", "#7CAE00", "#00BFC4", "#C77CFF") 
+
+PMN_plot_all <- PMN_plot + 
+  geom_text(
+    data = annotations,
+    aes(x = x+0.5, y = y, colour = soil, label = soil), 
+    hjust = 0, size = 5) +
+  xlim(c(0,30)) +
+  theme(legend.position = "none") 
+
+```
+
+Check them out
+
+```{r}
+PMN_plot_all
+
+PMN_plot_all + facet_wrap(~soil) +
+  xlim(c(0,33))
+```
+
+Save it
+
+```{r}
+ggsave("output/figures/greenhouse/PMN.pdf", plot = PMN_plot_all)
+```
+
+# 4 - PCA
 
 ## 3.1 - Check assumptions
 
