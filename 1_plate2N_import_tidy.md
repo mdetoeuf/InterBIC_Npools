@@ -313,25 +313,25 @@ slurry_samples <- soil_sample_list |>
   ) |> 
   pivot_longer(cols = T0:ctrl, names_to = "incubation",values_to = "slurry_sample") |> 
   mutate(
-    extr_id = rep(c(rep("extr_pnr",6), "extr_ctrl"), 80)) 
+    extr_id = rep(c(rep("extr",6), "blank_ctrl"), 80)) 
 
 # check it out
 slurry_samples
 ```
 
     # A tibble: 560 × 7
-       samples zone  biol_unit_nb batch incubation slurry_sample extr_id  
-       <chr>   <chr>        <dbl> <chr> <chr>      <chr>         <chr>    
-     1 83_z3   z3              83 R1    T0         83_z3_T0      extr_pnr 
-     2 83_z3   z3              83 R1    T6         83_z3_T6      extr_pnr 
-     3 83_z3   z3              83 R1    T2         83_z3_T2      extr_pnr 
-     4 83_z3   z3              83 R1    T24        83_z3_T24     extr_pnr 
-     5 83_z3   z3              83 R1    T4         83_z3_T4      extr_pnr 
-     6 83_z3   z3              83 R1    T26        83_z3_T26     extr_pnr 
-     7 83_z3   z3              83 R1    ctrl       83_z3_ctrl    extr_ctrl
-     8 87_z1   z1              87 R1    T0         87_z1_T0      extr_pnr 
-     9 87_z1   z1              87 R1    T6         87_z1_T6      extr_pnr 
-    10 87_z1   z1              87 R1    T2         87_z1_T2      extr_pnr 
+       samples zone  biol_unit_nb batch incubation slurry_sample extr_id   
+       <chr>   <chr>        <dbl> <chr> <chr>      <chr>         <chr>     
+     1 83_z3   z3              83 R1    T0         83_z3_T0      extr      
+     2 83_z3   z3              83 R1    T6         83_z3_T6      extr      
+     3 83_z3   z3              83 R1    T2         83_z3_T2      extr      
+     4 83_z3   z3              83 R1    T24        83_z3_T24     extr      
+     5 83_z3   z3              83 R1    T4         83_z3_T4      extr      
+     6 83_z3   z3              83 R1    T26        83_z3_T26     extr      
+     7 83_z3   z3              83 R1    ctrl       83_z3_ctrl    blank_ctrl
+     8 87_z1   z1              87 R1    T0         87_z1_T0      extr      
+     9 87_z1   z1              87 R1    T6         87_z1_T6      extr      
+    10 87_z1   z1              87 R1    T2         87_z1_T2      extr      
     # ℹ 550 more rows
 
 Then we create a table with “fake samples” = blank controls (will take
@@ -389,18 +389,18 @@ map_list
 ```
 
     # A tibble: 576 × 13
-       samples zone  biol_unit_nb batch incubation slurry_sample extr_id 
-       <chr>   <chr>        <dbl> <chr> <chr>      <chr>         <chr>   
-     1 83_z3   z3              83 R1    T0         83_z3_T0      extr_pnr
-     2 83_z3   z3              83 R1    T6         83_z3_T6      extr_pnr
-     3 83_z3   z3              83 R1    T2         83_z3_T2      extr_pnr
-     4 83_z3   z3              83 R1    T24        83_z3_T24     extr_pnr
-     5 83_z3   z3              83 R1    T4         83_z3_T4      extr_pnr
-     6 83_z3   z3              83 R1    T26        83_z3_T26     extr_pnr
-     7 87_z1   z1              87 R1    T0         87_z1_T0      extr_pnr
-     8 87_z1   z1              87 R1    T6         87_z1_T6      extr_pnr
-     9 87_z1   z1              87 R1    T2         87_z1_T2      extr_pnr
-    10 87_z1   z1              87 R1    T24        87_z1_T24     extr_pnr
+       samples zone  biol_unit_nb batch incubation slurry_sample extr_id
+       <chr>   <chr>        <dbl> <chr> <chr>      <chr>         <chr>  
+     1 83_z3   z3              83 R1    T0         83_z3_T0      extr   
+     2 83_z3   z3              83 R1    T6         83_z3_T6      extr   
+     3 83_z3   z3              83 R1    T2         83_z3_T2      extr   
+     4 83_z3   z3              83 R1    T24        83_z3_T24     extr   
+     5 83_z3   z3              83 R1    T4         83_z3_T4      extr   
+     6 83_z3   z3              83 R1    T26        83_z3_T26     extr   
+     7 87_z1   z1              87 R1    T0         87_z1_T0      extr   
+     8 87_z1   z1              87 R1    T6         87_z1_T6      extr   
+     9 87_z1   z1              87 R1    T2         87_z1_T2      extr   
+    10 87_z1   z1              87 R1    T24        87_z1_T24     extr   
     # ℹ 566 more rows
     # ℹ 6 more variables: col_to_order <chr>, reshuffle <dbl>,
     #   plate_nb_per_batch <int>, plate_id_generic <chr>, plate_id_NO2 <chr>,
@@ -423,7 +423,7 @@ tibble_map_pnr <- map_plates(
     paste0("NO3_",plate_ids), 
     paste0("NO2_",plate_ids)), 
   column_curves = c(1,12), 
-  column_blank = 2, rename_na = "extr_ctrl")
+  column_blank = 2, rename_na = "blank_ctrl")
 
 #check it out
 tibble_map_pnr
@@ -676,16 +676,16 @@ all_vertical <- Nmin_t1t2_vertical |>
 sample(names(all_vertical),size = 30)
 ```
 
-     [1] "PNR-abs-NO2_R7_1"       "PNR-map-NO2_R7_1"       "TDN-abs-NO2_TDN_05"    
-     [4] "TDN-map-NO3_TDN_32"     "PMN-map-NH4_PC2"        "Nmint3-map-NH4_R5R6_1" 
-     [7] "Nmint1t2-map-NO2_2P6_3" "Nmint3-abs-NH4_R4R5_1"  "TDN-abs-NO3_TDN_01"    
-    [10] "PNR-abs-NO2_R2_1"       "Nmint3-map-NO2_R5R6_1"  "Nmint3-map-NO2_R6R7_2" 
-    [13] "PMN-map-NH4_PP2"        "Nmint3-abs-NH4_R7R8_2"  "PNR-abs-NO3_R1_4"      
-    [16] "PNR-map-NO2_R6_3"       "PNR-abs-NO2_R2_2"       "Nmint1t2-map-NO2_2F4_2"
-    [19] "Nmint1t2-map-NO2_2P3"   "PNR-abs-NO2_R5_4"       "Nmint1t2-map-NO2_2F4_1"
-    [22] "TDN-map-NO2_TDN_16"     "PNR-map-NO3_R5_2"       "Nmint1t2-map-NO3_1F2_1"
-    [25] "PNR-abs-NO3_R2_4"       "PMN-map-NO2_PP3"        "Nmint1t2-abs-NO3_2P2"  
-    [28] "Nmint1t2-abs-NH4_2P7_2" "TDN-map-NO3_TDN_13"     "Nmint3-abs-NH4_R1R2_1" 
+     [1] "Nmint1t2-abs-NO3_1G2"   "Nmint3-abs-NO3_R4R5_1"  "PMN-map-NH4_PP2"       
+     [4] "Nmint1t2-abs-NH4_1F4"   "Nmint1t2-abs-NO3_2P7_1" "Nmint3-abs-NO2_R4R5_1" 
+     [7] "PNR-abs-NO3_R8_4"       "Nmint1t2-abs-NH4_2F4_2" "Nmint1t2-map-NO3_1F4"  
+    [10] "PNR-map-NO3_R4_1"       "TDN-abs-NO3_TDN_20"     "TDN-abs-NO3_TDN_22"    
+    [13] "PMN-abs-NH4_PF2"        "Nmint1t2-abs-NO3_2F4_1" "Nmint1t2-abs-NH4_2F2_2"
+    [16] "Nmint1t2-abs-NO2_2P4"   "PNR-map-NO2_R7_4"       "Nmint1t2-map-NO2_2F5_1"
+    [19] "Nmint1t2-map-NO3_2F6_1" "PNR-map-NO2_R4_2"       "PNR-map-NO3_R1_1"      
+    [22] "TDN-map-NO3_TDN_25"     "TDN-abs-NO3_TDN_13"     "PMN-map-NO3_PP1"       
+    [25] "TDN-map-NO3_TDN_38"     "TDN-map-NO3_TDN_03"     "TDN-map-NO2_TDN_11"    
+    [28] "Nmint3-abs-NH4_R4R5_1"  "Nmint3-abs-NO3_R5R6_1"  "Nmint1t2-map-NO3_1F2_2"
 
 ``` r
 # check it out  
@@ -890,6 +890,12 @@ all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
 
 all_plate_metadata_TDN |> write_rds("output/data/1_all_plate_metadata_TDN.rds")
 all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rds")
+```
+
+Also export info concerning PNR that will be needed downstream
+
+``` r
+slurry_samples |> write_rds("output/data/1_slurry_sample_PNR.rds")
 ```
 
 [^1]: TDN stands for Total Dissolved Nitrogen, i.e., NO3- is dosed after
