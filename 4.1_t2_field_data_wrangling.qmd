@@ -284,6 +284,8 @@ Nmin_all_variables <- Nmin_ppm_wider |>
 
 ## 2.3 - PMN concentration in ppm
 
+### 2.3.1 - Compute new variables
+
 Here, we
 
 - join PMN_fw (data set containing fresh weight of the subsample that underwent the incubation) with the absorbance derived concentration data in mg N / L
@@ -339,23 +341,7 @@ PMN_all_variables <- PMN_wider |>
 PMN_all_variables |> ungroup() |> select(incub_time, incub_day) |> unique()
 ```
 
-Finally, we ca compute the slope of the curve.
-
-::: callout-important
-## Statistical issue
-
-We have 4 technical replicates per incubation time, but rep 1 of incubation time 1 has no particular relationship to rep 1 of incubation time 2. It would make little sense to compute 4 different slopes and then take the mean of the 4 slopes to get a boxplot and the option of an anova with comparison of means (of slopes).
-:::
-
-According to AI (see full doc):
-
-- ANCOVA, (independant measurements bc subsamples evolve separately) .
-
-  - linear model with interaction term: outcome \~ group \* predictor
-
-  - --\> try with lm(ppm_Nmin \~ soil \* incub_days)
-
-  - Details see doc
+### 2.3.2 - Plot the curves
 
 Finally, we can plot the curve of the potential mineralization of Nitrogen (PMN)
 
@@ -421,7 +407,15 @@ PMN_plot_all_annotated
 PMN_plot_all_annotated + facet_wrap(~soil)
 ```
 
---\> I would plead for the abandon of this measure
+### 2.3.3 - Corrected PMN
+
+After discussion with PI: keep only points that we trust: 1st one and post-humidification –\> i0, i3, i4
+
+```{r}
+# subset data
+PMN_trusted <- PMN_all_variables |> 
+  filter(incub_time %in% c("i0", "i3", "i4"))
+```
 
 ## 2.4 - Derive MBC from TDN
 
@@ -541,4 +535,5 @@ Npools_t2 <- TDN_sample |>
 
 ```{r}
 Npools_t2 |> write_rds("output/data/4.1_t2_field_Npools.rds")
+PMN_trusted |> write_rds("output/data/4.1_t2_field_PMN.rds")
 ```
