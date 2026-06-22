@@ -133,11 +133,16 @@ Extract Std wells, add unique curve ID, then add curve_concentration
   left_join(curve_concentration, by = join_by(row, dataset, plate_id)))
 ```
 
+In this case, there is little interest in checking untrusted blanks, because we only had one std curve per plate, meaning we cannot compute an average anyway.
+
+Still, we can have a look at it (if some values in A-row are higher than B-row, it's a warning sign, and another correction may need to be thought through, e.g., compute the intercept of the curve)
+
 Check unstrusted blanks (where the smallest value for a given curve is not in row A (top_down pipetting)
 
 ```{r}
 std_blank <- raw_abs_clean |> extract_std_blank()
 std_blank$untrusted
+#std_blank$trusted
 #blank$all |> filter(plate_id == "NO3_R2R3_1")
 ```
 
@@ -161,18 +166,23 @@ There are no untrusted wells, yay :-)
 #   facet_wrap(~plate_id, scales = "free")
 ```
 
-Now that we have all the trusted wells with blank values, we can finally correct absorbance values for the standard curves
+There is no need per se in computing the average, as there is only one well per blank. We directly correct the data and give as "average" the data from the single well containing absorbance of the blank of the std curve. Because some formatting occurs in the background, we still use the computation of the average (on a single point)
 
 ```{r}
 #| include: false
-std_corrected <- 
-  blank_correct_abs(
-    raw_wells_data = std_data|> 
+# First, compute a clean std_data, as would be with the average
+std_blank_avg <- std_blank$all |> 
+  mutate(abs = as.double(abs)) |> 
+  std_blank_average()
+
+
+std_corrected <- blank_correct_abs(
+  raw_wells_data = std_data|> 
       ungroup() |> 
       filter_out(row == "A"),
-    per_plate_avg_blank = std_blank$average |> rename(blank_avg = blank_avg),
-    map_to_exclude = ""
-  ) |> 
+  per_plate_avg_blank = std_blank_avg,
+  map_to_exclude = ""
+) |> 
   # take subset (to access plates according to their nb)
   separate_wider_delim(cols = plate_id, delim = "_", names = c("n_sp", "TDN", "nb", "bla"), too_few = "align_start", cols_remove = FALSE) |> 
   mutate(
@@ -202,7 +212,7 @@ suspicious_plates <- raw_abs_clean |>
   qc_raw_extr(suppress_warning = TRUE, max_coeff = threshold)
 
 suspicious_extr <- suspicious_extr(
-  raw_abs_clean, suspicious_plate_id = suspicious_plates, max_coeff = threshold)
+  raw_abs_clean, suspicious_extr_per_plate = suspicious_plates, max_coeff = threshold)
 
 # check it out
 suspicious_extr
