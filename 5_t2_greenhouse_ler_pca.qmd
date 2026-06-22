@@ -320,7 +320,7 @@ plot_pca_w_soil <- plot_pca(data_w_pca, var_scores, PC_percent) +
   labs(title = "PCA - Wheat") +
   scale_color_discrete(palette = c(soil_colors)) 
 
-#plot_pca_w_soil
+plot_pca_w_soil
 ```
 
 ### 3.2.4 - All plots

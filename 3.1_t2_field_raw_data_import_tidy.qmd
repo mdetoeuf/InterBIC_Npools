@@ -25,7 +25,6 @@ output: true
 - Import PNR
 - Nmin t3?
 - soil CRA
-- 
 
 # Set up
 
@@ -113,6 +112,10 @@ pmn_wc <- raw_data_field |>
     wc = mean(wc)
   )
 ```
+
+### 1.1.4 - Lab data to get water content and fresh weight for PNR
+
+# °°° !!! START HERE !!! °°°
 
 ## 1.2 - Microresp Data (TO DO?)
 

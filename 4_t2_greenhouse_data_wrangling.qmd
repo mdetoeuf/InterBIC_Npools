@@ -272,11 +272,7 @@ Nmin_all_variables <- Nmin_ppm_wider |>
 Here, we
 
 - join PMN_fw (data set containing fresh weight of the subsample that underwent the incubation) with the absorbance derived concentration data in mg N / L
-
-<!-- -->
-
 - compute the ratio between weight of fresh soil and volume of extractant (150ml) –\> \~30g/150ml
-
 - Derive the concentration in ppm from mg N/L, ratio and dry matter
 
 ```{r}
