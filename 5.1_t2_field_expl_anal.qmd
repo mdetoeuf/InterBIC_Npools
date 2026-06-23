@@ -320,15 +320,15 @@ ggsave("output/figures/field/PMN.pdf", plot = PMN_plot_all)
 
 ```{r}
 library(RColorBrewer)
-display.brewer.all(n = 3, type = "qual")
+display.brewer.all(n = 2, type = "qual")
 display.brewer.pal(n = 3, name = "Accent")
-cs_colors <- brewer.pal(n = 3, name = "Accent")
-names(cs_colors) <- c("FB", "IC", "W")
+cs_colors <- brewer.pal(n = 3, name = "Accent")[2:3]
+names(cs_colors) <- c("IC", "W")
 
 display.brewer.all(n = 4, type = "qual")
 display.brewer.pal(n = 4, name = "Set1")
-soil_colors <- brewer.pal(n = 4, name = "Set1")
-names(soil_colors) <- c("Conv", "Ref", "Auto", "ABC")
+soil_colors <- brewer.pal(n = 4, name = "Set1")[2:4]
+names(soil_colors) <- c("Ref", "Auto", "ABC")
 ```
 
 ### 4.2.2 - Faba Bean
@@ -340,7 +340,7 @@ rda_matrix_fb <- data_fb |>
     biol_unit_nb,
     ppm_NO3, ppm_NH4, 
     #stem_per_fb, 
-    height_per_fb, dw_fb_per_plant) |> 
+    grain_yield_15p_t_per_ha, protein_percent_dw) |> 
   column_to_rownames("biol_unit_nb") |> 
   drop_na()
   
@@ -406,7 +406,7 @@ rda_matrix_w <- data_w |>
     biol_unit_nb,
     ppm_NO3, ppm_NH4, 
     #till_per_w, 
-    height_per_w, dw_w_per_plant) |> 
+    grain_yield_15p_t_per_ha, protein_percent_dw) |> 
   column_to_rownames("biol_unit_nb") |> 
   drop_na()
   
