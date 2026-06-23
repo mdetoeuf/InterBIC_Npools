@@ -1,0 +1,448 @@
+---
+title: "2.3 Converting MicroResp Data"
+author: "Morgane de Toeuf"
+format: 
+  gfm:
+    toc: true
+    #code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# TO DO
+
+# Set up
+
+```{r}
+rm(list = ls())
+
+library(plate2N)
+library(tidyverse)
+```
+
+Load data
+
+```{r}
+MR_data <- read_rds("output/data/1_all_raw_abs_tidy_MR.rds")
+MR_metadata <- read_rds("output/data/1_all_MR_metadata.rds") |> 
+  # add column dataset into metadat to use for left_join()
+  mutate(dataset = case_when(
+    expe == "Pot" ~ "MR_greenhouse",
+    expe == "Field" ~ "MR_field",
+    .default = "oups"),
+    .before = expe)
+
+```
+
+Join data
+
+```{r}
+MR <- MR_data |> left_join(MR_metadata)
+```
+
+# 1 - clean data
+
+## 1.1 - QC - suspicious wells
+
+Check first t0
+
+```{r}
+MR |> 
+  mutate(abs = abs_t0) |> 
+  qc_raw_abs(
+    min_abs = 0.9, max_abs = 2.5, 
+    plot_col_facet = "dataset", 
+    show_plot = TRUE, export_plot = "abs_t0_distrib") 
+abs_t0_distrib + labs(title = "Distribution of absorbance at t0, all data")
+```
+
+For now, it looks fine for both datasets for t0. Let's check t5
+
+```{r}
+MR |> 
+  mutate(abs = abs_t5) |> 
+  qc_raw_abs(
+    min_abs = 0.1, max_abs = 2.5, 
+    plot_col_facet = "dataset", 
+    show_plot = TRUE,
+    export_plot = "abs_t5_distrib") 
+abs_t5_distrib + labs(title = "Distribution of absorbance at t5, all data")
+```
+
+They also look good, no outlier removal needed so far
+
+## 1.2 - remove "empty" and NAs
+
+With MicroResp experiments, edge effects are not rare, so we exclude any data from columns 1 and 12 of the 96-well plate. Those have been encoded in the mapping as "empty" (though they were not physically).
+
+Also, the Excel template was not 100% full, which means that some plates are without absorbance data
+
+```{r}
+MR_clean <- MR |> 
+  filter_out(map == "empty" | is.na(abs_t0)) |> 
+  mutate(abs_t0 = as.numeric(abs_t0), abs_t5 = as.numeric(abs_t5))
+
+MR_clean
+```
+
+# 2 - Normalisation
+
+In preliminary works we noticed that `detection_plate_id` was the biggest driver of variability in our dataset. Let's visualize t0 absorbance readings (see plot)
+
+```{r}
+MR_clean |> ggplot(aes(x = detection_plate_id, y = as.numeric(abs_t0))) +
+  theme_minimal() +
+  geom_boxplot() +
+  facet_wrap(~dataset, scales = "free_x")
+```
+
+So, instead of a "per-plate" normalization, we propose a "per-dataset" normalisation. I.e., instead of
+
+- $normalized_{abs} = \frac{abs_{i,t5}}{abs_{i,t0}} \cdot mean(abs_{plate,t0})$
+
+We get
+
+- $normalized_{abs} = \frac {abs_{i,t5}}{abs_{i,t0}} \cdot mean(abs_{dataset,t0})$
+
+## 2.1 - Compute per-dataset mean of t0
+
+```{r}
+avg_t0 <- MR_clean |> 
+  # option: keep only "best" plate: M1 and
+ # filter(detection_plate_id %in% c("M1", "M28")) |> 
+  # remove first and last row for this (bc edge effects)
+  filter_out(row %in% c("A", "H")) |> 
+  group_by(dataset) |> 
+  summarise(dataset_avg_t0 = mean(abs_t0))
+```
+
+## 2.2 - Normalize data
+
+```{r}
+MR_norm <- MR_clean |> 
+  left_join(avg_t0, by = join_by(dataset)) |> 
+  relocate(dataset_avg_t0, .after = abs_t5) |> 
+  mutate(
+    norm = (abs_t5 / abs_t0) * dataset_avg_t0,
+    .after = dataset_avg_t0
+  )
+```
+
+# 3 - Convert to %CO2
+
+%Co2 = -0.2265 + (-1.606)/(1+(-6.771)\*norm)
+
+```{r}
+MR_percent_co2 <- MR_norm |> 
+  mutate(
+    percent_co2 = 
+      -0.2265 + 
+      ((-1.606) / 
+         (1 + 
+            ((-6.771) * norm))
+       ),
+    .after = norm
+    )
+```
+
+# 4 - Convert to g CO2 / g dry soil
+
+co2_emitted = (((percent_co2/100)x850x(44/22.4)x*(12/44)x*(273/(273+25)))/(soil_per_well_gx(soil_dw/100)))/5
+
+```{r}
+MR_co2_g_h <- MR_percent_co2 |> 
+  mutate(
+    co2_g_h = (
+      (
+        (percent_co2 / 100) * 850 * (44/22.4) * (12/44) * (273 / (273+25))
+        ) / 
+        case_when(
+          # for std soils
+          column %in% c(2,3) ~ 
+            (std_soil_well_g * (std_soil_dm_content_percent / 100)),
+          column %in% c(4:11) ~ 
+            (soil_well_g * (soil_dm_content_percent / 100)))
+      ) / 5
+  )
+
+MR_co2_g_h
+```
+
+Check-out values
+
+```{r}
+MR_co2_g_h |> 
+  ggplot(aes(x = co2_g_h)) + 
+  theme_minimal() +
+  #geom_histogram() +
+  geom_density() +
+  facet_grid(map~dataset, scales = "free_y")
+```
+
+::: callout-warning
+## Calibration or correction needed !
+
+Until we find a way to correct / calibrate this data, we are probably still going to have some issues with the negative values (we need to compute the log)
+:::
+
+# 5 - Per plate & per substrate outlier removal
+
+Subset data.
+
+!! A preliminary run of the following chunks (up to saving the plots) showed that while they are not the only outliers, wells from row A and H are outliers on many plates, possibly a majority of plates.
+
+So I choose to follow the recommendation of our colleagues from the FiBL and remove those wells already in the subset now. If needed, just "comment" the filtering line to check out plots with all data again
+
+```{r}
+
+MR_greenhouse_raw <- MR_co2_g_h |> 
+  filter_out(row %in% c("A", "H")) |> 
+  filter(dataset == "MR_greenhouse")
+
+MR_field_raw <- MR_co2_g_h |> 
+  filter_out(row %in% c("A", "H")) |> 
+  filter(dataset == "MR_field")
+```
+
+## 5.1 - create QC plots
+
+Create one list of QC plots per dataset
+
+Take a subset with coefficient of variation at 5%?
+
+```{r}
+MR_greenhouse_avg <- MR_greenhouse_raw |> 
+  group_by(plate_id, map) |> 
+  summarize(
+    substrate_avg = mean(co2_g_h),
+    std_dev = sd(co2_g_h)
+  ) |> 
+  mutate(coef_var_percent = 100 * std_dev / substrate_avg) |> 
+  arrange(desc(coef_var_percent))
+
+MR_greenhouse_avg |> ggplot(aes(x = coef_var_percent)) +
+  geom_histogram() +
+  xlim(-100, 100)
+
+suspicious_substrates_greenhouse <- MR_greenhouse_avg |> 
+  filter(abs(coef_var_percent) > 15) |> 
+  select(plate_id, map) |> unique()
+
+suspicious_MR_greenhouse <- MR_greenhouse_raw |> 
+  right_join(suspicious_substrates_greenhouse) 
+
+
+## Repeat for field
+MR_field_avg <- MR_field_raw |> 
+  group_by(plate_id, map) |> 
+  summarize(
+    substrate_avg = mean(co2_g_h),
+    std_dev = sd(co2_g_h)
+  ) |> 
+  mutate(coef_var_percent = 100 * std_dev / substrate_avg) |> 
+  arrange(desc(coef_var_percent))
+
+MR_field_avg |> ggplot(aes(x = coef_var_percent)) +
+  geom_histogram() +
+  xlim(-100, 100)
+
+suspicious_substrates_field <- MR_field_avg |> 
+  filter(abs(coef_var_percent) > 15) |> 
+  select(plate_id, map) |> unique()
+
+suspicious_MR_field <- MR_field_raw |> 
+  right_join(suspicious_substrates_field) 
+```
+
+Now, with a threshold of 15% as max coef of variation, we are left with only \~200 combinations of plate x substrate to look at (instead of \~5000).
+
+[**!! This means we are ok with not looking at all data !!**]{.underline}
+
+```{r}
+
+source("functions/plot_qc_sample_conc.R")
+
+# qc_plots_greenhouse <- plot_list_qc_MR(MR_greenhouse_raw)
+# 
+# qc_plots_field <- plot_list_qc_MR(MR_field_raw)
+
+qc_plots_greenhouse <- plot_list_qc_MR(suspicious_MR_greenhouse)
+
+qc_plots_field <- plot_list_qc_MR(suspicious_MR_field)
+
+```
+
+Save QC plots for review outside of this Markdown document
+
+!! The following chunk is slow and is thus deactivated. Manually run it to save plots again
+
+```{r}
+#| eval: false
+#| include: true
+
+# For greenhouse
+for (i in 1:length(qc_plots_greenhouse)) {
+  
+  plot <- qc_plots_greenhouse[i]
+  
+  filepath <- paste0(
+      "output/figures/QC/greenhouse_MR/",
+      names(plot), "_", today(), ".pdf")
+  
+  ggsave(
+    filename = filepath, 
+    plot = plot, width = 18, height = 10)
+}
+
+# For field
+for (i in 1:length(qc_plots_field)) {
+  
+  plot <- qc_plots_field[i]
+  
+  filepath <- paste0(
+      "output/figures/QC/field_MR/",
+      names(plot), "_", today(), ".pdf")
+  
+  ggsave(
+    filename = filepath, 
+    plot = plot, width = 18, height = 10)
+}
+```
+
+## 5.2 - identifying outliers + removal
+
+Then we create a table of wells to remove, and clean the dataset from obvious outliers
+
+Starting with greenhouse outliers
+
+```{r}
+to_remove_greenhouse <- tribble(
+  ~ plate_id, ~well_id, 
+  # Alanine
+  "P08", "C10",    "P19", "B10",    "P28", "C10",
+  "P35", "F10",    "P43", "G10",    "P50", "B10",
+  "P70", "C10",    "P96", "B10",
+  # gABA
+  "P01", "F9",    "P15", "G9",    "P31", "D9",
+  "P35", "G9",    "P39", "E9",    "P43", "G9",
+  "P51", "D9",    "P56", "F9",    "P66", "B9",
+  "P67", "F9",    "P69", "D9",    "P70", "D9",
+  "P84", "D9",    "P93", "D9",
+  #Glu
+  "P24", "B6",    "P43", "B6",    "P43", "G6",
+  "P56", "G6",    "P81", "B6",    "P82", "D6",
+  # H2O
+  "P02", "B4",    "P06", "C4",    "P08", "B4",
+  "P17", "B4",    "P18", "C4",    "P25", "G4",
+  "P41", "B4",    "P44", "G4",    "P45", "G4",
+  "P46", "B4",    "P51", "C4",    "P60", "C4",
+  "P62", "G4",    "P85", "G4",    "P85", "F4",
+  "P88", "F4",
+  # Lgn
+  "P08", "B7",    "P24", "B7",    "P35", "G7",
+  "P43", "G7",    "P46", "G7",    "P52", "G7",
+  "P70", "G7",    "P83", "B7",    "P88", "C7",
+  # NAG
+  "P12", "B8",    "P12", "G8",    "P16", "B8",
+  "P28", "E8",    "P31", "B8",    "P35", "G8",
+  "P52", "E8",    "P56", "B8",    "P67", "E8",
+  "P70", "E8",
+  # OA
+  "P25", "C5",    "P46", "B5",    "P49", "C5",
+  "P54", "C5",    "P64", "C5",    "P81", "B5",
+  "P90", "G5",
+  #Std-Glu
+  "P08", "F2",    "P44", "B2",    "P46", "D2",
+  "P66", "G2",    
+  # Std-H2O
+  "P01", "B3",    "P12", "D3",    "P16", "B3",
+  "P24", "B3",    "P24", "G3",    "P25", "E3",
+  "P29", "D3",    "P33", "D3",    "P44", "G3",
+  "P62", "B3",    "P64", "F3",    "P86", "G3",
+  "P91", "F3",    "P93", "E3",    
+  # Urea
+  "P30", "C11",    "P35", "F11",    "P35", "G11",
+  "P51", "B11",    "P52", "B11",    "P56", "B11",
+  "P78", "D11",    "P92", "E11"
+  
+  
+) |> 
+  mutate(dataset = "MR_greenhouse")
+
+to_remove_greenhouse
+```
+
+Repeat it with Field outliers
+
+```{r}
+to_remove_field <- tribble(
+  ~ plate_id, ~well_id, 
+  #Ala
+  "P18", "B10",    "P22", "E10",    "P26", "B10",
+  "P27", "B10",    "P52", "G10",    "P66", "B10",
+  "P66", "G10",    "P70", "B10",    "P72", "B10",
+  # gABA
+  "P10", "B9",    "P31", "C9",    "P34", "C9",
+  "P57", "G9",    "P57", "F9",    "P62", "B9",
+  "P62", "C9",    "P65", "G9",    "P66", "G9",
+  "P74", "B9",
+  # Glu
+  "P29", "G6",    "P66", "G6",    "P75", "B6",
+  "P76", "G6",    "P79", "G6",
+  # H2O
+  "P04", "D4",    "P37", "G4",    "P38", "D4",
+  # Lgn
+  "P50", "B7",    "P60", "B7",    "P62", "B7",
+  "P75", "B7",    "P80", "C7",
+  # NAG
+  "P02", "B8",    "P28", "B8",    "P31", "B8",
+  "P37", "B8",    "P42", "C8",    "P57", "E8",
+  # OA
+  "P12", "B5",    "P14", "C5",    "P14", "D5",
+  "P17", "B5",    "P26", "B5",    "P31", "B5",
+  "P34", "E5",    "P35", "E5",    "P52", "E5",
+  "P62", "B5",    "P66", "G5",    "P73", "E5",
+  # Std-Glu
+  "P50", "G2",    "P61", "B2",    "P74", "B2",
+  "P75", "G2",    "P79", "C2",
+  # Std-H2O # NADA
+  # Urea
+  "P23", "F11",    "P33", "D11",    "P46", "C11",
+  "P52", "F11",    "P71", "F11",    "P77", "F11"
+) |> 
+  mutate(dataset = "MR_field")
+
+to_remove_field
+```
+
+Remove those outliers
+
+```{r}
+MR_greenhouse_wash1 <- MR_greenhouse_raw |> remove_wells(to_remove_greenhouse)
+
+MR_field_wash1 <- MR_field_raw |> remove_wells(to_remove_field)
+```
+
+Store last version in a new variable (easier for edits...)
+
+```{r}
+MR_greenhouse_clean <- MR_greenhouse_wash1
+MR_field_clean <- MR_field_wash1
+```
+
+# 6 - Average per plate per substrate
+
+# °°° !!! START HERE !!! °°°
+
+# 7 - MBC, basal respiration and metabolic quotient
+
+# 8 - MSIR & MSIR-N
+
+# 9 - Shanon index
+
+# 10 - Export
