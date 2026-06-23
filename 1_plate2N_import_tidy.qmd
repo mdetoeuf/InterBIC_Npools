@@ -307,24 +307,18 @@ nb_plates_field <- MR_field_abs_t0 |>
   nrow()
 
 MR_greenhouse_map <- map_plates(
-  plate_ids = paste0("P", seq(1:nb_plates_greenhouse)), 
+  plate_ids = paste0("P", sprintf("%02d", seq(01:nb_plates_greenhouse))), 
   samples = rep(MR_columns, nb_plates_greenhouse),
   n_samples_per_plate = 10,
   column_curves = c(), column_blank = c(), column_empty = c(1,12),
   n_wells_samples = 8)
 
 MR_field_map <- map_plates(
-  plate_ids = paste0("P", seq(1:nb_plates_field)), 
+  plate_ids = paste0("P", sprintf("%02d", seq(01:nb_plates_field))), 
   samples = rep(MR_columns, nb_plates_field),
   n_samples_per_plate = 10,
   column_curves = c(), column_blank = c(), column_empty = c(1,12),
   n_wells_samples = 8)
-```
-
-Then we verticalize and join
-
-```{r}
-
 ```
 
 # 2 - Verticalize plates
@@ -446,12 +440,17 @@ PNR_metadata <- read_csv("raw_data/PNR/PNR_metadata.csv", show_col_types = FALSE
   mutate(dataset = "PNR")
 
 MR_greenhouse_metadata <- read_csv(
-  "../raw_data/MR_Pot_metadata.csv",
-  col_select = c(3:23), show_col_types = FALSE)
+  "../raw_data/MR_Pot_metadata.csv", show_col_types = FALSE) |> 
+  as_tibble() |> 
+  select(!c(1,2)) |> 
+  janitor::clean_names()
 
 MR_field_metadata <- read_csv(
-  "../raw_data/MR_Field_metadata.csv", 
-  col_select = c(3:23), show_col_types = FALSE)
+  "../raw_data/MR_Field_metadata.csv", show_col_types = FALSE) |> 
+  as_tibble() |> 
+  select(!c(1,2)) |>
+  janitor::clean_names()
+
 ```
 
 Then we join them in one big metadata file. ! this only works because the 3 metadata files have strictly the same structure (same column names in the same order, containing the same data type (string, numeric, ...)).
