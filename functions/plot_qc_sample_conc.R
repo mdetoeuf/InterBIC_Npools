@@ -13,6 +13,8 @@ boxplot_conc <- function(
     colour = NULL
     ) {
   
+  library(ggrepel)
+  library(ggridges)
   colour_as_aesthetics = FALSE
   
   if (is.null(colour)) {colour = "purple"} else {
@@ -69,3 +71,37 @@ plot_ridges_conc <- function(
   return(plot)
 }
 
+
+# plot_list_qc_MR ---------------------------------------------------------
+
+
+plot_list_qc_MR <- function(
+    MR_data #= MR_greenhouse_raw
+) {
+  substrates <- MR_data |> select(map) |> unique()
+  dataset <- MR_data$dataset |> unique()
+  
+  #i = 1
+  plot_list <- list()
+  for (i in 1:nrow(substrates)) {
+    
+    subset <- MR_data |> 
+      filter(map == substrates$map[i])
+    
+    boxplot <- subset |> 
+      boxplot_conc(x = "plate_id", y = "co2_g_h") + 
+      facet_wrap(~run_id, scales = "free_x", nrow = 5) +
+      theme(legend.position = "none")
+    
+    ridges <- subset |> 
+      plot_ridges_conc(
+        x = "co2_g_h", y = "plate_id", groups = "run_id", colour = "run_id")
+    
+    patchwork <- boxplot + ridges + 
+      patchwork::plot_annotation(title = paste0(dataset, " - ", substrates$map[i]))
+    
+    plot_list[[substrates$map[i]]] = patchwork
+  }
+  
+  return(plot_list)
+}
