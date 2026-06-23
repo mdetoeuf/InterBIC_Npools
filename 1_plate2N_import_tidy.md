@@ -8,6 +8,7 @@ Morgane de Toeuf
   - [1.3 - PNR](#13---pnr)
     - [1.3.1 - PNR mapping](#131---pnr-mapping)
     - [1.3.2 - PNR absorbance data](#132---pnr-absorbance-data)
+  - [1.4 - MicroResp](#14---microresp)
 - [2 - Verticalize plates](#2---verticalize-plates)
 - [3 - tidy table](#3---tidy-table)
 - [4 - Add plate metadata](#4---add-plate-metadata)
@@ -26,6 +27,11 @@ rm(list = ls())
 #pak::pak("mdetoeuf/plate2N”) # if doesn't work --> try pak::pak_cleanup()
 library(plate2N)
 library(tidyverse)
+library(roperators) # for %ni%
+
+
+# Functions
+source("functions/MR_to_tibble.R")
 ```
 
 # 1 - Import data
@@ -522,6 +528,96 @@ PNR_abs
     # ℹ 566 more rows
     # ℹ 1 more variable: X12 <dbl>
 
+## 1.4 - MicroResp
+
+First, import absorbance data (t0 = pre-incubation, t5 = after 5h of
+incubation). Plate ids correspond to sample names (equivalence table
+stored somewhere else)
+
+``` r
+(MR_greenhouse_abs_t0 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Pot_abs.csv", 
+  column_range = c(1:13)))
+```
+
+    # A tibble: 900 × 13
+       row   X1    X2       X3    X4 X5       X6 X7       X8    X9   X10   X11   X12
+       <chr> <chr> <chr> <dbl> <dbl> <chr> <dbl> <chr> <dbl> <dbl> <dbl> <dbl> <dbl>
+     1 P1    1     2      3     4    5      6    7      8     9    10    11    12   
+     2 A     0.93  1.15   1.14  1.14 1.15   1.16 1.16   1.17  1.17  1.12  1.14  1.17
+     3 B     1.15  1.16   1.13  1.16 1.16   1.16 1.17   1.16  1.14  1.16  1.16  1.15
+     4 C     1.16  1.15   1.14  1.17 1.15   1.16 1.19   1.19  1.17  1.17  1.18  1.17
+     5 D     1.17  1.16   1.16  1.16 1.16   1.16 1.18   1.17  1.14  1.18  1.17  1.17
+     6 E     1.19  1.16   1.16  1.18 1.17   1.15 1.19   1.1   1.11  1.17  1.16  1.16
+     7 F     1.16  1.17   1.17  1.18 1.19   1.15 1.19   1.13  1.13  1.16  1.14  1.18
+     8 G     1.17  1.15   1.16  1.13 1.19   1.16 1.20   1.08  1.15  1.16  1.15  1.16
+     9 H     1.17  1.16   1.17  1.16 1.19   1.16 1.20   1.11  1.15  1.15  1.16  1.18
+    10 P2    1     2      3     4    5      6    7      8     9    10    11    12   
+    # ℹ 890 more rows
+
+``` r
+MR_greenhouse_abs_t5 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Pot_abs.csv", 
+  column_range = c(17:29))
+
+(MR_field_abs_t0 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Field_abs.csv", 
+  column_range = c(1:13)))
+```
+
+    # A tibble: 900 × 13
+       row   X1    X2       X3    X4 X5       X6 X7       X8    X9   X10   X11   X12
+       <chr> <chr> <chr> <dbl> <dbl> <chr> <dbl> <chr> <dbl> <dbl> <dbl> <dbl> <dbl>
+     1 P1    1     2      3     4    5      6    7      8     9    10    11    12   
+     2 A     1.42  1.41   1.41  1.43 1.43   1.43 1.41   1.43  1.43  1.44  1.5   1.5 
+     3 B     1.48  1.46   1.44  1.44 1.46   1.5  1.46   1.46  1.49  1.5   1.51  1.48
+     4 C     1.45  1.47   1.46  1.49 1.49   1.48 1.50   1.51  1.51  1.5   1.52  1.48
+     5 D     1.45  1.46   1.5   1.49 1.49   1.49 1.49   1.5   1.51  1.5   1.52  1.49
+     6 E     1.45  1.48   1.47  1.47 1.49   1.49 1.49   1.51  1.5   1.5   1.5   1.49
+     7 F     1.47  1.52   1.5   1.49 1.52   1.51 1.49   1.53  1.5   1.51  1.51  1.48
+     8 G     1.47  1.48   1.49  1.46 1.51   1.51 1.49   1.51  1.5   1.5   1.5   1.49
+     9 H     1.47  1.47   1.46  1.47 1.48   1.49 1.49   1.52  1.49  1.5   1.5   1.49
+    10 P2    1     2      3     4    5      6    7      8     9    10    11    12   
+    # ℹ 890 more rows
+
+``` r
+MR_field_abs_t5 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Field_abs.csv", 
+  column_range = c(16:28))
+```
+
+Then, we prepare the mapping
+
+``` r
+MR_columns <- c(
+  "Std_Glu", "Std_H2O", 
+  "H2O", "OA", "Glu", "Lgn", "NAG", "gABA", "Ala", "Urea")
+
+nb_plates_greenhouse <- MR_greenhouse_abs_t0 |> 
+  filter(row %ni% LETTERS) |> 
+  nrow()
+
+nb_plates_field <- MR_field_abs_t0 |> 
+  filter(row %ni% LETTERS) |> 
+  nrow()
+
+MR_greenhouse_map <- map_plates(
+  plate_ids = paste0("P", seq(1:nb_plates_greenhouse)), 
+  samples = rep(MR_columns, nb_plates_greenhouse),
+  n_samples_per_plate = 10,
+  column_curves = c(), column_blank = c(), column_empty = c(1,12),
+  n_wells_samples = 8)
+
+MR_field_map <- map_plates(
+  plate_ids = paste0("P", seq(1:nb_plates_field)), 
+  samples = rep(MR_columns, nb_plates_field),
+  n_samples_per_plate = 10,
+  column_curves = c(), column_blank = c(), column_empty = c(1,12),
+  n_wells_samples = 8)
+```
+
+Then we verticalize and join
+
 # 2 - Verticalize plates
 
 Here, we transform data from plate format to “verticalized” format: 1
@@ -537,22 +633,43 @@ the dataset prefix.
 ``` r
 # Nmint1t2
 Nmin_t1t2_vertical <- join_abs_map(
-  Nmin_t1t2_abs, Nmin_t1t2_map, dataset = "Nmint1t2-")
+  list(Nmin_t1t2_abs, Nmin_t1t2_map), dataset = "Nmint1t2-")
 
 # Nmint3
-Nmin_t3_vertical <- join_abs_map(Nmin_t3_abs, Nmin_t3_map, dataset = "Nmint3-")
+Nmin_t3_vertical <- join_abs_map(list(Nmin_t3_abs, Nmin_t3_map), dataset = "Nmint3-")
 
 # TDN
-TDN_vertical <- join_abs_map(TDN_abs, TDN_map, dataset = "TDN-")
+TDN_vertical <- join_abs_map(list(TDN_abs, TDN_map), dataset = "TDN-")
 
 # PMN
-PMN_vertical <- join_abs_map(PMN_abs, PMN_map, dataset = "PMN-")
+PMN_vertical <- join_abs_map(list(PMN_abs, PMN_map), dataset = "PMN-")
 
 # PNR
-PNR_vertical <- join_abs_map(PNR_abs, PNR_map, dataset = "PNR-")
+PNR_vertical <- join_abs_map(list(PNR_abs, PNR_map), dataset = "PNR-")
+
+# MicroResp
+MR_greenhouse_vertical <- join_abs_map(
+  tibble_list = list(
+    MR_greenhouse_abs_t0, 
+    MR_greenhouse_abs_t5, 
+    MR_greenhouse_map),
+  abs_map = c("abs_t0-", "abs_t5-", "map-"),
+  coerce_numeric = FALSE,
+  dataset = "MR_greenhouse-"
+)
+
+MR_field_vertical <- join_abs_map(
+  tibble_list = list(
+    MR_field_abs_t0, 
+    MR_field_abs_t5, 
+    MR_field_map),
+  abs_map = c("abs_t0-", "abs_t5-", "map-"),
+  coerce_numeric = FALSE,
+  dataset = "MR_field-"
+)
 
 ## Check them out
-Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical ; MR_greenhouse_vertical ; MR_field_vertical
 ```
 
     # A tibble: 96 × 200
@@ -660,36 +777,102 @@ Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical
     #   `PNR-abs-NO3_R3_4` <chr>, `PNR-abs-NO3_R4_1` <chr>,
     #   `PNR-abs-NO3_R4_2` <chr>, `PNR-abs-NO3_R4_3` <chr>, …
 
+    # A tibble: 96 × 302
+       row   column `MR_greenhouse-abs_t0-P1` `MR_greenhouse-abs_t0-P2`
+       <chr> <chr>  <chr>                     <chr>                    
+     1 A     1      0.93                      1.23                     
+     2 A     2      1.15                      1.23                     
+     3 A     3      1.14                      1.22                     
+     4 A     4      1.14                      1.22                     
+     5 A     5      1.15                      1.22                     
+     6 A     6      1.16                      1.21                     
+     7 A     7      1.16                      1.23                     
+     8 A     8      1.17                      1.2                      
+     9 A     9      1.17                      1.21                     
+    10 A     10     1.12                      1.21                     
+    # ℹ 86 more rows
+    # ℹ 298 more variables: `MR_greenhouse-abs_t0-P3` <chr>,
+    #   `MR_greenhouse-abs_t0-P4` <chr>, `MR_greenhouse-abs_t0-P5` <chr>,
+    #   `MR_greenhouse-abs_t0-P6` <chr>, `MR_greenhouse-abs_t0-P7` <chr>,
+    #   `MR_greenhouse-abs_t0-P8` <chr>, `MR_greenhouse-abs_t0-P9` <chr>,
+    #   `MR_greenhouse-abs_t0-P10` <chr>, `MR_greenhouse-abs_t0-P11` <chr>,
+    #   `MR_greenhouse-abs_t0-P12` <chr>, `MR_greenhouse-abs_t0-P13` <chr>, …
+
+    # A tibble: 96 × 302
+       row   column `MR_field-abs_t0-P1` `MR_field-abs_t0-P2` `MR_field-abs_t0-P3`
+       <chr> <chr>  <chr>                <chr>                <chr>               
+     1 A     1      1.42                 1.38                 1.37                
+     2 A     2      1.41                 1.41                 1.36                
+     3 A     3      1.41                 1.4                  1.38                
+     4 A     4      1.43                 1.42                 1.37                
+     5 A     5      1.43                 1.39                 1.39                
+     6 A     6      1.43                 1.4                  1.39                
+     7 A     7      1.41                 1.41                 1.36                
+     8 A     8      1.43                 1.42                 1.37                
+     9 A     9      1.43                 1.46                 1.38                
+    10 A     10     1.44                 1.38                 1.42                
+    # ℹ 86 more rows
+    # ℹ 297 more variables: `MR_field-abs_t0-P4` <chr>, `MR_field-abs_t0-P5` <chr>,
+    #   `MR_field-abs_t0-P6` <chr>, `MR_field-abs_t0-P7` <chr>,
+    #   `MR_field-abs_t0-P8` <chr>, `MR_field-abs_t0-P9` <chr>,
+    #   `MR_field-abs_t0-P10` <chr>, `MR_field-abs_t0-P11` <chr>,
+    #   `MR_field-abs_t0-P12` <chr>, `MR_field-abs_t0-P13` <chr>,
+    #   `MR_field-abs_t0-P14` <chr>, `MR_field-abs_t0-P15` <chr>, …
+
 Then, we use the `dplyr::left_join()` function to join all plate data in
 a single data table. Note the distinct column names with their dataset
 and abs/map-related prefixes
 
 ``` r
 # join all 3 in a single table with all "plate data"
-all_vertical <- Nmin_t1t2_vertical |> 
+all_vertical_Npools <- Nmin_t1t2_vertical |> 
   left_join(Nmin_t3_vertical, by = join_by(row, column)) |> 
   left_join(TDN_vertical, by = join_by(row, column)) |> 
   left_join(PMN_vertical, by = join_by(row, column)) |> 
   left_join(PNR_vertical, by = join_by(row, column))
+  
+# same for MicroResp
+all_vertical_MR <- MR_greenhouse_vertical |> 
+  left_join(MR_field_vertical, by = join_by(row, column))
 
 # look at the structure of variable names
-sample(names(all_vertical),size = 30)
+sample(names(all_vertical_Npools),size = 30)
 ```
 
-     [1] "Nmint1t2-abs-NO3_1G2"   "Nmint3-abs-NO3_R4R5_1"  "PMN-map-NH4_PP2"       
-     [4] "Nmint1t2-abs-NH4_1F4"   "Nmint1t2-abs-NO3_2P7_1" "Nmint3-abs-NO2_R4R5_1" 
-     [7] "PNR-abs-NO3_R8_4"       "Nmint1t2-abs-NH4_2F4_2" "Nmint1t2-map-NO3_1F4"  
-    [10] "PNR-map-NO3_R4_1"       "TDN-abs-NO3_TDN_20"     "TDN-abs-NO3_TDN_22"    
-    [13] "PMN-abs-NH4_PF2"        "Nmint1t2-abs-NO3_2F4_1" "Nmint1t2-abs-NH4_2F2_2"
-    [16] "Nmint1t2-abs-NO2_2P4"   "PNR-map-NO2_R7_4"       "Nmint1t2-map-NO2_2F5_1"
-    [19] "Nmint1t2-map-NO3_2F6_1" "PNR-map-NO2_R4_2"       "PNR-map-NO3_R1_1"      
-    [22] "TDN-map-NO3_TDN_25"     "TDN-abs-NO3_TDN_13"     "PMN-map-NO3_PP1"       
-    [25] "TDN-map-NO3_TDN_38"     "TDN-map-NO3_TDN_03"     "TDN-map-NO2_TDN_11"    
-    [28] "Nmint3-abs-NH4_R4R5_1"  "Nmint3-abs-NO3_R5R6_1"  "Nmint1t2-map-NO3_1F2_2"
+     [1] "PNR-map-NO2_R3_4"       "Nmint1t2-abs-NO3_2F5_2" "PMN-abs-NH4_PP4"       
+     [4] "Nmint3-abs-NO3_R6R7_2"  "TDN-map-NO3_TDN_20"     "PMN-map-NO3_PC2"       
+     [7] "Nmint3-abs-NH4_R2R3_2"  "Nmint1t2-map-NO3_2F6_2" "Nmint1t2-map-NO3_2F1_2"
+    [10] "column"                 "TDN-map-NO3_TDN_31"     "Nmint1t2-abs-NH4_2P6_2"
+    [13] "TDN-abs-NO2_TDN_14"     "TDN-abs-NO2_TDN_07"     "PNR-abs-NO3_R8_1"      
+    [16] "Nmint1t2-map-NO3_1G1"   "Nmint3-map-NO3_R1R2_1"  "PNR-map-NO2_R2_4"      
+    [19] "TDN-map-NO2_TDN_04"     "Nmint1t2-abs-NO2_1G2"   "TDN-abs-NO2_TDN_16"    
+    [22] "Nmint3-map-NH4_R4R5_1"  "Nmint3-map-NH4_R7R8_2"  "TDN-abs-NO3_TDN_14"    
+    [25] "Nmint1t2-abs-NO2_2P2"   "TDN-map-NO3_TDN_26"     "TDN-abs-NO3_TDN_31"    
+    [28] "TDN-map-NO2_TDN_18_1"   "Nmint1t2-abs-NH4_1G2"   "TDN-map-NO2_TDN_16"    
+
+``` r
+sample(names(all_vertical_MR),size = 30)
+```
+
+     [1] "MR_greenhouse-map-P10"    "MR_greenhouse-abs_t0-P59"
+     [3] "MR_greenhouse-abs_t5-P24" "MR_greenhouse-abs_t5-P94"
+     [5] "MR_greenhouse-abs_t5-P18" "MR_field-abs_t5-P43"     
+     [7] "MR_greenhouse-abs_t5-P88" "MR_greenhouse-abs_t5-P16"
+     [9] "MR_field-map-P54"         "MR_field-map-P58"        
+    [11] "MR_greenhouse-abs_t5-P74" "MR_field-abs_t0-P51"     
+    [13] "MR_field-abs_t5-P26"      "MR_field-map-P91"        
+    [15] "MR_field-map-P30"         "MR_greenhouse-abs_t0-P98"
+    [17] "MR_field-abs_t5-P37"      "row"                     
+    [19] "MR_greenhouse-map-P97"    "MR_greenhouse-abs_t5-P50"
+    [21] "MR_field-abs_t5-P38"      "MR_greenhouse-map-P42"   
+    [23] "MR_field-abs_t0-P41"      "MR_greenhouse-abs_t0-P97"
+    [25] "MR_field-map-P77"         "MR_field-abs_t5-P7"      
+    [27] "MR_greenhouse-map-P86"    "MR_field-map-P45"        
+    [29] "MR_greenhouse-abs_t0-P42" "MR_field-map-P43"        
 
 ``` r
 # check it out  
-all_vertical
+all_vertical_Npools
 ```
 
     # A tibble: 96 × 578
@@ -713,6 +896,31 @@ all_vertical
     #   `Nmint1t2-abs-NH4_1G4` <chr>, `Nmint1t2-abs-NH4_1G5` <chr>,
     #   `Nmint1t2-abs-NH4_2F1_1` <chr>, `Nmint1t2-abs-NH4_2F1_2` <chr>, …
 
+``` r
+all_vertical_MR
+```
+
+    # A tibble: 96 × 602
+       row   column `MR_greenhouse-abs_t0-P1` `MR_greenhouse-abs_t0-P2`
+       <chr> <chr>  <chr>                     <chr>                    
+     1 A     1      0.93                      1.23                     
+     2 A     2      1.15                      1.23                     
+     3 A     3      1.14                      1.22                     
+     4 A     4      1.14                      1.22                     
+     5 A     5      1.15                      1.22                     
+     6 A     6      1.16                      1.21                     
+     7 A     7      1.16                      1.23                     
+     8 A     8      1.17                      1.2                      
+     9 A     9      1.17                      1.21                     
+    10 A     10     1.12                      1.21                     
+    # ℹ 86 more rows
+    # ℹ 598 more variables: `MR_greenhouse-abs_t0-P3` <chr>,
+    #   `MR_greenhouse-abs_t0-P4` <chr>, `MR_greenhouse-abs_t0-P5` <chr>,
+    #   `MR_greenhouse-abs_t0-P6` <chr>, `MR_greenhouse-abs_t0-P7` <chr>,
+    #   `MR_greenhouse-abs_t0-P8` <chr>, `MR_greenhouse-abs_t0-P9` <chr>,
+    #   `MR_greenhouse-abs_t0-P10` <chr>, `MR_greenhouse-abs_t0-P11` <chr>,
+    #   `MR_greenhouse-abs_t0-P12` <chr>, `MR_greenhouse-abs_t0-P13` <chr>, …
+
 # 3 - tidy table
 
 What we want is to have one column for absorbance data (all plates),
@@ -726,23 +934,42 @@ tidy table where each row corresponds to a unique well reported in a new
 column called `unique_well_id`.
 
 ``` r
-(all_raw_abs_tidy <- vertical_to_tidy(all_vertical))
+(all_raw_abs_tidy_Npools <- vertical_to_tidy(all_vertical_Npools))
 ```
 
     # A tibble: 27,648 × 8
-       row   column well_id unique_well_id dataset  plate_id  map   abs  
+       row   column well_id unique_well_id dataset  plate_id  abs   map  
        <chr> <chr>  <chr>   <chr>          <chr>    <chr>     <chr> <chr>
-     1 A     1      A1      A1_NH4_1F1     Nmint1t2 NH4_1F1   Std   0.039
-     2 A     1      A1      A1_NH4_1F2_1   Nmint1t2 NH4_1F2_1 Std   0.039
-     3 A     1      A1      A1_NH4_1F2_2   Nmint1t2 NH4_1F2_2 Std   0.039
-     4 A     1      A1      A1_NH4_1F3     Nmint1t2 NH4_1F3   Std   0.038
-     5 A     1      A1      A1_NH4_1F4     Nmint1t2 NH4_1F4   Std   0.039
-     6 A     1      A1      A1_NH4_1F5     Nmint1t2 NH4_1F5   Std   0.039
-     7 A     1      A1      A1_NH4_1G1     Nmint1t2 NH4_1G1   Std   0.039
-     8 A     1      A1      A1_NH4_1G2     Nmint1t2 NH4_1G2   Std   0.039
-     9 A     1      A1      A1_NH4_1G3     Nmint1t2 NH4_1G3   Std   0.038
-    10 A     1      A1      A1_NH4_1G4     Nmint1t2 NH4_1G4   Std   0.038
+     1 A     1      A1      A1_NH4_1F1     Nmint1t2 NH4_1F1   0.039 Std  
+     2 A     1      A1      A1_NH4_1F2_1   Nmint1t2 NH4_1F2_1 0.039 Std  
+     3 A     1      A1      A1_NH4_1F2_2   Nmint1t2 NH4_1F2_2 0.039 Std  
+     4 A     1      A1      A1_NH4_1F3     Nmint1t2 NH4_1F3   0.038 Std  
+     5 A     1      A1      A1_NH4_1F4     Nmint1t2 NH4_1F4   0.039 Std  
+     6 A     1      A1      A1_NH4_1F5     Nmint1t2 NH4_1F5   0.039 Std  
+     7 A     1      A1      A1_NH4_1G1     Nmint1t2 NH4_1G1   0.039 Std  
+     8 A     1      A1      A1_NH4_1G2     Nmint1t2 NH4_1G2   0.039 Std  
+     9 A     1      A1      A1_NH4_1G3     Nmint1t2 NH4_1G3   0.038 Std  
+    10 A     1      A1      A1_NH4_1G4     Nmint1t2 NH4_1G4   0.038 Std  
     # ℹ 27,638 more rows
+
+``` r
+(all_raw_abs_tidy_MR <- vertical_to_tidy(all_vertical_MR, column_def = c("abs_t0", "abs_t5", "map")))
+```
+
+    # A tibble: 19,200 × 9
+       row   column well_id unique_well_id dataset      plate_id abs_t0 abs_t5 map  
+       <chr> <chr>  <chr>   <chr>          <chr>        <chr>    <chr>  <chr>  <chr>
+     1 A     1      A1      A1_P1          MR_greenhou… P1       0.93   0.67   empty
+     2 A     1      A1      A1_P2          MR_greenhou… P2       1.23   1.00   empty
+     3 A     1      A1      A1_P3          MR_greenhou… P3       1.27   1.04   empty
+     4 A     1      A1      A1_P4          MR_greenhou… P4       1.32   1.09   empty
+     5 A     1      A1      A1_P5          MR_greenhou… P5       1.32   1.13   empty
+     6 A     1      A1      A1_P6          MR_greenhou… P6       1.38   1.16   empty
+     7 A     1      A1      A1_P7          MR_greenhou… P7       1.15   0.92   empty
+     8 A     1      A1      A1_P8          MR_greenhou… P8       1.27   1.15   empty
+     9 A     1      A1      A1_P9          MR_greenhou… P9       1.38   1.10   empty
+    10 A     1      A1      A1_P10         MR_greenhou… P10      1.41   1.13   empty
+    # ℹ 19,190 more rows
 
 # 4 - Add plate metadata
 
@@ -820,6 +1047,14 @@ PMN_metadata <- read_csv("raw_data/PMN/PMN_metadata.csv", show_col_types = FALSE
 
 PNR_metadata <- read_csv("raw_data/PNR/PNR_metadata.csv", show_col_types = FALSE) |> 
   mutate(dataset = "PNR")
+
+MR_greenhouse_metadata <- read_csv(
+  "../raw_data/MR_Pot_metadata.csv",
+  col_select = c(3:23), show_col_types = FALSE)
+
+MR_field_metadata <- read_csv(
+  "../raw_data/MR_Field_metadata.csv", 
+  col_select = c(3:23), show_col_types = FALSE)
 ```
 
 Then we join them in one big metadata file. ! this only works because
@@ -850,6 +1085,11 @@ in the same order, containing the same data type (string, numeric, …)).
     #   extractant_conc <dbl>, empty_column <chr>, wait_min <chr>, dataset <chr>,
     #   wavelength <chr>
 
+``` r
+# For MR
+all_MR_metadata <- bind_rows(MR_greenhouse_metadata, MR_field_metadata)
+```
+
 Keep only relevant columns.
 
 ``` r
@@ -871,8 +1111,10 @@ TDN[^1].
 First, prepare those subsets
 
 ``` r
-all_raw_abs_TDN <- all_raw_abs_tidy |> filter(dataset == "TDN")
-all_raw_abs_noTDN <- all_raw_abs_tidy |> filter_out(dataset == "TDN")
+all_raw_abs_TDN <- all_raw_abs_tidy_Npools |> filter(dataset == "TDN")
+all_raw_abs_noTDN <- all_raw_abs_tidy_Npools |> filter_out(dataset == "TDN")
+
+
 
 all_plate_metadata_TDN <- all_plate_metadata_keep |> 
   filter(dataset == "TDN")
@@ -887,9 +1129,11 @@ Then, export them as .rds
 
 all_raw_abs_TDN |> write_rds("output/data/1_all_raw_abs_TDN.rds")
 all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
+all_raw_abs_tidy_MR |> write_rds("output/data/1_all_raw_abs_tidy_MR.rds")
 
 all_plate_metadata_TDN |> write_rds("output/data/1_all_plate_metadata_TDN.rds")
 all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rds")
+all_MR_metadata |> write_rds("output/data/1_all_MR_metadata.rds")
 ```
 
 Also export info concerning PNR that will be needed downstream
