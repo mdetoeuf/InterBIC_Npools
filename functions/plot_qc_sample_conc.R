@@ -88,17 +88,52 @@ plot_list_qc_MR <- function(
     subset <- MR_data |> 
       filter(map == substrates$map[i])
     
-    boxplot <- subset |> 
-      boxplot_conc(x = "plate_id", y = "co2_g_h") + 
-      facet_wrap(~run_id, scales = "free_x", nrow = 5) +
-      theme(legend.position = "none")
+    runs <- subset |> select(run_id) |> unique()
     
-    ridges <- subset |> 
-      plot_ridges_conc(
-        x = "co2_g_h", y = "plate_id", groups = "run_id", colour = "run_id")
+    substrate_plots <- list()
+    for (j in 1:nrow(runs)) {
+      subset_run <- subset |> filter(run_id == runs$run_id[j])
+      
+      boxplot_run <- subset_run |> 
+        boxplot_conc(x = "plate_id", y = "co2_g_h") + 
+        facet_wrap(~run_id, scales = "free_x", nrow = 2) +
+        theme(legend.position = "none") +
+        scale_x_discrete(limits = rev(c("", unique(subset_run$plate_id)))) +
+        xlab("plate_id") +
+        coord_flip() 
+        
+
+      ridges_run <- subset_run |> 
+        plot_ridges_conc(
+          x = "co2_g_h", y = "plate_id", groups = "run_id", colour = "run_id") + 
+        scale_y_discrete(limits=rev) +
+        facet_wrap(~run_id, scales = "free_y", nrow = 2) +
+        theme(legend.position = "none")
+      
+      plots <- boxplot_run + ridges_run + patchwork::plot_layout(axis_titles = "collect")
+      substrate_plots[[runs$run_id[j]]] <- plots
+    }
     
-    patchwork <- boxplot + ridges + 
+    patchwork <- patchwork::wrap_plots(substrate_plots) +
       patchwork::plot_annotation(title = paste0(dataset, " - ", substrates$map[i]))
+    #substrate_plots$R5
+    
+    # boxplot <- subset |> 
+    #   boxplot_conc(x = "plate_id", y = "co2_g_h") + 
+    #   facet_wrap(~run_id, scales = "free_x", nrow = 2) +
+    #   theme(legend.position = "none")
+    # 
+    # ridges <- subset |> 
+    #   plot_ridges_conc(
+    #     x = "co2_g_h", y = "plate_id", groups = "run_id", colour = "run_id") + 
+    #   scale_y_discrete(limits=rev) +
+    #   facet_wrap(~run_id, scales = "free_y", nrow = 2) +
+    #   theme(legend.position = "none")
+    
+   # boxplot / ridges
+    
+    # patchwork <- boxplot + ridges + 
+    #   patchwork::plot_annotation(title = paste0(dataset, " - ", substrates$map[i]))
     
     plot_list[[substrates$map[i]]] = patchwork
   }
