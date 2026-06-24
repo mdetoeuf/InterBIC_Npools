@@ -47,6 +47,7 @@ Morgane de Toeuf
 - [11 - QC - check standard soils](#11---qc---check-standard-soils)
 - [12 - Last data wrangling](#12---last-data-wrangling)
 - [11 - Export](#11---export)
+- [12 - References](#12---references)
 
 # TO DO
 
@@ -312,21 +313,21 @@ Check out the structure of column names, with
 sample(names(all_vertical_MR),size = 30)
 ```
 
-     [1] "MR_field-map-P10"         "MR_greenhouse-abs_t0-P63"
-     [3] "MR_field-abs_t0-P80"      "MR_field-abs_t0-P44"     
-     [5] "MR_field-map-P70"         "MR_greenhouse-abs_t5-P18"
-     [7] "MR_field-map-P76"         "MR_field-abs_t5-P59"     
-     [9] "MR_field-map-P54"         "MR_field-abs_t0-P69"     
-    [11] "MR_field-abs_t0-P02"      "MR_greenhouse-abs_t0-P69"
-    [13] "MR_field-map-P18"         "MR_field-map-P43"        
-    [15] "MR_greenhouse-map-P83"    "MR_field-abs_t0-P67"     
-    [17] "MR_field-abs_t5-P14"      "MR_greenhouse-abs_t0-P47"
-    [19] "MR_field-abs_t0-P92"      "MR_field-map-P83"        
-    [21] "MR_greenhouse-abs_t5-P93" "MR_greenhouse-map-P85"   
-    [23] "MR_greenhouse-abs_t0-P80" "MR_field-abs_t0-P38"     
-    [25] "MR_greenhouse-abs_t5-P44" "MR_field-map-P51"        
-    [27] "MR_greenhouse-map-P22"    "MR_greenhouse-abs_t5-P45"
-    [29] "MR_greenhouse-abs_t5-P32" "MR_field-abs_t5-P54"     
+     [1] "MR_greenhouse-abs_t0-P07" "MR_greenhouse-abs_t0-P90"
+     [3] "MR_field-abs_t5-P53"      "MR_field-map-P39"        
+     [5] "MR_field-map-P11"         "MR_greenhouse-abs_t0-P57"
+     [7] "MR_greenhouse-abs_t5-P65" "MR_field-map-P15"        
+     [9] "MR_greenhouse-map-P94"    "MR_field-map-P31"        
+    [11] "MR_field-map-P09"         "MR_field-map-P20"        
+    [13] "MR_field-abs_t0-P72"      "MR_greenhouse-map-P86"   
+    [15] "MR_field-abs_t0-P99"      "MR_greenhouse-abs_t0-P61"
+    [17] "MR_field-abs_t5-P02"      "MR_field-map-P44"        
+    [19] "MR_greenhouse-abs_t5-P38" "MR_field-abs_t5-P25"     
+    [21] "MR_greenhouse-abs_t5-P51" "MR_greenhouse-abs_t0-P24"
+    [23] "MR_greenhouse-map-P63"    "MR_greenhouse-abs_t0-P09"
+    [25] "MR_field-map-P14"         "MR_greenhouse-map-P97"   
+    [27] "MR_field-abs_t5-P30"      "MR_field-abs_t0-P67"     
+    [29] "MR_greenhouse-abs_t0-P49" "MR_greenhouse-map-P61"   
 
 ## 2.2 - Elongate data into tidy format
 
@@ -493,6 +494,9 @@ MR_clean
     #   short <chr>, soil_dm_content_percent <dbl>, soil_well_g <dbl>,
     #   std_soil_dm_content_percent <dbl>, std_soil_well_g <dbl>, plate_nb <chr>
 
+Check it out. It looks the same, but row numbers are a lot less: empty
+wells were removed
+
 # 4 - Normalisation
 
 In preliminary works we noticed that `detection_plate_id` was the
@@ -546,13 +550,6 @@ avg_t0_plate <- MR_clean |>
   group_by(dataset, plate_id) |> 
   summarise(plate_avg_t0 = mean(abs_t0))
 ```
-
-    `summarise()` has regrouped the output.
-    ℹ Summaries were computed grouped by dataset and plate_id.
-    ℹ Output is grouped by dataset.
-    ℹ Use `summarise(.groups = "drop_last")` to silence this message.
-    ℹ Use `summarise(.by = c(dataset, plate_id))` for per-operation grouping
-      (`?dplyr::dplyr_by`) instead.
 
 ## 4.2 - Normalise data
 
@@ -739,13 +736,6 @@ MR_avg_prelim <- MR_co2_g_h |>
   arrange(desc(coef_var_percent))
 ```
 
-    `summarise()` has regrouped the output.
-    ℹ Summaries were computed grouped by dataset, plate_id, and map.
-    ℹ Output is grouped by dataset and plate_id.
-    ℹ Use `summarise(.groups = "drop_last")` to silence this message.
-    ℹ Use `summarise(.by = c(dataset, plate_id, map))` for per-operation grouping
-      (`?dplyr::dplyr_by`) instead.
-
 Check out the distribution of the coefficient of variation
 
 ``` r
@@ -755,14 +745,6 @@ MR_avg_prelim |> ggplot(aes(x = coef_var_percent)) +
   xlim(-100, 100) +
   facet_wrap(~dataset, ncol = 1)
 ```
-
-    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
-
-    Warning: Removed 83 rows containing non-finite outside the scale range
-    (`stat_bin()`).
-
-    Warning: Removed 4 rows containing missing values or values outside the scale range
-    (`geom_bar()`).
 
 ![](1_MicroResp_data_pipeline_files/figure-commonmark/unnamed-chunk-36-1.png)
 
@@ -775,18 +757,12 @@ variation is under 15% will not be checked (would be too much!)
 ``` r
 suspicious_substrates <- MR_avg_prelim |> 
   filter(abs(coef_var_percent) > 15) |> 
-  select(plate_id, map) |> unique()
-```
+  select(dataset, plate_id, map) |> unique()
 
-    Adding missing grouping variables: `dataset`
-
-``` r
 suspicious_MR <- MR_co2_g_h |> 
   filter_out(row %in% c("A", "H")) |> 
-  right_join(suspicious_substrates) 
+  right_join(suspicious_substrates, by = join_by(dataset, plate_id, map)) 
 ```
-
-    Joining with `by = join_by(dataset, plate_id, map)`
 
 Now, with a threshold of 15% as max coef of variation, we are left with
 only ~200 combinations of plate x substrate to look at (instead of
@@ -808,9 +784,6 @@ qc_plots_field <- plot_list_qc_MR(
 
 Save QC plots for review outside of this Markdown document
 
-!! The plotting chunk is slow and is thus deactivated. Manually run it
-to save plots again.
-
 For the sake of illustration, we just plot one of the plots (one per
 dataset per substrate): it facets the plots per run, and only displays
 data that is suspicious (coefficient of variation above threshold
@@ -820,17 +793,12 @@ defined above)
 qc_plots_field$Glu 
 ```
 
-    Picking joint bandwidth of 0.0247
-
-    Picking joint bandwidth of 0.0462
-
-    Picking joint bandwidth of 0.0286
-
-    Picking joint bandwidth of 0.0289
-
 ![](1_MicroResp_data_pipeline_files/figure-commonmark/unnamed-chunk-39-1.png)
 
-Loop to save the plots on disk
+Loop to save the plots on disk.
+
+!! The plotting / saving chunk is slow and is thus deactivated. Manually
+run it to save plots again.
 
 ``` r
 # For greenhouse
@@ -1044,8 +1012,6 @@ distrib_uncorrected <- MR_avg |>
 distrib_uncorrected
 ```
 
-    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
-
 ![](1_MicroResp_data_pipeline_files/figure-commonmark/unnamed-chunk-46-1.png)
 
 We have values below zero that will cause problems in the computation of
@@ -1098,9 +1064,6 @@ distrib_corrected <- MR_avg_shifted |>
 
 distrib_uncorrected / distrib_corrected
 ```
-
-    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
-    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
 
 ![](1_MicroResp_data_pipeline_files/figure-commonmark/unnamed-chunk-48-1.png)
 
@@ -1453,6 +1416,8 @@ MR_export_ready <- MR_indices |>
 ``` r
 MR_export_ready |> write_rds("output/data/1_MR_data.rds")
 ```
+
+# 12 - References
 
 <div id="refs" class="references csl-bib-body hanging-indent">
 

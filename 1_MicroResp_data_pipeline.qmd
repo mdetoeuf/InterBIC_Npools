@@ -319,6 +319,8 @@ MR_clean <- MR |>
 MR_clean
 ```
 
+Check it out. It looks the same, but row numbers are a lot less: empty wells were removed
+
 # 4 - Normalisation
 
 In preliminary works we noticed that `detection_plate_id` was the biggest driver of variability in our dataset. This is due to some lab issues and should not be a recurring problem. Let's visualize t0 absorbance readings for standard soils and glucose, supposedly the same (see plot)
@@ -359,6 +361,7 @@ avg_t0_dataset <- MR_clean |>
 For comparison, original version, per plate
 
 ```{r}
+#| output: false
 avg_t0_plate <- MR_clean |> 
   # remove first and last row for this (bc edge effects)
   filter_out(row %in% c("A", "H")) |> 
@@ -495,6 +498,7 @@ Until we find a way to correct / calibrate this data, we are probably still goin
 We then compute coefficient of variation which will serve as a threshold to identify potential outliers
 
 ```{r}
+#| output: false
 MR_avg_prelim <- MR_co2_g_h |> 
   filter_out(row %in% c("A", "H")) |> 
   group_by(dataset, plate_id, map) |> 
@@ -509,6 +513,8 @@ MR_avg_prelim <- MR_co2_g_h |>
 Check out the distribution of the coefficient of variation
 
 ```{r}
+#| message: false
+#| warning: false
 MR_avg_prelim |> ggplot(aes(x = coef_var_percent)) +
   theme_minimal() +
   geom_histogram() +
@@ -523,11 +529,11 @@ I propose a threshold of 15%, i.e., data where the coefficient of variation is u
 ```{r}
 suspicious_substrates <- MR_avg_prelim |> 
   filter(abs(coef_var_percent) > 15) |> 
-  select(plate_id, map) |> unique()
+  select(dataset, plate_id, map) |> unique()
 
 suspicious_MR <- MR_co2_g_h |> 
   filter_out(row %in% c("A", "H")) |> 
-  right_join(suspicious_substrates) 
+  right_join(suspicious_substrates, by = join_by(dataset, plate_id, map)) 
 ```
 
 Now, with a threshold of 15% as max coef of variation, we are left with only \~200 combinations of plate x substrate to look at (instead of \~5000).
@@ -548,15 +554,16 @@ qc_plots_field <- plot_list_qc_MR(
 
 Save QC plots for review outside of this Markdown document
 
-!! The plotting chunk is slow and is thus deactivated. Manually run it to save plots again.
-
 For the sake of illustration, we just plot one of the plots (one per dataset per substrate): it facets the plots per run, and only displays data that is suspicious (coefficient of variation above threshold defined above)
 
 ```{r}
+#| message: false
 qc_plots_field$Glu 
 ```
 
-Loop to save the plots on disk
+Loop to save the plots on disk.
+
+!! The plotting / saving chunk is slow and is thus deactivated. Manually run it to save plots again.
 
 ```{r}
 #| eval: false
@@ -730,6 +737,7 @@ MR_avg <- MR_clean |>
 Plot distribution of values
 
 ```{r}
+#| message: false
 distrib_uncorrected <- MR_avg |> 
   ggplot(aes(x = co2_g_h_avg)) +
   theme_minimal() +
@@ -767,6 +775,7 @@ MR_avg_shifted <- MR_avg |>
 Now, let's look at it graphically
 
 ```{r}
+#| message: false
 distrib_corrected <- MR_avg_shifted |> 
   ggplot(aes(x = co2_g_h_shifted)) +
   theme_minimal() +
@@ -978,3 +987,5 @@ MR_export_ready <- MR_indices |>
 ```{r}
 MR_export_ready |> write_rds("output/data/1_MR_data.rds")
 ```
+
+# 12 - References
