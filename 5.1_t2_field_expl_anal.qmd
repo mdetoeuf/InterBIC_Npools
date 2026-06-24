@@ -99,6 +99,8 @@ field_yield <- read_rds("output/data/3_field_yield_clean.rds")
 
 PMN <- read_rds("output/data/4.1_t2_field_PMN.rds")
 
+MR <- read_rds("output/data/2.3_MR_indices.rds") |> filter(dataset == "MR_field")
+
 #str(field_Npools)
 ```
 
@@ -306,9 +308,45 @@ Save PMN plot
 ggsave("output/figures/field/PMN.pdf", plot = PMN_plot_all)
 ```
 
+# 4 - MicroResp
+
+To do: per microplot average (across zones)?, definitely: remove bloc 1 and remove Ref-IC
+
+```{r}
+MR |> 
+  ggplot(aes(x = soil, y = shannon, colour = cs)) +
+  theme_minimal() +
+  geom_boxplot() +
+  geom_point()
+
+MR |> 
+  ggplot(aes(x = soil, y = MSIR, colour = cs)) +
+  theme_minimal() +
+  geom_boxplot() +
+  geom_point()
+
+MR |> 
+  ggplot(aes(x = soil, y = MBC, colour = cs)) +
+  theme_minimal() +
+  geom_boxplot() +
+  geom_point()
+
+MR |> 
+  ggplot(aes(x = soil, y = basal_resp, colour = cs)) +
+  theme_minimal() +
+  geom_boxplot() +
+  geom_point()
+
+MR |> 
+  ggplot(aes(x = soil, y = qCO2, colour = cs)) +
+  theme_minimal() +
+  geom_boxplot() +
+  geom_point()
+```
+
 # °°° !!! FROM HERE - TO ADAPT FROM GREENHOUSE !!! °°°
 
-# 4 - PCA
+# 5 - PCA
 
 ## 4.1 - Check assumptions
 

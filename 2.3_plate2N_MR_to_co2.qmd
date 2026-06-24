@@ -12,6 +12,7 @@ message: true
 warning: true
 echo: true
 output: true
+bibliography: references.bib
 ---
 
 # TO DO
@@ -437,12 +438,221 @@ MR_field_clean <- MR_field_wash1
 
 # 6 - Average per plate per substrate
 
+```{r}
+MR_clean <- bind_rows(MR_greenhouse_clean, MR_field_clean)
+
+MR_avg <- MR_clean |> 
+  group_by(dataset, plate_id, map) |> 
+  summarize(
+    co2_g_h_avg = mean(co2_g_h)) |> 
+  ungroup() |> 
+  mutate(
+    min_value = min(co2_g_h_avg),
+    co2_g_h_shifted = co2_g_h_avg - round(min_value, digits = 3),
+    # add info whether Std soil or sample
+    std_sample = case_when(
+      map %in% c("Std_H2O", "Std_Glu") ~ "std_soil",
+      .default = "sample"
+    ))
+```
+
+[@bongiorno2020] write: *Thereafter, we corrected for the average respiration rate of soil to which the deionized water was added.*
+
+Although not explicit, I believe that what they say if that they consider that substrate-induced respirations as read are indeed the sum of basal respiration + the "real" part of the respiration that is substrate induced. So probably they do a subtraction?
+
+Plot its distribution
+
+```{r}
+distrib_uncorrected <- MR_avg |> 
+  ggplot(aes(x = co2_g_h_avg)) +
+  theme_minimal() +
+  geom_histogram() +
+  labs(
+    title = "Distribution of per plate per substrate average\nof CO2 emission rate",
+    x = "CO2 emission rate [gCO2 / g dry soil / hour]")
+
+distrib_corrected <- MR_avg |> 
+  ggplot(aes(x = co2_g_h_shifted)) +
+  theme_minimal() +
+  geom_histogram() +
+  labs(
+    title = "Distribution of per plate per substrate average\nof CO2 emission rate - Corrected values",
+    subtitle = paste0("Correction : shifting by adding the rounded\nminimum value = ", round(unique(MR_avg$min_value), digits = 3)),
+    x = "CO2 emission rate [µgCO2-C / g dry soil / hour]")
+
+distrib_uncorrected / distrib_corrected
+distrib_corrected + facet_wrap(dataset~map, scales = "free_x")
+```
+
+It should now be discussed whether this correction is acceptable or not. We could also use it for some computation but not others.
+
+For example, the issue with current values is that, to compute Shanon index, we need to take the log of those values. by taking x/ln(x). But for other indices we could just take the raw values as is. Also for x/ln(x), would it be an option to take x/ln(corrected_x)?
+
+Let's take a few random values for x, and see how the correction affects the computation
+
+```{r}
+#| include: false
+(x <- c(seq(0,1.5,0.1)))
+x <- x + 0.001
+#y <- x - round(unique(MR_avg$min_value), digits = 3)
+y <- x + 1 - round(unique(MR_avg$min_value), digits = 3)
+
+df <- tibble(x,y)
+log(x)
+x/log(x)
+y/log(y)
+y
+
+df |> ggplot(aes(x = x, y = y)) + geom_point()
+df |> ggplot(aes(x = x*log(x), y = y*log(y))) + geom_point()
+df |> ggplot(aes(x = x*log(x), y = x*log(y))) + geom_point()
+df |> ggplot(aes(x = x, y = x*log(x))) + geom_point()
+df |> ggplot(aes(x = x, y = x*log(y))) + geom_point()
+
+```
+
+## 6.1 - Correction of raw averages
+
+I suggest to accept the "translation" correction, i.e., shifting all values by adding the absolute value of the smallest value, rounded up a little so all values are indeed above zero. I find that it is honest, at least for now, until a calibration is possible. I propose to take that correction for all computations.
+
+Then, I follow computations as in [@bongiorno2020a], i.e.:
+
+- Correct SIR's for basal respiration (subtract H2O-resp from substrate-induced resp)
+
+- Compute MSIR
+
+- Compute relative contributions of SIR's (SIR / MSIR)
+
+- Derive from this relative contribution an intermediary value needed for Shanon (x\*ln(x))
+
+- Compute the Shanon index
+
+Then, we can still discuss some N-based index
+
+# 7 - MBC, basal respiration, metabolic quotient, MSIR
+
+First, basal-respiration correction
+
+```{r}
+# Extract basal resp data only
+basal_resp <- MR_avg |> 
+  filter(map %in% c("H2O", "Std_H2O")) |> 
+                                  #*** If want unshifted data, change here !! *
+  select(dataset, plate_id, std_sample, co2_g_h_shifted) |> 
+  rename(basal_resp = co2_g_h_shifted)
+
+# Check it out
+basal_resp
+```
+
+Now we can join this info to the rest of the data and compute H2O-corrected data
+
+```{r}
+H2O_corrected <- MR_avg |> 
+  left_join(basal_resp) |> 
+  mutate(H2O_corrected = case_when(
+    map %in% c("H2O", "Std_H2O") ~ basal_resp,
+                                #*** If want unshifted data, change here !!  *
+    .default = co2_g_h_shifted - basal_resp
+  ))
+```
+
+Then we compute the MBC, qCO2 and MSIR (here, we use H2O-corrected data, and don't keep water in the computation. So it is only a sum of non-H2O substrates. Also, we don't keep std soil data from here on, so we start by storing it somewhere (it will be needed for QC)
+
+[**!! TO DO: check where computation of MBC and qCO2 come from + units !!**]{.underline}
+
+```{r}
+# pivot to get one column per substrate
+wider_data <- H2O_corrected |> 
+  pivot_wider(
+    names_from = map, 
+    values_from = H2O_corrected, id_cols = c(dataset, plate_id))
+
+# extract std_soil_data and store it in an object
+std_soil_data <- wider_data |> select(dataset, plate_id, starts_with("Std"))
+
+# compute first round of indicators
+MSIR <- wider_data |> 
+  # exclude std soil data
+  select(!starts_with("Std")) |> 
+  # compute Basal resp, MBC, metabolic quotient
+  rename(basal_resp = "H2O") |> relocate(basal_resp, .after = everything()) |> 
+  mutate(
+    MBC = (Glu * 40.04) + 0.37, # not sure where those numbers come from!
+    qCO2 = basal_resp * 1000 / MBC # same here
+  ) |> 
+  # compute MSIR
+  rowwise() |> mutate(MSIR = sum(c_across(Ala:gABA)))
+```
+
+# 8 - Shannon index
+
+Now, we re-pivot longer to compute on a per-substrate basis again, and directly compute relative SIRs (rSIR) and -x\*ln(x) intermediary value
+
+```{r}
+rSIRs <- MSIR |> 
+  pivot_longer(cols = c(Ala:gABA), names_to = "substrate", values_to = "SIR") |> 
+  mutate(
+    rSIR = SIR / MSIR,
+    sSIR = -rSIR * log(rSIR))
+```
+
+! There is still one warning: we are loosing one data point (possibly still a negative or null value given to the log?)
+
+[**!! TODO : Deal with this later !!**]{.underline}
+
+Now, we can pivot wider again to sum sSIRs on a per sample basis
+
+```{r}
+shannon <- rSIRs |> 
+  pivot_wider(
+    names_from = substrate, names_prefix = "sSIR_",
+    values_from = sSIR,
+    id_cols = c(dataset, plate_id, basal_resp, MBC, qCO2, MSIR)
+  ) |> 
+  rowwise() |> mutate(shannon = sum(c_across(sSIR_Ala:sSIR_gABA)))
+
+# Check it out
+shannon
+```
+
+Gather all data (except std soil data)
+
+```{r}
+MR_indices <- MR_clean |> 
+  #take relevant categorical variables (no quantitative data)
+  select(dataset, plate_id, run_id:short) |> 
+  # reduce it to one row per plate
+  unique() |> 
+  # join it to the quantitative, plate-wise (=sample-wise) agregated quantitative data
+  left_join(shannon)
+```
+
+We lost
+
+- the data on raw SIR and relative SIR (rSIR), which is stored in rSIRs (just in case)
+
+- and std soil data
+
+```{r}
+rSIRs
+std_soil_data
+```
+
 # °°° !!! START HERE !!! °°°
 
-# 7 - MBC, basal respiration and metabolic quotient
+# 9 - QC - check standard soils
 
-# 8 - MSIR & MSIR-N
+# 10 - Last data wrangling
 
-# 9 - Shanon index
+- remove bloc 1, Ref-IC
 
-# 10 - Export
+- Get rSIRs export ready
+
+- Sep all by field and greenhouse
+
+# 11 - Export
+
+```{r}
+MR_indices |> write_rds("output/data/2.3_MR_indices.rds")
+```
