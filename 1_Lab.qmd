@@ -1,0 +1,102 @@
+---
+title: "1 Wet-lab data"
+author: "Morgane de Toeuf"
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# To Do
+
+# Set up
+
+```{r}
+#| message: false
+
+rm(list = ls())
+
+library(tidyverse)
+```
+
+# 1 - Import raw data
+
+```{r}
+# import other "wet lab" raw data
+raw_data_field <- read_csv(
+  "../raw_data/2024_raw.csv", show_col_types = TRUE,
+  col_types = list(
+    Soil = col_factor(),
+    crop_diversity = col_factor(),
+    CS = col_factor(),
+    bloc = col_factor()
+  ),
+  na = c("", "NA", "Na")
+  ) |> clean_names() |> 
+  rename(sample_short = short) |> 
+  filter(expe == "Field")
+```
+
+# 2 - Lab data on a per plot basis
+
+(biological units = plots of t2, with 3 zones per plot)
+
+```{r}
+raw_field_t2_lab <- raw_data_field |> 
+  filter(sampling_time == "t2") |> 
+  arrange(biol_unit_nb, zone) |> 
+  # remove useless columns
+  select(
+    biol_unit_nb:sample_short, 
+    soil:zone,
+    sample_name, #useful?
+   starts_with(c("whc", "run", "flush", "yd_rs", "rt"))
+    )
+
+# Check it out
+raw_field_t2_lab
+```
+
+# 3 - Lab data to get water content needed for PMN.
+
+Unfortunately, WC was not computed separately, but can only be derived from the WHC manip.
+
+! Although WC was computed per bloc (4 blocs per soil), PMN was done on a pooled sample from the 4 blocs. So we compute here only one mean value of wc per soil, that is the mean of the 4 blocs.
+
+```{r}
+pmn_wc <- raw_data_field |> 
+  select(biol_unit_nb, expe, soil, bloc, sampling_time, starts_with("whc")) |> 
+  filter(sampling_time == "t0", !is.na(whc_tare_tube_g)) |> 
+  #dm = g dry soil / g fresh soil       
+  # wc = 1 - dm
+  mutate(
+    dm = (whc_g_dw_g - whc_tare_dish_g) / (whc_g_fw_g - whc_tare_tube_g),
+    wc = 1-dm,
+    .keep = "unused",
+    .after = sampling_time
+  ) |> 
+  group_by(soil) |> 
+  summarize(
+    dm = mean(dm),
+    wc = mean(wc)
+  )
+```
+
+# 4 - Lab data to get water content and fresh weight for PNR
+
+# 5 - Correspondence between biol_unit_nb, cs, soil and bloc
+
+```{r}
+cs_map <- raw_field_t2_lab |> 
+  select(biol_unit_nb, cs, soil, bloc) |> 
+  unique() 
+
+cs_map
+```
