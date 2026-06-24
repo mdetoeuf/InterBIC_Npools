@@ -99,7 +99,7 @@ field_yield <- read_rds("output/data/3_field_yield_clean.rds")
 
 PMN <- read_rds("output/data/4.1_t2_field_PMN.rds")
 
-MR <- read_rds("output/data/2.3_MR_indices.rds") |> filter(dataset == "MR_field")
+MR <- read_rds("output/data/1_MR_data.rds") |> filter(dataset == "MR_field")
 
 #str(field_Npools)
 ```
@@ -314,33 +314,43 @@ To do: per microplot average (across zones)?, definitely: remove bloc 1 and remo
 
 ```{r}
 MR |> 
+  filter_out(soil == "Std") |> 
   ggplot(aes(x = soil, y = shannon, colour = cs)) +
   theme_minimal() +
   geom_boxplot() +
-  geom_point()
+  facet_wrap(~bloc, nrow = 1) +
+  geom_point() 
 
 MR |> 
+  filter_out(soil == "Std") |>
   ggplot(aes(x = soil, y = MSIR, colour = cs)) +
   theme_minimal() +
   geom_boxplot() +
+  facet_wrap(~bloc, nrow = 1) +
   geom_point()
 
 MR |> 
+  filter_out(soil == "Std") |>
   ggplot(aes(x = soil, y = MBC, colour = cs)) +
   theme_minimal() +
   geom_boxplot() +
+  facet_wrap(~bloc, nrow = 1) +
   geom_point()
 
 MR |> 
+  filter_out(soil == "Std") |>
   ggplot(aes(x = soil, y = basal_resp, colour = cs)) +
   theme_minimal() +
   geom_boxplot() +
+  facet_wrap(~bloc, nrow = 1) +
   geom_point()
 
 MR |> 
+  filter_out(soil == "Std") |>
   ggplot(aes(x = soil, y = qCO2, colour = cs)) +
   theme_minimal() +
   geom_boxplot() +
+  facet_wrap(~bloc, nrow = 1) +
   geom_point()
 ```
 
