@@ -1,5 +1,5 @@
 ---
-title: "Import, tidy and transform Absorbance Data"
+title: "Import, tidy and transform Absorbance Data for Npools"
 subtitle: "From raw absorbance data to concentration in mg N / L with plate2N"
 author: "Morgane de Toeuf"
 format: 
@@ -401,7 +401,7 @@ Optionally: export
 raw_meta |> write_rds("output/data/1_Npools_raw_meta.rds")
 ```
 
-# 5 - Separate TDN 
+# 5 - Separate TDN
 
 Some steps will be specific of TDN (because we work with much higher concentrations), so we separate the raw data according to TDN or not TDN[^1].
 

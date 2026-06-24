@@ -749,16 +749,16 @@ all_vertical_Npools <- Nmin_t1t2_vertical |>
 sample(names(all_vertical_Npools),size = 30)
 ```
 
-     [1] "PNR-map-NO3_R5_1"       "PNR-map-NO3_R4_3"       "PNR-map-NO3_R7_4"      
-     [4] "PNR-abs-NO2_R7_2"       "TDN-map-NO3_TDN_11"     "Nmint1t2-map-NO2_2F1_1"
-     [7] "PNR-map-NO2_R8_2"       "Nmint1t2-abs-NO3_1F5"   "PNR-abs-NO2_R1_1"      
-    [10] "PNR-abs-NO3_R4_2"       "PNR-abs-NO2_R3_1"       "PMN-abs-NH4_PC1"       
-    [13] "Nmint1t2-map-NO2_2P5"   "Nmint1t2-abs-NH4_1F3"   "PNR-abs-NO3_R3_2"      
-    [16] "PNR-abs-NO3_R4_3"       "Nmint3-abs-NO2_R2R3_2"  "PMN-abs-NH4_PF3"       
-    [19] "TDN-map-NO3_TDN_22"     "PNR-map-NO2_R3_2"       "Nmint1t2-map-NO2_2P6_3"
-    [22] "Nmint1t2-abs-NO3_2F3_1" "PNR-map-NO2_R3_4"       "PNR-map-NO3_R6_3"      
-    [25] "PMN-map-NO2_PF4"        "TDN-map-NO3_TDN_34"     "PNR-abs-NO3_R1_4"      
-    [28] "Nmint3-abs-NO2_R7R8_2"  "Nmint1t2-map-NH4_2P6_2" "TDN-map-NO2_TDN_08"    
+     [1] "TDN-abs-NO3_TDN_29"     "Nmint1t2-abs-NO3_2F2_2" "PNR-abs-NO2_R3_2"      
+     [4] "PMN-abs-NO2_PC1"        "Nmint1t2-map-NH4_2F3_1" "PNR-map-NO3_R1_1"      
+     [7] "PNR-abs-NO3_R8_2"       "TDN-map-NO2_TDN_09"     "PMN-map-NO2_PC1"       
+    [10] "Nmint1t2-map-NO2_2F5_2" "PNR-map-NO3_R2_2"       "PNR-abs-NO2_R1_1"      
+    [13] "PMN-map-NH4_PF1"        "Nmint1t2-abs-NO3_2F3_2" "PNR-abs-NO3_R5_1"      
+    [16] "Nmint1t2-abs-NH4_1G4"   "Nmint1t2-map-NH4_2F5_1" "Nmint1t2-abs-NO2_1F1"  
+    [19] "TDN-abs-NO3_TDN_03"     "PNR-map-NO2_R1_4"       "TDN-abs-NO3_TDN_36_1"  
+    [22] "Nmint1t2-abs-NO3_2F5_2" "PNR-map-NO3_R4_1"       "Nmint1t2-abs-NH4_2P3"  
+    [25] "Nmint1t2-abs-NO2_1F5"   "Nmint1t2-abs-NO3_2P7_1" "PNR-map-NO2_R3_3"      
+    [28] "PNR-map-NO2_R8_4"       "TDN-abs-NO2_TDN_18_1"   "TDN-abs-NO3_TDN_14"    
 
 ``` r
 # check it out  
@@ -1019,7 +1019,7 @@ suspicious_wells <- raw_abs_tidy |>
 
     !! YAY !! All wells are in range for absorbance between 0.03 and 1
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-29-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-29-1.png)
 
 ``` r
 suspicious_wells |> slice_max(abs, n = 10)
@@ -1121,7 +1121,7 @@ std_data |>
   facet_wrap(~plate_id, scales = "free")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-34-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-34-1.png)
 
 “Untrusted wells” are all A1 or A12 shown in 7 panels (but 8 cures) of
 the plot above. Most of those wells are indeed to be removed as they
@@ -1269,7 +1269,7 @@ extr_data <- extract_extractant(raw_abs_clean_noPNR)
 plot_blank_var_distrib(blank_avg)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-42-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-42-1.png)
 
 We see that a few plates have a very high coefficient of variation, we
 will have to look at them individually. Let’s set the threshold for the
@@ -1316,7 +1316,7 @@ suspicious_extr |> boxplot_outlier_extr(max_coeff = threshold)
 
     Joining with `by = join_by(plate_id)`
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-43-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-43-1.png)
 
 We have 6 plates that each have one or more obvious outlier well. We
 will need to remove them manually.
@@ -1453,7 +1453,7 @@ extr_data <- extract_extractant(
 plot_blank_var_distrib(blank_avg)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-52-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-52-1.png)
 
 Blanks have been recorded as one column per plate, but actually it was
 the upper half (A2-D2) for the blank without incubation (T0), and the
@@ -1507,7 +1507,7 @@ suspicious_extr |> boxplot_outlier_extr(max_coeff = threshold)
 
     Joining with `by = join_by(plate_id)`
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-53-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-53-1.png)
 
 We can remove well C2 of that plate manually.
 
@@ -1762,7 +1762,7 @@ suspicious_lm_plotlist <- plot_list_lm(
 suspicious_lm_plotlist[[2]]
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-64-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-64-1.png)
 
 Now we can look at each plot individually. Because there are still 96
 plots to review, we will look through them in 5 batches of 20 plots.
@@ -1781,35 +1781,35 @@ patchwork::wrap_plots(batch_1, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-65-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-65-1.png)
 
 ``` r
 patchwork::wrap_plots(batch_2, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-65-2.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-65-2.png)
 
 ``` r
 patchwork::wrap_plots(batch_3, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-65-3.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-65-3.png)
 
 ``` r
 patchwork::wrap_plots(batch_4, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-65-4.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-65-4.png)
 
 ``` r
 patchwork::wrap_plots(batch_5, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-65-5.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-65-5.png)
 
 Most plates are from NH4 and NO2. Because most measurement of NH4 and
 NO2 are close to zero, it might be relevant to just remove highest
@@ -1955,7 +1955,7 @@ patchwork::wrap_plots(lm_plot_list_NO3, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-69-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-69-1.png)
 
 For the NO3 plates, the issue has to be solved differently, but those
 are just a few –\> individual appraisal. We see here that we cannot
@@ -1993,7 +1993,7 @@ lm_table_raw |>
   patchwork::wrap_plots()
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-71-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-71-1.png)
 
 –\> for NO3_1F1 and NO3_PP1, we cannot do much, but maybe the average
 will be enough to correct the defects
@@ -2041,21 +2041,21 @@ patchwork::wrap_plots(batch_1, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-73-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-73-1.png)
 
 ``` r
 patchwork::wrap_plots(batch_2, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-73-2.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-73-2.png)
 
 ``` r
 patchwork::wrap_plots(batch_3, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-73-3.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-73-3.png)
 
 We still get 43 “suspicious” curves. But when we look at the p-values to
 reject normality or heteroscedasticity, they are indeed below 0.05, but
@@ -2090,7 +2090,7 @@ std_corrected_wash2 |> filter(plate_id == "NO3_2F3_1") |> rename(abs = abs_corre
   plot_std()
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-75-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-75-1.png)
 
 So we will now compute the mean for same row (e.g., mean of H1 and H12)
 
@@ -2125,7 +2125,7 @@ lm_plots_avg <- lm_suspicious_avg |> plot_list_lm(
 lm_plots_avg |> patchwork::wrap_plots()
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-77-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-77-1.png)
 
 Now, we decide to get rid of just a few wells that really stick out, for
 the following plates:
@@ -2158,7 +2158,7 @@ lm_plots_wash3 <- plot_list_lm(lm_suspicious_wash3, std_corrected_wash3)
 lm_plots_wash3 |> patchwork::wrap_plots()  
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-79-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-79-1.png)
 
 Ok, good enough!
 
@@ -2197,7 +2197,7 @@ plot_p <- density_lm_param(
 plot_p
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-81-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-81-1.png)
 
 Then, same with adjusted R_squared
 
@@ -2209,7 +2209,7 @@ plot_adjR2 <- density_lm_param(
 plot_adjR2
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-82-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-82-1.png)
 
 Now we plot all curves on same plot
 
@@ -2236,14 +2236,14 @@ multi_curve_plot +
   facet_wrap(~std_sp, scales = "free", ncol = 3)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-83-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-83-1.png)
 
 ``` r
 multi_curve_plot +
   facet_wrap(dataset~std_sp, scales = "free", ncol = 3)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-83-2.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-83-2.png)
 
 Now, finally, I decide that I am happy with my standard curves, so I can
 move on to apply the equations on my data
@@ -2366,7 +2366,7 @@ suspicious_wells <- raw_abs_tidy |>
     Warning in qc_raw_abs(raw_abs_tidy, min_abs = 0.03, max_abs = 4, plot_col_facet = "std_sp", : 3 wells out of 5428 are out of range for absorbance, i.e., not in the set boundaries of [0.03; 4]. 
     See table to identify suspicious wells. 
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-92-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-92-1.png)
 
 ``` r
 suspicious_wells |> slice_max(abs, n = 10)
@@ -2399,7 +2399,7 @@ raw_abs_ok |>
     Warning in qc_raw_abs(raw_abs_ok, min_abs = 0.03, max_abs = 3, plot_col_facet = "std_sp", : 13 wells out of 5425 are out of range for absorbance, i.e., not in the set boundaries of [0.03; 3]. 
     See table to identify suspicious wells. 
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-94-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-94-1.png)
 
     # A tibble: 13 × 5
        dataset plate_id   well_id map   abs  
@@ -2533,7 +2533,7 @@ extr_data <- extract_extractant(raw_abs_clean)
 plot_blank_var_distrib(blank_avg)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-100-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-100-1.png)
 
 We see that one plate has a high coefficient of variation, we will have
 to look at it individually. Let’s set the threshold for the coefficient
@@ -2577,7 +2577,7 @@ suspicious_extr |> boxplot_outlier_extr(max_coeff = threshold)
 
     Joining with `by = join_by(plate_id)`
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-101-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-101-1.png)
 
 We have 1 plate that has one obvious outlier well. We will need to
 remove it manually.
@@ -2836,7 +2836,7 @@ p_poly <- plot_std(curve, through_origin = TRUE, model = "poly") +
 p_linear + p_poly
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-111-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-111-1.png)
 
 Let’s look at the Residual plot to confirm this intuition
 
@@ -2857,7 +2857,7 @@ points(0, y = -0.15, col = "magenta", pch = 15)
 text(x = 6, y = -0.15, labels = "polynomial\nmodel", col = "magenta", adj = 0)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-112-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-112-1.png)
 
 So, we will adopt the polynomial model for the TDN dataset
 
@@ -2955,7 +2955,7 @@ patchwork::wrap_plots(suspicious_plots_NO3, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-117-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-117-1.png)
 
 I’m not quite sure that I can or should remove wells here. Indeed, with
 only 7 points, assessing normality is overstretching. It is probably
@@ -2975,7 +2975,7 @@ patchwork::wrap_plots(plot_Mo_curves, axis_titles = "keep") +
      patchwork::plot_annotation(title = "Plots of suspicious Standard curves")
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-118-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-118-1.png)
 
 Interestingly, the models are all good, but we are in an upward-facing
 parabole (which would change the computation of the solution (looking
@@ -3012,7 +3012,7 @@ NO2_adjR2 <- density_lm_param(
 (NO3_p + NO2_p) / (NO3_adjR2 + NO2_adjR2)
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-119-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-119-1.png)
 
 Now we plot all curves on same plot. I removed “my plates” bc there were
 polluting the plot. Anyway, we will get rid of those data points!
@@ -3059,7 +3059,7 @@ std_Sang |>
   ) 
 ```
 
-![](1_plate2N_import_tidy_files/figure-commonmark/unnamed-chunk-120-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-120-1.png)
 
 There is some batch effect, which can be due to several things:
 
