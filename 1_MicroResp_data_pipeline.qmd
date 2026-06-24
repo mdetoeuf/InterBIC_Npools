@@ -272,7 +272,7 @@ MR |>
   qc_raw_abs(
     min_abs = 0.9, max_abs = 2.5, 
     plot_col_facet = "dataset", 
-    show_plot = TRUE, 
+    show_plot = FALSE, 
     export_plot = "abs_t0_distrib") 
 ```
 
@@ -291,7 +291,7 @@ MR |>
   qc_raw_abs(
     min_abs = 0.1, max_abs = 2.5, 
     plot_col_facet = "dataset", 
-    show_plot = TRUE,
+    show_plot = FALSE,
     export_plot = "abs_t5_distrib") 
 ```
 
