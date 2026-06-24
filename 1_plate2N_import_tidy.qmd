@@ -34,8 +34,7 @@ library(tidyverse)
 library(roperators) # for %ni%
 
 
-# Functions
-source("functions/MR_to_tibble.R")
+
 ```
 
 # 1 - Import data
@@ -267,60 +266,6 @@ PNR_abs <- PNR_raw_abs |>
 PNR_abs
 ```
 
-## 1.4 - MicroResp
-
-First, import absorbance data (t0 = pre-incubation, t5 = after 5h of incubation). Plate ids correspond to sample names (equivalence table stored somewhere else)
-
-```{r}
-
-(MR_greenhouse_abs_t0 <- MR_to_tibble(
-  filepath = "../raw_data/MR_Pot_abs.csv", 
-  column_range = c(1:13)))
-
-MR_greenhouse_abs_t5 <- MR_to_tibble(
-  filepath = "../raw_data/MR_Pot_abs.csv", 
-  column_range = c(17:29))
-
-(MR_field_abs_t0 <- MR_to_tibble(
-  filepath = "../raw_data/MR_Field_abs.csv", 
-  column_range = c(1:13)))
-
-MR_field_abs_t5 <- MR_to_tibble(
-  filepath = "../raw_data/MR_Field_abs.csv", 
-  column_range = c(16:28))
-
-```
-
-Then, we prepare the mapping
-
-```{r}
-MR_columns <- c(
-  "Std_Glu", "Std_H2O", 
-  "H2O", "OA", "Glu", "Lgn", "NAG", "gABA", "Ala", "Urea")
-
-nb_plates_greenhouse <- MR_greenhouse_abs_t0 |> 
-  filter(row %ni% LETTERS) |> 
-  nrow()
-
-nb_plates_field <- MR_field_abs_t0 |> 
-  filter(row %ni% LETTERS) |> 
-  nrow()
-
-MR_greenhouse_map <- map_plates(
-  plate_ids = paste0("P", sprintf("%02d", seq(01:nb_plates_greenhouse))), 
-  samples = rep(MR_columns, nb_plates_greenhouse),
-  n_samples_per_plate = 10,
-  column_curves = c(), column_blank = c(), column_empty = c(1,12),
-  n_wells_samples = 8)
-
-MR_field_map <- map_plates(
-  plate_ids = paste0("P", sprintf("%02d", seq(01:nb_plates_field))), 
-  samples = rep(MR_columns, nb_plates_field),
-  n_samples_per_plate = 10,
-  column_curves = c(), column_blank = c(), column_empty = c(1,12),
-  n_wells_samples = 8)
-```
-
 # 2 - Verticalize plates
 
 Here, we transform data from plate format to "verticalized" format: 1 row per well position (well_id –\> 96 rows) and 1 column per "plate" (actually 2 columns per physical plate: absorbance data plate and mapping plate).
@@ -344,29 +289,9 @@ PMN_vertical <- join_abs_map(list(PMN_abs, PMN_map), dataset = "PMN-")
 # PNR
 PNR_vertical <- join_abs_map(list(PNR_abs, PNR_map), dataset = "PNR-")
 
-# MicroResp
-MR_greenhouse_vertical <- join_abs_map(
-  tibble_list = list(
-    MR_greenhouse_abs_t0, 
-    MR_greenhouse_abs_t5, 
-    MR_greenhouse_map),
-  abs_map = c("abs_t0-", "abs_t5-", "map-"),
-  coerce_numeric = FALSE,
-  dataset = "MR_greenhouse-"
-)
-
-MR_field_vertical <- join_abs_map(
-  tibble_list = list(
-    MR_field_abs_t0, 
-    MR_field_abs_t5, 
-    MR_field_map),
-  abs_map = c("abs_t0-", "abs_t5-", "map-"),
-  coerce_numeric = FALSE,
-  dataset = "MR_field-"
-)
 
 ## Check them out
-Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical ; MR_greenhouse_vertical ; MR_field_vertical
+Nmin_t1t2_vertical; Nmin_t3_vertical; TDN_vertical; PMN_vertical; PNR_vertical 
 ```
 
 Then, we use the `dplyr::left_join()` function to join all plate data in a single data table. Note the distinct column names with their dataset and abs/map-related prefixes
@@ -378,19 +303,12 @@ all_vertical_Npools <- Nmin_t1t2_vertical |>
   left_join(TDN_vertical, by = join_by(row, column)) |> 
   left_join(PMN_vertical, by = join_by(row, column)) |> 
   left_join(PNR_vertical, by = join_by(row, column))
-  
-# same for MicroResp
-all_vertical_MR <- MR_greenhouse_vertical |> 
-  left_join(MR_field_vertical, by = join_by(row, column))
 
 # look at the structure of variable names
 sample(names(all_vertical_Npools),size = 30)
-sample(names(all_vertical_MR),size = 30)
-
 
 # check it out  
 all_vertical_Npools
-all_vertical_MR
 
 ```
 
@@ -402,8 +320,6 @@ What we want is to have one column for absorbance data (all plates), another one
 
 ```{r}
 (all_raw_abs_tidy_Npools <- vertical_to_tidy(all_vertical_Npools))
-(all_raw_abs_tidy_MR <- vertical_to_tidy(all_vertical_MR, column_def = c("abs_t0", "abs_t5", "map")))
-
 ```
 
 # 4 - Add plate metadata
@@ -439,17 +355,7 @@ PMN_metadata <- read_csv("raw_data/PMN/PMN_metadata.csv", show_col_types = FALSE
 PNR_metadata <- read_csv("raw_data/PNR/PNR_metadata.csv", show_col_types = FALSE) |> 
   mutate(dataset = "PNR")
 
-MR_greenhouse_metadata <- read_csv(
-  "../raw_data/MR_Pot_metadata.csv", show_col_types = FALSE) |> 
-  as_tibble() |> 
-  select(!c(1,2)) |> 
-  janitor::clean_names()
 
-MR_field_metadata <- read_csv(
-  "../raw_data/MR_Field_metadata.csv", show_col_types = FALSE) |> 
-  as_tibble() |> 
-  select(!c(1,2)) |>
-  janitor::clean_names()
 
 ```
 
@@ -459,8 +365,6 @@ Then we join them in one big metadata file. ! this only works because the 3 meta
 # join csv's
 (all_plate_metadata <- bind_rows(Nmin_metadata, Nmin_t3_metadata, TDN_metadata, PMN_metadata, PNR_metadata))
 
-# For MR
-all_MR_metadata <- bind_rows(MR_greenhouse_metadata, MR_field_metadata)
 ```
 
 Keep only relevant columns.
@@ -500,11 +404,9 @@ Then, export them as .rds
 
 all_raw_abs_TDN |> write_rds("output/data/1_all_raw_abs_TDN.rds")
 all_raw_abs_noTDN |> write_rds("output/data/1_all_raw_abs_noTDN.rds")
-all_raw_abs_tidy_MR |> write_rds("output/data/1_all_raw_abs_tidy_MR.rds")
 
 all_plate_metadata_TDN |> write_rds("output/data/1_all_plate_metadata_TDN.rds")
 all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rds")
-all_MR_metadata |> write_rds("output/data/1_all_MR_metadata.rds")
 
 ```
 

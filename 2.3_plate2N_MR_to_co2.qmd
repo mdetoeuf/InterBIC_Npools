@@ -1,5 +1,5 @@
 ---
-title: "2.3 Converting MicroResp Data"
+title: "MicroResp Data, from absorbance to indices"
 author: "Morgane de Toeuf"
 format: 
   gfm:
@@ -24,31 +24,162 @@ rm(list = ls())
 
 library(plate2N)
 library(tidyverse)
+
+# Functions
+source("functions/MR_to_tibble.R")
 ```
 
-Load data
+# 1 - Import raw data
+
+## 1.1 - Import raw absorbance data
+
+First, import absorbance data (t0 = pre-incubation, t5 = after 5h of incubation). Plate ids correspond to sample names (equivalence table stored somewhere else)
 
 ```{r}
-MR_data <- read_rds("output/data/1_all_raw_abs_tidy_MR.rds")
-MR_metadata <- read_rds("output/data/1_all_MR_metadata.rds") |> 
-  # add column dataset into metadat to use for left_join()
+
+(MR_greenhouse_abs_t0 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Pot_abs.csv", 
+  column_range = c(1:13)))
+
+MR_greenhouse_abs_t5 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Pot_abs.csv", 
+  column_range = c(17:29))
+
+(MR_field_abs_t0 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Field_abs.csv", 
+  column_range = c(1:13)))
+
+MR_field_abs_t5 <- MR_to_tibble(
+  filepath = "../raw_data/MR_Field_abs.csv", 
+  column_range = c(16:28))
+
+```
+
+## 1.2 - prepare the mapping
+
+```{r}
+MR_columns <- c(
+  "Std_Glu", "Std_H2O", 
+  "H2O", "OA", "Glu", "Lgn", "NAG", "gABA", "Ala", "Urea")
+
+nb_plates_greenhouse <- MR_greenhouse_abs_t0 |> 
+  filter(row %ni% LETTERS) |> 
+  nrow()
+
+nb_plates_field <- MR_field_abs_t0 |> 
+  filter(row %ni% LETTERS) |> 
+  nrow()
+
+MR_greenhouse_map <- map_plates(
+  plate_ids = paste0("P", sprintf("%02d", seq(01:nb_plates_greenhouse))), 
+  samples = rep(MR_columns, nb_plates_greenhouse),
+  n_samples_per_plate = 10,
+  column_curves = c(), column_blank = c(), column_empty = c(1,12),
+  n_wells_samples = 8)
+
+MR_field_map <- map_plates(
+  plate_ids = paste0("P", sprintf("%02d", seq(01:nb_plates_field))), 
+  samples = rep(MR_columns, nb_plates_field),
+  n_samples_per_plate = 10,
+  column_curves = c(), column_blank = c(), column_empty = c(1,12),
+  n_wells_samples = 8)
+```
+
+## 1.3 - Import metadata
+
+First import
+
+```{r}
+MR_greenhouse_metadata <- read_csv(
+  "../raw_data/MR_Pot_metadata.csv", show_col_types = FALSE) |> 
+  as_tibble() |> 
+  select(!c(1,2)) |> 
+  janitor::clean_names() |>
+  drop_na(plate_id)
+
+MR_field_metadata <- read_csv(
+  "../raw_data/MR_Field_metadata.csv", show_col_types = FALSE) |> 
+  as_tibble() |> 
+  select(!c(1,2)) |>
+  janitor::clean_names() |>
+  drop_na(plate_id) 
+
+```
+
+Then, join greenhouse and field metadata into 1 object and add equivalence between dataset and expe (needed later)
+
+```{r}
+all_MR_metadata <- bind_rows(MR_greenhouse_metadata, MR_field_metadata) |> 
+  # add column dataset into metadat to use for left_join() later
   mutate(dataset = case_when(
     expe == "Pot" ~ "MR_greenhouse",
     expe == "Field" ~ "MR_field",
     .default = "oups"),
     .before = expe)
-
 ```
 
-Join data
+# 2 - From plate layout to tidy data
+
+## 2.1 - Verticalize all plate data
+
+Verticalize, 1 column per plate, 96 rows (1 per well position)
 
 ```{r}
-MR <- MR_data |> left_join(MR_metadata)
+MR_greenhouse_vertical <- join_abs_map( tibble_list = list( MR_greenhouse_abs_t0, MR_greenhouse_abs_t5, MR_greenhouse_map), abs_map = c("abs_t0-", "abs_t5-", "map-"), coerce_numeric = FALSE, dataset = "MR_greenhouse-" )
+
+MR_field_vertical <- join_abs_map( tibble_list = list( MR_field_abs_t0, MR_field_abs_t5, MR_field_map), abs_map = c("abs_t0-", "abs_t5-", "map-"), coerce_numeric = FALSE, dataset = "MR_field-" )
+
+# Check it out
+MR_greenhouse_vertical ; MR_field_vertical
+
+# Join them in one
+all_vertical_MR <- MR_greenhouse_vertical |> 
+  left_join(MR_field_vertical, by = join_by(row, column))
+
+# Check out the structure of the column names (one per plate)
+sample(names(all_vertical_MR),size = 30)
+
+# Check out data
+all_vertical_MR
 ```
 
-# 1 - clean data
+## 2.2 - Elongate data into tidy format
 
-## 1.1 - QC - suspicious wells
+Tidy the table, 1 row per unique well (96 x nb of physical plates), and 3 important columns: `abs_t0`, `abs_t5`, `map`.
+
+```{r}
+(all_raw_abs_tidy_MR <- vertical_to_tidy(all_vertical_MR, column_def = c("abs_t0", "abs_t5", "map")))
+```
+
+Optional: export the data
+
+```{r}
+#| eval: false
+#| include: false
+# all_raw_abs_tidy_MR |> write_rds("output/data/1_all_raw_abs_tidy_MR.rds")
+# all_MR_metadata |> write_rds("output/data/1_all_MR_metadata.rds")
+
+```
+
+## 2.3 - Join data with metadata
+
+Optional: load data
+
+```{r}
+#all_raw_abs_tidy_MR <- read_rds("output/data/1_all_raw_abs_tidy_MR.rds")
+#all_MR_metadata <- read_rds("output/data/1_all_MR_metadata.rds") 
+
+```
+
+Join data with metadata, and add "dataset" column (derived from "expe")
+
+```{r}
+MR <- all_raw_abs_tidy_MR |> left_join(all_MR_metadata) 
+```
+
+# 3 - clean data
+
+## 3.1 - QC - suspicious wells
 
 Check first t0
 
@@ -77,7 +208,7 @@ abs_t5_distrib + labs(title = "Distribution of absorbance at t5, all data")
 
 They also look good, no outlier removal needed so far
 
-## 1.2 - remove "empty" and NAs
+## 3.2 - remove "empty" and NAs
 
 With MicroResp experiments, edge effects are not rare, so we exclude any data from columns 1 and 12 of the 96-well plate. Those have been encoded in the mapping as "empty" (though they were not physically).
 
@@ -91,15 +222,18 @@ MR_clean <- MR |>
 MR_clean
 ```
 
-# 2 - Normalisation
+# 4 - Normalisation
 
 In preliminary works we noticed that `detection_plate_id` was the biggest driver of variability in our dataset. Let's visualize t0 absorbance readings (see plot)
 
 ```{r}
-MR_clean |> ggplot(aes(x = detection_plate_id, y = as.numeric(abs_t0))) +
+unnormed_plot <- MR_clean |> ggplot(aes(x = detection_plate_id, y = as.numeric(abs_t0))) +
   theme_minimal() +
   geom_boxplot() +
-  facet_wrap(~dataset, scales = "free_x")
+  facet_wrap(~dataset, scales = "free_x") +
+  labs(title = "Plate-level normalisation")
+
+unnormed_plot
 ```
 
 So, instead of a "per-plate" normalization, we propose a "per-dataset" normalisation. I.e., instead of
@@ -110,7 +244,7 @@ We get
 
 - $normalized_{abs} = \frac {abs_{i,t5}}{abs_{i,t0}} \cdot mean(abs_{dataset,t0})$
 
-## 2.1 - Compute per-dataset mean of t0
+## 4.1 - Compute per-dataset mean of t0
 
 ```{r}
 avg_t0 <- MR_clean |> 
@@ -122,7 +256,9 @@ avg_t0 <- MR_clean |>
   summarise(dataset_avg_t0 = mean(abs_t0))
 ```
 
-## 2.2 - Normalize data
+## 4.2 - Normalize data
+
+Using formula above. First, join data with computed average, then compute normalisation
 
 ```{r}
 MR_norm <- MR_clean |> 
@@ -134,7 +270,22 @@ MR_norm <- MR_clean |>
   )
 ```
 
-# 3 - Convert to %CO2
+Redo the same plot to confirm the improvement
+
+```{r}
+normed_plot <- MR_norm |> 
+  ggplot(aes(x = detection_plate_id, y = as.numeric(norm))) +
+  theme_minimal() +
+  geom_boxplot() +
+  facet_wrap(~dataset, scales = "free_x") +
+  labs(title = "Dataset-level normalisation")
+
+unnormed_plot / normed_plot
+```
+
+# 5 - Convert to %CO2
+
+Those are the coefficients as given in the MicroResp manual. Pending homemade calibration.
 
 %Co2 = -0.2265 + (-1.606)/(1+(-6.771)\*norm)
 
@@ -151,7 +302,9 @@ MR_percent_co2 <- MR_norm |>
     )
 ```
 
-# 4 - Convert to g CO2 / g dry soil
+# 6 - Convert to g CO2 / g dry soil
+
+[**!! TODO: this is taken from Excel document –\> check again in Manual that it is the right version**]{.underline}
 
 co2_emitted = (((percent_co2/100)x850x(44/22.4)x*(12/44)x*(273/(273+25)))/(soil_per_well_gx(soil_dw/100)))/5
 
@@ -188,10 +341,10 @@ MR_co2_g_h |>
 ::: callout-warning
 ## Calibration or correction needed !
 
-Until we find a way to correct / calibrate this data, we are probably still going to have some issues with the negative values (we need to compute the log)
+Until we find a way to correct / calibrate this data, we are probably still going to have some issues with the negative values (we need to compute the log to compute the Shannon Index)
 :::
 
-# 5 - Per plate & per substrate outlier removal
+# 7 - Per plate & per substrate outlier removal
 
 Subset data.
 
@@ -201,24 +354,23 @@ So I choose to follow the recommendation of our colleagues from the FiBL and rem
 
 ```{r}
 
-MR_greenhouse_raw <- MR_co2_g_h |> 
-  filter_out(row %in% c("A", "H")) |> 
-  filter(dataset == "MR_greenhouse")
-
-MR_field_raw <- MR_co2_g_h |> 
-  filter_out(row %in% c("A", "H")) |> 
-  filter(dataset == "MR_field")
+# MR_greenhouse_raw <- MR_co2_g_h |> 
+#   filter_out(row %in% c("A", "H")) |> 
+#   filter(dataset == "MR_greenhouse")
+# 
+# MR_field_raw <- MR_co2_g_h |> 
+#   filter_out(row %in% c("A", "H")) |> 
+#   filter(dataset == "MR_field")
 ```
 
-## 5.1 - create QC plots
+## 7.1 - create QC plots
 
-Create one list of QC plots per dataset
-
-Take a subset with coefficient of variation at 5%?
+Create one list of QC plots per dataset. But that would be too many plots to assess –\> Take a subset with coefficient of variation at 15%?
 
 ```{r}
-MR_greenhouse_avg <- MR_greenhouse_raw |> 
-  group_by(plate_id, map) |> 
+MR_avg_prelim <- MR_co2_g_h |> 
+  filter_out(row %in% c("A", "H")) |> 
+  group_by(dataset, plate_id, map) |> 
   summarize(
     substrate_avg = mean(co2_g_h),
     std_dev = sd(co2_g_h)
@@ -226,38 +378,41 @@ MR_greenhouse_avg <- MR_greenhouse_raw |>
   mutate(coef_var_percent = 100 * std_dev / substrate_avg) |> 
   arrange(desc(coef_var_percent))
 
-MR_greenhouse_avg |> ggplot(aes(x = coef_var_percent)) +
+MR_avg_prelim |> ggplot(aes(x = coef_var_percent)) +
+  theme_minimal() +
   geom_histogram() +
-  xlim(-100, 100)
+  xlim(-100, 100) +
+  facet_wrap(~dataset, ncol = 1)
 
-suspicious_substrates_greenhouse <- MR_greenhouse_avg |> 
+suspicious_substrates <- MR_avg_prelim |> 
   filter(abs(coef_var_percent) > 15) |> 
   select(plate_id, map) |> unique()
 
-suspicious_MR_greenhouse <- MR_greenhouse_raw |> 
-  right_join(suspicious_substrates_greenhouse) 
+suspicious_MR <- MR_co2_g_h |> 
+  filter_out(row %in% c("A", "H")) |> 
+  right_join(suspicious_substrates) 
 
 
-## Repeat for field
-MR_field_avg <- MR_field_raw |> 
-  group_by(plate_id, map) |> 
-  summarize(
-    substrate_avg = mean(co2_g_h),
-    std_dev = sd(co2_g_h)
-  ) |> 
-  mutate(coef_var_percent = 100 * std_dev / substrate_avg) |> 
-  arrange(desc(coef_var_percent))
-
-MR_field_avg |> ggplot(aes(x = coef_var_percent)) +
-  geom_histogram() +
-  xlim(-100, 100)
-
-suspicious_substrates_field <- MR_field_avg |> 
-  filter(abs(coef_var_percent) > 15) |> 
-  select(plate_id, map) |> unique()
-
-suspicious_MR_field <- MR_field_raw |> 
-  right_join(suspicious_substrates_field) 
+# ## Repeat for field
+# MR_field_avg <- MR_field_raw |> 
+#   group_by(plate_id, map) |> 
+#   summarize(
+#     substrate_avg = mean(co2_g_h),
+#     std_dev = sd(co2_g_h)
+#   ) |> 
+#   mutate(coef_var_percent = 100 * std_dev / substrate_avg) |> 
+#   arrange(desc(coef_var_percent))
+# 
+# MR_field_avg |> ggplot(aes(x = coef_var_percent)) +
+#   geom_histogram() +
+#   xlim(-100, 100)
+# 
+# suspicious_substrates_field <- MR_field_avg |> 
+#   filter(abs(coef_var_percent) > 15) |> 
+#   select(plate_id, map) |> unique()
+# 
+# suspicious_MR_field <- MR_field_raw |> 
+#   right_join(suspicious_substrates_field) 
 ```
 
 Now, with a threshold of 15% as max coef of variation, we are left with only \~200 combinations of plate x substrate to look at (instead of \~5000).
@@ -272,15 +427,25 @@ source("functions/plot_qc_sample_conc.R")
 # 
 # qc_plots_field <- plot_list_qc_MR(MR_field_raw)
 
-qc_plots_greenhouse <- plot_list_qc_MR(suspicious_MR_greenhouse)
+qc_plots_greenhouse <- plot_list_qc_MR(
+  suspicious_MR |> filter(dataset == "MR_greenhouse"))
 
-qc_plots_field <- plot_list_qc_MR(suspicious_MR_field)
+qc_plots_field <- plot_list_qc_MR(
+  suspicious_MR |> filter(dataset == "MR_field"))
 
 ```
 
 Save QC plots for review outside of this Markdown document
 
-!! The following chunk is slow and is thus deactivated. Manually run it to save plots again
+!! The plotting chunk is slow and is thus deactivated. Manually run it to save plots again.
+
+For the sake of illustration, we just plot one of the plots (one per dataset per substrate): it facets the plots per run, and only displays data that is suspicious (coefficient of variation above threshold defined above)
+
+```{r}
+qc_plots_field$Glu 
+```
+
+Loop to save the plots
 
 ```{r}
 #| eval: false
@@ -315,9 +480,9 @@ for (i in 1:length(qc_plots_field)) {
 }
 ```
 
-## 5.2 - identifying outliers + removal
+## 7.2 - identifying outliers + removal
 
-Then we create a table of wells to remove, and clean the dataset from obvious outliers
+Then, by visual assessment of the plots one by one, we create a table of wells to remove, and clean the dataset from obvious outliers
 
 Starting with greenhouse outliers
 
@@ -371,7 +536,6 @@ to_remove_greenhouse <- tribble(
   "P51", "B11",    "P52", "B11",    "P56", "B11",
   "P78", "D11",    "P92", "E11"
   
-  
 ) |> 
   mutate(dataset = "MR_greenhouse")
 
@@ -424,43 +588,42 @@ to_remove_field
 Remove those outliers
 
 ```{r}
-MR_greenhouse_wash1 <- MR_greenhouse_raw |> remove_wells(to_remove_greenhouse)
+MR_wash1 <- MR_co2_g_h |> 
+  remove_wells(to_remove_greenhouse) |> 
+  remove_wells(to_remove_field) 
 
-MR_field_wash1 <- MR_field_raw |> remove_wells(to_remove_field)
+# 
+# MR_greenhouse_wash1 <- MR_greenhouse_raw |> remove_wells(to_remove_greenhouse)
+# 
+# MR_field_wash1 <- MR_field_raw |> remove_wells(to_remove_field)
 ```
+
+It is possible to run once more through the quality check before deciding to move on, and possibly create a "wash2", "wash3", etc. version, though I don't find it totally relevant
 
 Store last version in a new variable (easier for edits...)
 
 ```{r}
-MR_greenhouse_clean <- MR_greenhouse_wash1
-MR_field_clean <- MR_field_wash1
+MR_clean <- MR_wash1
+#MR_field_clean <- MR_field_wash1
 ```
 
-# 6 - Average per plate per substrate
+# 8 - Average per plate per substrate
+
+## 8.1 - Compute sample\*substrate average
+
+Now that outliers are removed, we can compute the average value per plate per substrate.
 
 ```{r}
-MR_clean <- bind_rows(MR_greenhouse_clean, MR_field_clean)
+#MR_clean <- bind_rows(MR_greenhouse_clean, MR_field_clean)
 
 MR_avg <- MR_clean |> 
   group_by(dataset, plate_id, map) |> 
   summarize(
-    co2_g_h_avg = mean(co2_g_h)) |> 
-  ungroup() |> 
-  mutate(
-    min_value = min(co2_g_h_avg),
-    co2_g_h_shifted = co2_g_h_avg - round(min_value, digits = 3),
-    # add info whether Std soil or sample
-    std_sample = case_when(
-      map %in% c("Std_H2O", "Std_Glu") ~ "std_soil",
-      .default = "sample"
-    ))
+    co2_g_h_avg = mean(co2_g_h)) #|> 
+
 ```
 
-[@bongiorno2020] write: *Thereafter, we corrected for the average respiration rate of soil to which the deionized water was added.*
-
-Although not explicit, I believe that what they say if that they consider that substrate-induced respirations as read are indeed the sum of basal respiration + the "real" part of the respiration that is substrate induced. So probably they do a subtraction?
-
-Plot its distribution
+Plot distribution of values
 
 ```{r}
 distrib_uncorrected <- MR_avg |> 
@@ -469,73 +632,66 @@ distrib_uncorrected <- MR_avg |>
   geom_histogram() +
   labs(
     title = "Distribution of per plate per substrate average\nof CO2 emission rate",
-    x = "CO2 emission rate [gCO2 / g dry soil / hour]")
+    x = "CO2 emission rate [gCO2 / g dry soil / hour]") + facet_wrap(~dataset)
+distrib_uncorrected
+```
 
-distrib_corrected <- MR_avg |> 
+We have values below zero that will cause problems in the computation of the Shannon index.
+
+## 8.2 - 1st correction of averages - deal with negative values
+
+We know that our regression equation is probably off somehow because the detection plates were too concentrated. I find that the computed values are acceptable (cf normalisation step), also because values for standard soils are quite stable, but still we will hit a mathematical problem.
+
+When dealing with log transformation of data, it is quite frequent to use log(x + 1) instead of log(x) to account for the deformation of values that occur for very low x. On a logarithmic scale, a translation by 1 is quite small. Moreover, if we would simply transform our data through a linear translation, similar to adding 1, although absolute numbers would be off, correlations between variables would hold. So, to deal with our negative values, I propose a simple correction: adding to all values a constant value, i.e., the absolute value of the smallest negative value within the data set, rounded up a bit so that the smallest value becomes a positive number, and not just zero.
+
+Let's compute it
+
+```{r}
+MR_avg_shifted <- MR_avg |> 
+  ungroup() |> 
+  mutate(
+    min_value = min(co2_g_h_avg),
+    co2_g_h_shifted = co2_g_h_avg - floor(min_value*1000)/1000,
+    # add info whether Std soil or sample
+    std_sample = case_when(
+      map %in% c("Std_H2O", "Std_Glu") ~ "std_soil",
+      .default = "sample"
+    ))
+```
+
+Now, let's look at it graphically
+
+```{r}
+distrib_corrected <- MR_avg_shifted |> 
   ggplot(aes(x = co2_g_h_shifted)) +
   theme_minimal() +
   geom_histogram() +
   labs(
     title = "Distribution of per plate per substrate average\nof CO2 emission rate - Corrected values",
-    subtitle = paste0("Correction : shifting by adding the rounded\nminimum value = ", round(unique(MR_avg$min_value), digits = 3)),
-    x = "CO2 emission rate [µgCO2-C / g dry soil / hour]")
+    subtitle = paste0("Correction : shifting by adding the rounded\nminimum value = ", floor(unique(MR_avg_shifted$min_value)*1000)/1000),
+    x = "CO2 emission rate [µgCO2-C / g dry soil / hour]") + facet_wrap(~dataset)
 
 distrib_uncorrected / distrib_corrected
-distrib_corrected + facet_wrap(dataset~map, scales = "free_x")
+#distrib_corrected + facet_wrap(dataset~map, scales = "free_x")
 ```
 
-It should now be discussed whether this correction is acceptable or not. We could also use it for some computation but not others.
+It should now be discussed whether this correction is acceptable or not. For example, the issue with current values is that, to compute Shanon index, we need to take the log of those values. by taking x/ln(x). But for other indices we could just take the raw values as is. I have a feeling that it is best to keep the same correction for all data, though I cannot argue it.
 
-For example, the issue with current values is that, to compute Shanon index, we need to take the log of those values. by taking x/ln(x). But for other indices we could just take the raw values as is. Also for x/ln(x), would it be an option to take x/ln(corrected_x)?
+I suggest to accept this "translation" correction. I find that it is honest, at least for now, until a calibration is possible. I propose to keep that correction for all computations.
 
-Let's take a few random values for x, and see how the correction affects the computation
+## 8.3 - 2nd correction of averages - remove basal respiration
 
-```{r}
-#| include: false
-(x <- c(seq(0,1.5,0.1)))
-x <- x + 0.001
-#y <- x - round(unique(MR_avg$min_value), digits = 3)
-y <- x + 1 - round(unique(MR_avg$min_value), digits = 3)
+[@bongiorno2020] write: *Thereafter, we corrected for the average respiration rate of soil to which the deionized water was added.*
 
-df <- tibble(x,y)
-log(x)
-x/log(x)
-y/log(y)
-y
+Although not explicit, I believe that what they say if that they consider that substrate-induced respirations as computed so far are indeed the sum of basal respiration + the "real" part of the respiration that is substrate induced. So probably they do a subtraction?
 
-df |> ggplot(aes(x = x, y = y)) + geom_point()
-df |> ggplot(aes(x = x*log(x), y = y*log(y))) + geom_point()
-df |> ggplot(aes(x = x*log(x), y = x*log(y))) + geom_point()
-df |> ggplot(aes(x = x, y = x*log(x))) + geom_point()
-df |> ggplot(aes(x = x, y = x*log(y))) + geom_point()
+So, now we correct SIR's for basal respiration (subtract H2O-resp from substrate-induced resp)
 
-```
-
-## 6.1 - Correction of raw averages
-
-I suggest to accept the "translation" correction, i.e., shifting all values by adding the absolute value of the smallest value, rounded up a little so all values are indeed above zero. I find that it is honest, at least for now, until a calibration is possible. I propose to take that correction for all computations.
-
-Then, I follow computations as in [@bongiorno2020a], i.e.:
-
-- Correct SIR's for basal respiration (subtract H2O-resp from substrate-induced resp)
-
-- Compute MSIR
-
-- Compute relative contributions of SIR's (SIR / MSIR)
-
-- Derive from this relative contribution an intermediary value needed for Shanon (x\*ln(x))
-
-- Compute the Shanon index
-
-Then, we can still discuss some N-based index
-
-# 7 - MBC, basal respiration, metabolic quotient, MSIR
-
-First, basal-respiration correction
+First, extract basal respiration
 
 ```{r}
 # Extract basal resp data only
-basal_resp <- MR_avg |> 
+basal_resp <- MR_avg_shifted |> 
   filter(map %in% c("H2O", "Std_H2O")) |> 
                                   #*** If want unshifted data, change here !! *
   select(dataset, plate_id, std_sample, co2_g_h_shifted) |> 
@@ -548,7 +704,7 @@ basal_resp
 Now we can join this info to the rest of the data and compute H2O-corrected data
 
 ```{r}
-H2O_corrected <- MR_avg |> 
+H2O_corrected <- MR_avg_shifted |> 
   left_join(basal_resp) |> 
   mutate(H2O_corrected = case_when(
     map %in% c("H2O", "Std_H2O") ~ basal_resp,
@@ -557,7 +713,21 @@ H2O_corrected <- MR_avg |>
   ))
 ```
 
-Then we compute the MBC, qCO2 and MSIR (here, we use H2O-corrected data, and don't keep water in the computation. So it is only a sum of non-H2O substrates. Also, we don't keep std soil data from here on, so we start by storing it somewhere (it will be needed for QC)
+In the following sections, I follow computations as in [@bongiorno2020a], i.e.:
+
+- Compute MSIR, MBC, metabolic quotient
+
+- Compute relative contributions of SIR's (SIR / MSIR), refered to as rSIR's
+
+- Derive from this relative contribution an intermediary value needed for Shanon (x\*ln(x)), refered to as sSIR's
+
+- Compute the Shannon index
+
+Then, we can still discuss some N-based index
+
+# 9 - MBC, basal respiration, metabolic quotient, MSIR
+
+Now, we compute the MBC, qCO2 and MSIR (here, we use H2O-corrected data, and don't keep water in the computation. So it is only a sum of non-H2O substrates. Also, we don't keep std soil data from here on, so we start by storing it somewhere (it will be needed for QC)
 
 [**!! TO DO: check where computation of MBC and qCO2 come from + units !!**]{.underline}
 
@@ -585,7 +755,7 @@ MSIR <- wider_data |>
   rowwise() |> mutate(MSIR = sum(c_across(Ala:gABA)))
 ```
 
-# 8 - Shannon index
+# 10 - Shannon index
 
 Now, we re-pivot longer to compute on a per-substrate basis again, and directly compute relative SIRs (rSIR) and -x\*ln(x) intermediary value
 
@@ -595,6 +765,8 @@ rSIRs <- MSIR |>
   mutate(
     rSIR = SIR / MSIR,
     sSIR = -rSIR * log(rSIR))
+
+rSIRs
 ```
 
 ! There is still one warning: we are loosing one data point (possibly still a negative or null value given to the log?)
@@ -626,6 +798,8 @@ MR_indices <- MR_clean |>
   unique() |> 
   # join it to the quantitative, plate-wise (=sample-wise) agregated quantitative data
   left_join(shannon)
+
+MR_indices
 ```
 
 We lost
@@ -639,20 +813,45 @@ rSIRs
 std_soil_data
 ```
 
-# °°° !!! START HERE !!! °°°
+# 11 - QC - check standard soils
 
-# 9 - QC - check standard soils
+I'm actually not sooo happy about this. FYI: here, I took H2O-corrected data for the glucose
 
-# 10 - Last data wrangling
+```{r}
+std_soil_longer <- std_soil_data |> 
+  pivot_longer(
+    values_to = "SIR", 
+    names_to = "substrate", 
+    cols = starts_with("Std")) |> 
+  # add categorical data
+  left_join(
+    MR_clean |> 
+      select(dataset, plate_id, run_id, detection_plate_id) |> 
+      unique())
 
-- remove bloc 1, Ref-IC
+std_soil_longer |> 
+  ggplot(aes(x = run_id, y = SIR)) +
+  theme_minimal() + 
+  geom_boxplot() +
+  facet_wrap(substrate~dataset, scales = "free")
+```
 
-- Get rSIRs export ready
+# 12 - Last data wrangling
 
-- Sep all by field and greenhouse
+For our Field experiment, some modalities are to be removed: Bloc 1 is not a real bloc, and the faba bean did not take in the Ref treatment, so I remove it from MR data
+
+[**!! TO DO: modalities not yet removed from rSIRs, get to it if relevant**]{.underline}
+
+```{r}
+MR_export_ready <- MR_indices |> 
+  filter_out(expe == "Field" & bloc == "B1") |> 
+  filter_out(expe == "Field" & soil == "Ref" & cs == "IC")
+```
+
+- Get rSIRs export ready ?
 
 # 11 - Export
 
 ```{r}
-MR_indices |> write_rds("output/data/2.3_MR_indices.rds")
+MR_export_ready |> write_rds("output/data/1_MR_data.rds")
 ```
