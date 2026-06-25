@@ -41,16 +41,22 @@ Morgane de Toeuf
     - [6.1.2 - Field data, PMN](#612---field-data-pmn)
     - [6.1.3 - Field data, TDN](#613---field-data-tdn)
     - [6.1.4 - TODO: Field data, PNR](#614---todo-field-data-pnr)
+    - [6.1.5 - Greenhouse data, Nmin](#615---greenhouse-data-nmin)
+    - [6.1.6 - Greenhouse data, PMN](#616---greenhouse-data-pmn)
   - [6.2 - per-sample outlier removal](#62---per-sample-outlier-removal)
-    - [6.2.1 - Nmin](#621---nmin)
-    - [6.2.2 - PMN](#622---pmn)
+    - [6.2.1 - Field, Nmin](#621---field-nmin)
+    - [6.2.2 - Field, PMN](#622---field-pmn)
     - [6.2.3 - TDN](#623---tdn)
     - [6.2.4 - PNR - TO DO](#624---pnr---to-do)
+    - [6.4.5 - Greenhouse, Nmin](#645---greenhouse-nmin)
+    - [6.4.6 - Greenhouse, PMN](#646---greenhouse-pmn)
   - [6.3 - Per-sample mean](#63---per-sample-mean)
-    - [6.3.1 - Nmin](#631---nmin)
-    - [6.3.2 - PMN](#632---pmn)
+    - [6.3.1 - Field, Nmin](#631---field-nmin)
+    - [6.3.2 - Field, PMN](#632---field-pmn)
     - [6.3.3 - TDN](#633---tdn)
     - [6.3.4 - PNR](#634---pnr)
+    - [6.3.5 - Greenhouse, Nmin](#635---greenhouse-nmin)
+    - [6.3.6 - Greenhouse, PMN](#636---greenhouse-pmn)
   - [6.4 - Export clean Npool data](#64---export-clean-npool-data)
 
 # To Do
@@ -91,6 +97,9 @@ library(tidyverse)
 library(roperators) # for %ni%
 library(RColorBrewer)
 library(patchwork)
+library(janitor)
+library(ggrepel) # for geom_text_repel()
+library(ggridges) # for geom_density_ridges()
 
 # functions
 source("functions/plot_qc_sample_conc.R")
@@ -753,16 +762,16 @@ all_vertical_Npools <- Nmin_t1t2_vertical |>
 sample(names(all_vertical_Npools),size = 30)
 ```
 
-     [1] "Nmint1t2-abs-NO3_1F2_2" "Nmint3-abs-NO2_R4R5_2"  "Nmint1t2-map-NO3_2F6_2"
-     [4] "TDN-abs-NO3_TDN_16"     "TDN-map-NO3_TDN_36_2"   "PNR-abs-NO3_R7_4"      
-     [7] "PNR-map-NO3_R8_3"       "Nmint1t2-map-NO3_2F4_1" "TDN-map-NO3_TDN_22"    
-    [10] "TDN-abs-NO2_TDN_13"     "TDN-abs-NO2_TDN_02"     "Nmint1t2-abs-NO2_1F3"  
-    [13] "PNR-map-NO2_R5_1"       "Nmint1t2-map-NO2_2P6_2" "Nmint1t2-map-NH4_2P6_2"
-    [16] "Nmint1t2-map-NO3_1G3"   "PNR-map-NO2_R8_3"       "PNR-abs-NO3_R4_2"      
-    [19] "Nmint1t2-abs-NO3_2F3_2" "Nmint3-abs-NO3_R5R6_2"  "Nmint1t2-map-NH4_2P2"  
-    [22] "PNR-map-NO2_R5_4"       "PNR-abs-NO2_R4_4"       "TDN-abs-NO2_TDN_15"    
-    [25] "TDN-map-NO2_TDN_12"     "Nmint1t2-map-NH4_2P6_1" "PNR-abs-NO3_R1_3"      
-    [28] "Nmint1t2-abs-NO3_2F2_1" "Nmint1t2-abs-NH4_1G1"   "PMN-map-NO3_PP2"       
+     [1] "Nmint1t2-map-NH4_2F2_1" "PNR-map-NO2_R1_2"       "PNR-abs-NO2_R2_3"      
+     [4] "Nmint3-map-NO2_R2R3_1"  "Nmint1t2-map-NO2_2F6_2" "PMN-map-NO3_PF4"       
+     [7] "TDN-map-NO3_TDN_23"     "Nmint1t2-map-NO3_2F2_2" "PNR-map-NO3_R8_2"      
+    [10] "Nmint1t2-map-NO3_1F4"   "PMN-map-NO2_PF3"        "Nmint3-abs-NH4_R2R3_1" 
+    [13] "PNR-map-NO2_R2_4"       "TDN-map-NO3_TDN_09"     "PNR-abs-NO2_R7_4"      
+    [16] "PNR-map-NO2_R3_1"       "TDN-map-NO3_TDN_04"     "PNR-abs-NO3_R1_1"      
+    [19] "Nmint1t2-abs-NO3_1G1"   "PNR-abs-NO2_R5_4"       "PMN-abs-NH4_PF2"       
+    [22] "TDN-map-NO2_TDN_05"     "TDN-abs-NO3_TDN_01"     "Nmint1t2-abs-NO3_1F4"  
+    [25] "Nmint1t2-map-NH4_2F2_2" "TDN-abs-NO3_TDN_12"     "PNR-map-NO3_R4_3"      
+    [28] "Nmint1t2-abs-NO2_1F3"   "PNR-map-NO3_R5_3"       "PNR-abs-NO3_R8_2"      
 
 ``` r
 # check it out  
@@ -3399,7 +3408,8 @@ stand, soil and bloc. That table was created in the script `1_Lab`\` and
 can be imported here.
 
 ``` r
-cs_map <- read_rds("output/data/1_cs_map.rds")
+cs_map_field <- read_rds("output/data/1_field_cs_map.rds")
+cs_map_pot <- read_rds("output/data/1_greenhouse_cs_map.rds")
 ```
 
 ### 6.1.1 - Field data, Nmin
@@ -3440,7 +3450,7 @@ raw_field_t2_Nmin <- noTDN_mg_N_L |>
     # for some reason, biol_unit_nb of Std soil is 112 in lab data vs 110 in abs data
     biol_unit_nb = case_when(biol_unit_nb == 110 ~ 112, .default = biol_unit_nb)) |> 
   # add info on crop stand and soil
-  left_join(cs_map |> select(!bloc) |> unique()) |> 
+  left_join(cs_map_field |> select(!bloc) |> unique()) |> 
   relocate(cs, soil, .before = sampling_time)
 ```
 
@@ -3562,7 +3572,7 @@ TDN_std_separated <- TDN_std |>
 ```
 
 Then we rejoin them, separate fumigation_dilution and fetch the
-categorical data on crop stand (cs) and soil from cs_map
+categorical data on crop stand (cs) and soil from cs_map_field
 
 ``` r
 TDN_clean <- TDN_sample_separated |> 
@@ -3571,7 +3581,7 @@ TDN_clean <- TDN_sample_separated |>
     fumigation_dilution, delim = ".", 
     names = c("fumigation", "dilution")
   ) |> 
-  left_join(cs_map |> select(!bloc) |> unique()) 
+  left_join(cs_map_field |> select(!bloc) |> unique()) 
 ```
 
     Joining with `by = join_by(biol_unit_nb)`
@@ -3605,6 +3615,108 @@ TDN_clean
 
 ### 6.1.4 - TODO: Field data, PNR
 
+### 6.1.5 - Greenhouse data, Nmin
+
+For greenhouse data, we remove data from bare soils. Again, this complex
+pipeline is only necessary because I was not very consistent in
+plate-naming structure.
+
+``` r
+raw_greenhouse_t2_Nmin <- noTDN_mg_N_L |> 
+  filter(dataset == "Nmint1t2") |> 
+  # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
+  mutate(
+    # paste "t" and the sampling time as number: for t1 and t2: is stored in plate data (--> str_extract)
+    sampling_time = paste0(
+      "t", 
+      str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 1)
+      ),
+    # for expe: will work for t1 and t2, 
+    expe = str_extract(plate_id, "\\w_(\\d)(\\w).*", group = 2),
+    # rephrase "P", "G" into "Pot" (G was for greenhouse)
+    expe = case_when(expe %in% c("P", "G") ~ "Pot", .default = expe),
+    .before = plate_id) |> 
+  # filter based on sampling_time
+  filter(sampling_time == "t2", expe == "Pot") |> 
+  separate_wider_delim(
+    cols = map,
+    names = c("biol_unit_nb"),
+    delim = "_",
+    too_many = "drop", 
+    cols_remove = FALSE
+  ) |> 
+  mutate(
+    biol_unit_nb = as.double(biol_unit_nb)) |> 
+  # remove bare soils (multiples of 4)
+  filter_out(biol_unit_nb %ni% cs_map_pot$biol_unit_nb) |> 
+  # add info on crop stand and soil
+  left_join(cs_map_pot |> select(!bloc) |> unique())
+```
+
+    Joining with `by = join_by(biol_unit_nb)`
+
+``` r
+# Check it out
+raw_greenhouse_t2_Nmin
+```
+
+    # A tibble: 1,012 × 18
+       dataset sampling_time expe  plate_id biol_unit_nb map   well_id abs_corrected
+       <chr>   <chr>         <chr> <chr>           <dbl> <chr> <chr>           <dbl>
+     1 Nmint1… t2            Pot   NH4_2P1           110 110_… A2           0.00362 
+     2 Nmint1… t2            Pot   NH4_2P2           110 110_… A2           0.00471 
+     3 Nmint1… t2            Pot   NH4_2P3            46 46_t2 A2           0.00175 
+     4 Nmint1… t2            Pot   NH4_2P4           110 110_… A2           0.00425 
+     5 Nmint1… t2            Pot   NH4_2P5            26 26_t2 A2           0.00150 
+     6 Nmint1… t2            Pot   NH4_2P7…           27 27_t2 A2           0.00175 
+     7 Nmint1… t2            Pot   NH4_2P1           109 109_… A3           0.000625
+     8 Nmint1… t2            Pot   NH4_2P2            30 30_t2 A3           0.00371 
+     9 Nmint1… t2            Pot   NH4_2P3             2 2_t2  A3           0.00575 
+    10 Nmint1… t2            Pot   NH4_2P4            15 15_t2 A3           0.00425 
+    # ℹ 1,002 more rows
+    # ℹ 10 more variables: std_sp <chr>, target_sp <chr>, std_unit <chr>,
+    #   slope <dbl>, adj_r_squared <dbl>, lm_p <dbl>, conc_mgNsp_L <dbl>,
+    #   conc_mgN_L <dbl>, cs <fct>, soil <fct>
+
+### 6.1.6 - Greenhouse data, PMN
+
+``` r
+raw_greenhouse_PMN <- noTDN_mg_N_L |> 
+  filter(dataset == "PMN") |> 
+  separate_wider_delim(
+    cols = map,
+    names = c("expe", "soil", "incubation_time", "tech_rep"),
+    delim = "_",
+    cols_remove = FALSE
+  ) |> 
+  mutate(
+    sampling_time = rep("t0"),
+    biol_unit_nb = paste0(expe, "_", soil),
+    .before = well_id) |> 
+  filter_out(expe == "Field")
+
+# Check it out
+raw_greenhouse_PMN
+```
+
+    # A tibble: 960 × 19
+       dataset plate_id expe  soil  incubation_time tech_rep map       sampling_time
+       <chr>   <chr>    <chr> <chr> <chr>           <chr>    <chr>     <chr>        
+     1 PMN     NH4_PC1  Pot   Conv  i0              rt1      Pot_Conv… t0           
+     2 PMN     NH4_PC2  Pot   Conv  i0              rt4      Pot_Conv… t0           
+     3 PMN     NH4_PP1  Pot   Ref   i0              rt1      Pot_Ref_… t0           
+     4 PMN     NH4_PP2  Pot   Ref   i0              rt2      Pot_Ref_… t0           
+     5 PMN     NH4_PP3  Pot   Ref   i0              rt3      Pot_Ref_… t0           
+     6 PMN     NH4_PP4  Pot   Ref   i0              rt4      Pot_Ref_… t0           
+     7 PMN     NH4_PC1  Pot   Conv  i0              rt2      Pot_Conv… t0           
+     8 PMN     NH4_PP1  Pot   Auto  i0              rt1      Pot_Auto… t0           
+     9 PMN     NH4_PP2  Pot   Auto  i0              rt2      Pot_Auto… t0           
+    10 PMN     NH4_PP3  Pot   Auto  i0              rt3      Pot_Auto… t0           
+    # ℹ 950 more rows
+    # ℹ 11 more variables: biol_unit_nb <chr>, well_id <chr>, abs_corrected <dbl>,
+    #   std_sp <chr>, target_sp <chr>, std_unit <chr>, slope <dbl>,
+    #   adj_r_squared <dbl>, lm_p <dbl>, conc_mgNsp_L <dbl>, conc_mgN_L <dbl>
+
 ## 6.2 - per-sample outlier removal
 
 > [!NOTE]
@@ -3616,13 +3728,13 @@ TDN_clean
 > that are part of the iterative process of outlier removal, and only
 > display “satisfying” graphs
 
-### 6.2.1 - Nmin
+### 6.2.1 - Field, Nmin
 
 So we will compute the per-sample average, for the field dataset. But
 first, let’s have a look at the distribution of concentrations before
 taking the average: are there clear outliers?
 
-#### 6.2.1.1 - NO3
+#### 6.2.1.1 - Field, NO3
 
 ``` r
 boxplot_no3 <- raw_field_t2_Nmin |> 
@@ -3650,7 +3762,7 @@ boxplot_no3 + ridges_no3
 
     Picking joint bandwidth of 0.0317
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-140-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-142-1.png)
 
 Those are obvious outliers (wave really bimodal, outlier point clear)
 
@@ -3685,7 +3797,7 @@ display
 boxplot_no3 + boxplot_no3_outlierfree
 ```
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-142-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-144-1.png)
 
 ``` r
 ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
@@ -3703,9 +3815,9 @@ ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0317
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-142-2.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-144-2.png)
 
-#### 6.2.1.2 - NH4
+#### 6.2.1.2 - Field, NH4
 
 Now same, for NH4. But we don’t show the plots.
 
@@ -3767,7 +3879,7 @@ To see the plots:
 # ridges_nh4 + ridges_nh4_outlierfree + plot_layout(guides = "collect")
 ```
 
-#### 6.2.1.3 - NO2
+#### 6.2.1.3 - Field, NO2
 
 Because NO2 readings are virtually zero, there is only little point in
 removing outliers. Nevertheless, we can have a look at the data
@@ -3818,7 +3930,7 @@ Plots
 # ridges_no2 + ridges_no2_2 + plot_layout(guides = "collect")
 ```
 
-#### 6.2.1.4 - Standard Soils
+#### 6.2.1.4 - Field, Standard Soils
 
 Here we look at all Nmin species in one go because there are a lot less
 “samples” to look at.
@@ -3848,11 +3960,11 @@ boxplot_std + ridges_std
 
     Picking joint bandwidth of 0.0666
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-150-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-152-1.png)
 
 Nothing to modify!
 
-#### 6.2.1.5 - All outliers removed Nmin
+#### 6.2.1.5 - Field, all outliers removed for Nmin
 
 Visually, I am satisfied with this outlier removal, so I save this
 cleaned table
@@ -3861,9 +3973,9 @@ cleaned table
 Field_t2_Nmin_clean <- Nmin_wash3
 ```
 
-### 6.2.2 - PMN
+### 6.2.2 - Field, PMN
 
-#### 6.2.2.1 - NO3
+#### 6.2.2.1 - Field PMN, NO3
 
 ``` r
 boxplot_pmn_no3 <- raw_field_PMN |> 
@@ -3922,7 +4034,7 @@ Compare before/after
 boxplot_pmn_no3 + boxplot_pmn_no3_outlierfree 
 ```
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-154-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-156-1.png)
 
 ``` r
 ridges_pmn_no3 + ridges_pmn_no3_outlierfree + plot_layout(guides = "collect")
@@ -3948,9 +4060,9 @@ ridges_pmn_no3 + ridges_pmn_no3_outlierfree + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0233
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-154-2.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-156-2.png)
 
-#### 6.2.2.2 - NH4
+#### 6.2.2.2 - Field PMN, NH4
 
 ``` r
 boxplot_pmn_nh4 <- PMN_wash1 |> 
@@ -3996,7 +4108,7 @@ Compare before/after
 # ridges_pmn_nh4 + ridges_pmn_nh4_outlierfree + plot_layout(guides = "collect")
 ```
 
-#### 6.2.2.3 - NO2
+#### 6.2.2.3 - Field PMN, NO2
 
 ``` r
 boxplot_pmn_no2 <- PMN_wash2 |> 
@@ -4072,7 +4184,7 @@ Compare before / after
 # ridges_pmn_no2 + ridges_pmn_no2_outlierfree + plot_layout(guides = "collect")
 ```
 
-#### 6.2.2.4 - All outliers removed PMN
+#### 6.2.2.4 - Field, all outliers removed PMN
 
 Visually, I am satisfied with this outlier removal, so I save this
 cleaned table
@@ -4125,7 +4237,7 @@ boxplot_tdn_no3 + ridges_tdn_no3 + plot_layout(guides = "collect")
 
     Picking joint bandwidth of 0.0522
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-166-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-168-1.png)
 
 - 95_t2_z2_CFE.2x: D11,
 
@@ -4217,12 +4329,558 @@ field_t2_TDN_clean <- TDN_wash1
 
 #### 6.2.4.3 - All outliers removed PNR
 
-## 6.3 - Per-sample mean
+### 6.4.5 - Greenhouse, Nmin
 
-### 6.3.1 - Nmin
+#### 6.4.5.1 - Greenhouse, NO3
 
 ``` r
-conc_mean_Nmin <- Field_t2_Nmin_clean |> 
+boxplot_no3 <- raw_greenhouse_t2_Nmin |> 
+  filter(biol_unit_nb < 100, std_sp == "NO3") |> 
+  boxplot_conc() + labs(title = "NO3")
+
+ridges_no3 <- raw_greenhouse_t2_Nmin |> 
+  filter(biol_unit_nb < 100, std_sp == "NO3") |>  
+  # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO3")
+
+boxplot_no3 + ridges_no3
+```
+
+    Picking joint bandwidth of 0.00978
+
+    Picking joint bandwidth of 0.00923
+
+    Picking joint bandwidth of 0.00644
+
+    Picking joint bandwidth of 0.00902
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-172-1.png)
+
+I see some points that are a little bit off compared to the other three.
+
+- samples where the highest concentration seems to be an outlier:
+
+  - 21(H7), 54(H3), 15(A3), 61(C4), 77(H11), 69(H3), 10(A9), 41(A9),
+    74(A9)
+
+- samples where the lowest concentration seems to be an outlier:
+
+  - 49(E10), 6(D11), 38(E10), 53(E10), 71(F9), 42(C9)
+
+Manually removing those points, then re-running the plotting
+
+``` r
+biol_unit <- c(21, 54, 15, 61, 77, 69, 10, 41, 74, 49, 6, 38, 53, 71, 42)
+wells <- c("H7", "H3", "A3", "C4", "H11", "H3", "A9", "A9", "A9", "E10", "D11", "E10", "E10", "F9", "C9")
+names(wells) <- biol_unit
+
+to_remove <- tibble(
+  biol_unit_nb = biol_unit,
+  well_id = wells
+) |> left_join(
+  raw_greenhouse_t2_Nmin |> 
+    filter(std_sp == "NO3") |> 
+    select(biol_unit_nb, plate_id, dataset) |> 
+    unique())
+```
+
+    Joining with `by = join_by(biol_unit_nb)`
+
+``` r
+Nmin_wash1 <- remove_wells(
+  table_to_clean = raw_greenhouse_t2_Nmin,
+  well_table = to_remove) 
+
+
+
+boxplot_no3_outlierfree <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO3") |> # exclude sand and conv soil std
+  boxplot_conc(x = "biol_unit_nb", y = "conc_mgN_L") + labs(title = "NO3, outliers removed")
+
+ridges_no3_outlierfree <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO3") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO3, outliers removed")
+```
+
+Check out plots
+
+``` r
+# boxplot_no3 + boxplot_no3_outlierfree
+# ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.4.5.2 - Greenhouse, NH4
+
+Now same, for NH4.
+
+``` r
+boxplot_nh4 <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NH4")
+  
+ridges_nh4 <- Nmin_wash1 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NH4")
+
+#boxplot_nh4 + ridges_nh4
+```
+
+Here are those where I would remove
+
+- the highest concentration:
+
+  - 6(C11), 15(C3), 23(E2), 37(A7), 45(D10), 53(F10), 66(F4), 70(G10)
+
+- the lowest concentration:
+
+  - 18(G9)
+
+- those where I am really unsure:
+
+  - 33, 75 –\> should I remove those samples all together?
+
+``` r
+biol_unit <- c(6, 15, 23, 37, 45, 53, 66, 70, 18)
+wells <- c("C11", "C3", "E2", "A7", "D10", "F10", "F4", "G10", "G9")
+names(wells) <- biol_unit
+
+to_remove <- tibble(
+  biol_unit_nb = biol_unit,
+  well_id = wells
+) |> left_join(
+  Nmin_wash1 |> 
+    filter(std_sp == "NH4") |> 
+    select(biol_unit_nb, plate_id, dataset) |> 
+    unique())
+```
+
+    Joining with `by = join_by(biol_unit_nb)`
+
+``` r
+Nmin_wash2 <- remove_wells(
+  table_to_clean = Nmin_wash1,
+  well_table = to_remove) 
+
+boxplot_nh4_outlierfree <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NH4, outliers removed")
+
+ridges_nh4_outlierfree <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NH4") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NH4, outliers removed")
+```
+
+Check out plots
+
+``` r
+# boxplot_nh4 + boxplot_nh4_outlierfree
+# ridges_nh4 + ridges_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.4.5.3 - Greenhouse, NO2
+
+Because NO2 readings are virtually zero, there is only little point in
+removing outliers. Nevertheless, we can have a look at the data
+
+Per sample
+
+``` r
+boxplot_no2 <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NO2")
+
+ridges_no2 <- Nmin_wash2 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO2")
+
+#boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
+```
+
+Few to remove
+
+``` r
+biol_unit <- c(37, 42, 49, 54)
+wells <- c("D7", "C9", "E10", "H3")
+
+to_remove <- tibble(
+  biol_unit_nb = biol_unit,
+  well_id = wells, 
+  std_sp = rep("NO2")
+) |> left_join(Nmin_wash2)
+```
+
+    Joining with `by = join_by(biol_unit_nb, well_id, std_sp)`
+
+``` r
+Nmin_wash3 <- Nmin_wash2 |> remove_wells(to_remove)
+
+boxplot_no2_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  boxplot_conc() + labs(title = "NO2, outliers removed")
+
+ridges_no2_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb < 100, std_sp == "NO2") |> # exclude sand and conv soil std
+  plot_ridges_conc() + facet_wrap(~soil, ncol = 4) + labs(title = "NO2, outliers removed")
+```
+
+Check out plots
+
+``` r
+# boxplot_no2_2 + ridges_no2_2 + plot_layout(guides = "collect")
+# 
+# boxplot_no2 + boxplot_no2_2 + plot_layout(guides = "collect")
+# ridges_no2 + ridges_no2_2 + plot_layout(guides = "collect")
+```
+
+#### 6.4.5.4 - Greenhouse, Standard Soils
+
+! Each standard had many samples (1 per batch), so we look at a
+per-sample basis
+
+``` r
+boxplot_std <- Nmin_wash3 |>
+  filter(biol_unit_nb > 100) |> #
+  boxplot_conc(x = "map", colour = "soil") +
+  labs(title = "Standard soil, Greenhouse") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "none") +
+  facet_grid(std_sp~soil, scales = "free")
+
+ridges_std <- Nmin_wash3 |> 
+  filter(biol_unit_nb == 110) |> # exclude sand and conv soil std
+  plot_ridges_conc(groups = "map", y = "map") + 
+  facet_wrap(~std_sp, scales = "free_x") + 
+  theme(legend.position = "none") +
+  labs(title = "Standard soil, Greenhouse", y = "") 
+
+ridges_sand <- Nmin_wash3 |> 
+  filter(biol_unit_nb == 109) |> # exclude sand and conv soil std
+  plot_ridges_conc(groups = "map", y = "map") + 
+  facet_wrap(~std_sp, scales = "free_x") + 
+  theme(legend.position = "none") +
+  labs(title = "Standard sand, Greenhouse", y = "") 
+
+boxplot_std + (ridges_std / ridges_sand)# + plot_layout(guides = "collect")
+```
+
+    Picking joint bandwidth of 0.0522
+
+    Picking joint bandwidth of 0.00195
+
+    Picking joint bandwidth of 0.0577
+
+    Picking joint bandwidth of 0.0142
+
+    Picking joint bandwidth of 0.00107
+
+    Picking joint bandwidth of 0.0308
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-181-1.png)
+
+NO3 looks good, we keep it.
+
+For NH4 find 2 wells to remove:
+
+- plate 109_t2_MR_R8, well A5
+
+- plate 110_t2_MR_R7, well G9
+
+For NO2:
+
+- plate 110_t2_MR_R8, well H6
+
+Let’s remove them and re-run the analysis
+
+``` r
+samples <- c("109_t2_MR_R8", "110_t2_MR_R7", "110_t2_MR_R8")
+wells <- c("A5", "G9", "H6")
+std <- c("NH4", "NH4", "NO2")
+
+to_remove <- Nmin_wash3 |> filter(
+  (map == samples[1] & well_id == wells[1] & std_sp == std[1]) |
+    (map == samples[2] & well_id == wells[2] & std_sp == std[2]) |
+     (map == samples[3] & well_id == wells[3] & std_sp == std[3])
+)
+
+Nmin_wash4 <- Nmin_wash3 |> remove_wells(to_remove)
+
+boxplot_std_outlierfree <- Nmin_wash4 |>
+  filter(biol_unit_nb > 100) |> #
+  boxplot_conc(x = "map", colour = "soil") +
+  labs(title = "Standard soil, Greenhouse - outliers removed") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "none") +
+  facet_grid(std_sp~soil, scales = "free")
+
+ridges_std_outlierfree <- Nmin_wash4 |> 
+  filter(biol_unit_nb == 110) |> # exclude sand and conv soil std
+  plot_ridges_conc(groups = "map", y = "map") + 
+  facet_wrap(~std_sp, scales = "free_x") + 
+  theme(legend.position = "none") +
+  labs(title = "Standard soil, Greenhouse - outliers removed", y = "") 
+
+ridges_sand_outlierfree <- Nmin_wash4 |> 
+  filter(biol_unit_nb == 109) |> # exclude sand and conv soil std
+  plot_ridges_conc(groups = "map", y = "map") + 
+  facet_wrap(~std_sp, scales = "free_x") + 
+  theme(legend.position = "none") +
+  labs(title = "Standard sand, Greenhouse - outliers removed", y = "") 
+
+ # + plot_layout(guides = "collect")
+```
+
+Compare before/after outlier removal
+
+``` r
+boxplot_std + boxplot_std_outlierfree
+```
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-183-1.png)
+
+``` r
+(ridges_std + ridges_std_outlierfree) / (ridges_sand + ridges_sand_outlierfree)
+```
+
+    Picking joint bandwidth of 0.0522
+
+    Picking joint bandwidth of 0.00195
+
+    Picking joint bandwidth of 0.0577
+
+    Picking joint bandwidth of 0.0571
+
+    Picking joint bandwidth of 0.0018
+
+    Picking joint bandwidth of 0.0577
+
+    Picking joint bandwidth of 0.0142
+
+    Picking joint bandwidth of 0.00107
+
+    Picking joint bandwidth of 0.0308
+
+    Picking joint bandwidth of 0.0141
+
+    Picking joint bandwidth of 0.00107
+
+    Picking joint bandwidth of 0.0308
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-183-2.png)
+
+#### 6.4.5.5 - Greenhouse, all outliers removed for Nmin
+
+Visually, I am satisfied with this outlier removal, so I save this
+cleaned table
+
+``` r
+greenhouse_t2_Nmin_clean <- Nmin_wash4
+```
+
+### 6.4.6 - Greenhouse, PMN
+
+#### 6.4.6.1 - Greenhouse PMN, NO3
+
+``` r
+boxplot_pmn_no3 <- raw_greenhouse_PMN |> 
+  filter(std_sp == "NO3") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, scales = "free_y") + 
+  labs(title = "NO3")
+
+ridges_pmn_no3 <- raw_greenhouse_PMN |> 
+  filter(std_sp == "NO3") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3")
+
+# to be sure which well was out
+# raw_greenhouse_PMN |> 
+#   filter(std_sp == "NO3", soil == "Ref", incubation_time == "i4", tech_rep == "rt2") |> 
+#   boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + labs(title = "NO3")
+
+boxplot_pmn_no3 + ridges_pmn_no3 
+```
+
+    Picking joint bandwidth of 0.00936
+
+    Picking joint bandwidth of 0.0127
+
+    Picking joint bandwidth of 0.00953
+
+    Picking joint bandwidth of 0.0145
+
+    Picking joint bandwidth of 0.0161
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-185-1.png)
+
+- Pot_ABC_i1_rt4: C7
+
+- Pot_Ref_i4_rt2: H5
+
+- Pot_Auto_i2_rt4: A10
+
+``` r
+to_remove <- raw_greenhouse_PMN |> 
+  filter((std_sp == "NO3") & 
+    ((map == "Pot_ABC_i1_rt4" & well_id == "C7") | 
+       (map == "Pot_Ref_i4_rt2" & well_id == "H5") |
+       (map == "Pot_Auto_i2_rt4" & well_id == "A10")) 
+  )
+
+PMN_wash1 <- raw_greenhouse_PMN |> remove_wells(to_remove)
+
+# check it out again
+boxplot_pmn_no3_outlierfree <- PMN_wash1 |> 
+  filter(std_sp == "NO3") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, scales = "free_y") + 
+  labs(title = "NO3, outlier removed")
+
+ridges_pmn_no3_outlierfree <- PMN_wash1 |> 
+  filter(std_sp == "NO3") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3, outlier removed")
+
+#boxplot_pmn_no3_outlierfree + ridges_pmn_no3_outlierfree
+```
+
+Compare before/after
+
+``` r
+# boxplot_pmn_no3 + boxplot_pmn_no3_outlierfree + plot_layout(guides = "collect")
+# 
+# ridges_pmn_no3 + ridges_pmn_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.4.6.2 - Greenhouse PMN, NH4
+
+``` r
+boxplot_pmn_nh4 <- PMN_wash1 |> 
+  filter(std_sp == "NH4") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NH4")
+
+ridges_pmn_nh4 <- PMN_wash1 |> 
+  filter(std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4")
+
+#boxplot_pmn_nh4 + ridges_pmn_nh4 
+```
+
+- Pot_ABC_i2_rt3: A11
+
+- Pot_ABC_i4_rt2: H7
+
+- Pot_Ref_i1_rt2: C5
+
+``` r
+to_remove <- PMN_wash1 |> filter(
+  (std_sp == "NH4") & 
+    ((map == "Pot_ABC_i2_rt3" & well_id == "A11") |
+    (map == "Pot_ABC_i4_rt2" & well_id == "H7") |
+    (map == "Pot_Ref_i1_rt2" & well_id == "C5")))
+
+PMN_wash2 <- PMN_wash1 |> remove_wells(to_remove)
+
+boxplot_pmn_nh4_outlierfree <- PMN_wash2 |> 
+  filter(std_sp == "NH4") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NH4, outliers removed")
+
+ridges_pmn_nh4_outlierfree <- PMN_wash2 |> 
+  filter(std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4, outliers removed")
+
+#boxplot_pmn_nh4_outlierfree + ridges_pmn_nh4_outlierfree
+```
+
+Compare before/after
+
+``` r
+# boxplot_pmn_nh4 + boxplot_pmn_nh4_outlierfree + plot_layout(guides = "collect")
+# 
+# ridges_pmn_nh4 + ridges_pmn_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.4.6.3 - Greenhouse PMN, NO2
+
+``` r
+boxplot_pmn_no2 <- PMN_wash2 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NO2")
+
+ridges_pmn_no2 <- PMN_wash2 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2")
+
+#boxplot_pmn_no2 + ridges_pmn_no2 
+```
+
+- Pot_ABC_i0_rt4: C4
+
+- Pot_ABC_i1_rt4: B7
+
+- Pot_Auto_i0_rt4: C3
+
+- Pot_Auto_i1_rt4: B6
+
+- Pot_Ref_i0_rt4: C2 & B2
+
+``` r
+to_remove <- PMN_wash2 |> filter(
+  (std_sp == "NO2") &
+    ((map == "Pot_ABC_i0_rt4" & well_id == "C4") |
+    (map == "Pot_ABC_i1_rt4" & well_id == "B7") |
+    (map == "Pot_Auto_i0_rt4" & well_id == "C3") |
+    (map == "Pot_Auto_i1_rt4" & well_id == "B6") |
+    (map == "Pot_Ref_i0_rt4" & well_id %in% c("B2", "C2")))
+)
+
+PMN_wash3 <- PMN_wash2 |> remove_wells(to_remove)
+
+boxplot_pmn_no2_outlierfree <- PMN_wash3 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time) + 
+  labs(title = "NO2, outliers removed")
+
+ridges_pmn_no2_outlierfree <- PMN_wash3 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2, outliers removed")
+
+#boxplot_pmn_no2_outlierfree + ridges_pmn_no2_outlierfree 
+```
+
+Compare before / after
+
+``` r
+#boxplot_pmn_no2 + boxplot_pmn_no2_outlierfree + plot_layout(guides = "collect")
+
+#ridges_pmn_no2 + ridges_pmn_no2_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.4.6.4 - Greenhouse, all outliers removed PMN
+
+Visually, I am satisfied with this outlier removal, so I save this
+cleaned table
+
+``` r
+greenhouse_t2_PMN_clean <- PMN_wash3
+```
+
+## 6.3 - Per-sample mean
+
+We are going to need dry matter content information for the PMN, which
+was stored in `pmn_wc` from script `1_Lab`.
+
+``` r
+pmn_wc_field <- read_rds("output/data/1_field_pmn_wc.rds")
+pmn_wc_pot <- read_rds("output/data/1_greenhouse_pmn_wc.rds")
+```
+
+### 6.3.1 - Field, Nmin
+
+``` r
+conc_mean_Nmin_field <- Field_t2_Nmin_clean |> 
   select(map, plate_id, biol_unit_nb, zone, std_sp, conc_mgN_L) |> 
   group_by(plate_id, map, biol_unit_nb, zone, std_sp) |> 
   summarise(
@@ -4242,7 +4900,7 @@ conc_mean_Nmin <- Field_t2_Nmin_clean |>
 
 ``` r
 #biggest coef var quite high
-conc_mean_Nmin |> arrange(desc(coef_var))
+conc_mean_Nmin_field |> arrange(desc(coef_var))
 ```
 
     # A tibble: 223 × 8
@@ -4262,7 +4920,7 @@ conc_mean_Nmin |> arrange(desc(coef_var))
 
 ``` r
 # but not too bad when look only at NO3
-conc_mean_Nmin |> arrange(desc(std_sp), desc(coef_var))
+conc_mean_Nmin_field |> arrange(desc(std_sp), desc(coef_var))
 ```
 
     # A tibble: 223 × 8
@@ -4281,13 +4939,13 @@ conc_mean_Nmin |> arrange(desc(std_sp), desc(coef_var))
     # ℹ 213 more rows
 
 ``` r
-conc_mean_Nmin |> filter(coef_var > 10) |> 
+conc_mean_Nmin_field |> filter(coef_var > 10) |> 
   ggplot(aes(x = coef_var)) + geom_histogram() + facet_wrap(~std_sp, ncol = 1)
 ```
 
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-170-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-196-1.png)
 
 We still have quite a few samples with a high between-wells coefficient
 of variation, but mostly with NO2 and NH4 (very low values). With only 3
@@ -4298,7 +4956,7 @@ Now, finally, we re-join this mean value to the rest of the relevant
 information from the absorbance dataset
 
 ``` r
-conc_Nmin_export_ready <- conc_mean_Nmin |> 
+conc_Nmin_export_ready_field <- conc_mean_Nmin_field |> 
   select(!st_dev:coef_var) |> 
   inner_join(
     raw_field_t2_Nmin |> 
@@ -4308,17 +4966,10 @@ conc_Nmin_export_ready <- conc_mean_Nmin |>
 
     Joining with `by = join_by(plate_id, map, biol_unit_nb, zone, std_sp)`
 
-### 6.3.2 - PMN
-
-We are going to need dry matter content information, which was stored in
-`pmn_wc` from script `1_Lab`.
+### 6.3.2 - Field, PMN
 
 ``` r
-pmn_wc <- read_rds("output/data/1_pmn_wc.rds")
-```
-
-``` r
-conc_mean_PMN <- field_t2_PMN_clean |> 
+conc_mean_PMN_field <- field_t2_PMN_clean |> 
   select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
   group_by(map, biol_unit_nb, std_sp) |> 
   summarise(
@@ -4338,7 +4989,7 @@ conc_mean_PMN <- field_t2_PMN_clean |>
       grouping (`?dplyr::dplyr_by`) instead.
 
 ``` r
-conc_mean_PMN |> arrange(desc(std_sp), desc(coef_var))
+conc_mean_PMN_field |> arrange(desc(std_sp), desc(coef_var))
 ```
 
     # A tibble: 180 × 7
@@ -4373,7 +5024,7 @@ field_t2_PMN_clean |> filter(map == "Field_ABC_i1_rt4", std_sp == "NO3")
     #   adj_r_squared <dbl>, lm_p <dbl>, conc_mgNsp_L <dbl>, conc_mgN_L <dbl>
 
 ``` r
-conc_mean_PMN |> filter(coef_var > 10) |> 
+conc_mean_PMN_field |> filter(coef_var > 10) |> 
   ggplot(aes(x = coef_var)) + geom_histogram() + xlim(0,100)
 ```
 
@@ -4385,7 +5036,7 @@ conc_mean_PMN |> filter(coef_var > 10) |>
     Warning: Removed 2 rows containing missing values or values outside the scale range
     (`geom_bar()`).
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-173-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-198-1.png)
 
 Same here, there are still quite a few samples with a high coefficient
 of variation, but with only 3 to 4 wells and sometimes very low values,
@@ -4394,9 +5045,9 @@ this is unavoidable, so we move on
 Now, we can add the data on wc to get a full dataset
 
 ``` r
-conc_PMN_export_ready <- conc_mean_PMN |> 
+conc_PMN_export_ready_field <- conc_mean_PMN_field |> 
   # get dm and wc
-  left_join(pmn_wc) |> 
+  left_join(pmn_wc_field) |> 
   # get important categorical variables
   left_join(
     field_t2_PMN_clean |> 
@@ -4475,7 +5126,7 @@ conc_mean_TDN |>
 
     `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
 
-![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-175-1.png)
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-200-1.png)
 
 For once, it’s looking pretty good!
 
@@ -4492,12 +5143,144 @@ conc_TDN_export_ready <- conc_mean_TDN |>
 
 ### 6.3.4 - PNR
 
+### 6.3.5 - Greenhouse, Nmin
+
+``` r
+conc_mean_Nmin_pot <- greenhouse_t2_Nmin_clean |> 
+  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(plate_id, map, biol_unit_nb, std_sp) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+```
+
+    `summarise()` has regrouped the output.
+    ℹ Summaries were computed grouped by plate_id, map, biol_unit_nb, and std_sp.
+    ℹ Output is grouped by plate_id, map, and biol_unit_nb.
+    ℹ Use `summarise(.groups = "drop_last")` to silence this message.
+    ℹ Use `summarise(.by = c(plate_id, map, biol_unit_nb, std_sp))` for
+      per-operation grouping (`?dplyr::dplyr_by`) instead.
+
+``` r
+conc_mean_Nmin_pot |> arrange(desc(std_sp), desc(coef_var))
+```
+
+    # A tibble: 253 × 7
+    # Groups:   plate_id, map, biol_unit_nb [253]
+       plate_id  map   biol_unit_nb std_sp conc_mgN_L  st_dev coef_var
+       <chr>     <chr>        <dbl> <chr>       <dbl>   <dbl>    <dbl>
+     1 NO3_2P2   77_t2           77 NO3       0.00128 0.00889    693. 
+     2 NO3_2P4   78_t2           78 NO3       0.00370 0.0121     327. 
+     3 NO3_2P1   75_t2           75 NO3       0.00557 0.0142     255. 
+     4 NO3_2P5   59_t2           59 NO3       0.00575 0.0125     218. 
+     5 NO3_2P2   47_t2           47 NO3       0.00770 0.00770    100  
+     6 NO3_2P3   57_t2           57 NO3       0.0494  0.0316      64.1
+     7 NO3_2P5   65_t2           65 NO3       0.0632  0.0147      23.2
+     8 NO3_2P6_2 51_t2           51 NO3       0.0413  0.00867     21.0
+     9 NO3_2P2   23_t2           23 NO3       0.0385  0.00770     20  
+    10 NO3_2P6_1 33_t2           33 NO3       0.0751  0.0144      19.1
+    # ℹ 243 more rows
+
+``` r
+conc_mean_Nmin_pot |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram()
+```
+
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-202-1.png)
+
+We still have quite a few samples with a high between-wells coefficient
+of variation. But with only 3 to 4 wells and sometimes very low values,
+this is unavoidable, so we move on
+
+Now, finally, we re-join this mean value to the rest of the relevant
+information from the absorbance dataset
+
+``` r
+conc_Nmin_export_ready_pot <- conc_mean_Nmin_pot |> 
+  inner_join(
+    raw_greenhouse_t2_Nmin |> 
+      select(!c(well_id:abs_corrected, starts_with("conc"))) |> 
+      unique())
+```
+
+    Joining with `by = join_by(plate_id, map, biol_unit_nb, std_sp)`
+
+### 6.3.6 - Greenhouse, PMN
+
+``` r
+conc_mean_PMN_pot <- greenhouse_t2_PMN_clean |> 
+  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(map, biol_unit_nb, std_sp) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+```
+
+    `summarise()` has regrouped the output.
+    ℹ Summaries were computed grouped by map, biol_unit_nb, and std_sp.
+    ℹ Output is grouped by map and biol_unit_nb.
+    ℹ Use `summarise(.groups = "drop_last")` to silence this message.
+    ℹ Use `summarise(.by = c(map, biol_unit_nb, std_sp))` for per-operation
+      grouping (`?dplyr::dplyr_by`) instead.
+
+``` r
+conc_mean_PMN_pot |> arrange(desc(std_sp), desc(coef_var))
+```
+
+    # A tibble: 240 × 6
+    # Groups:   map, biol_unit_nb [80]
+       map             biol_unit_nb std_sp conc_mgN_L  st_dev coef_var
+       <chr>           <chr>        <chr>       <dbl>   <dbl>    <dbl>
+     1 Pot_Auto_i0_rt2 Pot_Auto     NO3       0.00507 0.00781    154. 
+     2 Pot_Conv_i2_rt1 Pot_Conv     NO3       0.0120  0.0112      93.3
+     3 Pot_Auto_i1_rt4 Pot_Auto     NO3       0.0236  0.0191      80.8
+     4 Pot_Conv_i1_rt3 Pot_Conv     NO3       0.0188  0.0137      72.7
+     5 Pot_Conv_i1_rt4 Pot_Conv     NO3       0.0345  0.0207      60  
+     6 Pot_Conv_i0_rt1 Pot_Conv     NO3       0.0359  0.0205      57.1
+     7 Pot_Auto_i2_rt4 Pot_Auto     NO3       0.0146  0.00779     53.3
+     8 Pot_Auto_i2_rt2 Pot_Auto     NO3       0.0693  0.0356      51.3
+     9 Pot_ABC_i1_rt4  Pot_ABC      NO3       0.0326  0.0156      47.8
+    10 Pot_Conv_i3_rt2 Pot_Conv     NO3       0.0256  0.0112      43.5
+    # ℹ 230 more rows
+
+``` r
+conc_mean_PMN_pot |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram()
+```
+
+    `stat_bin()` using `bins = 30`. Pick better value `binwidth`.
+
+    Warning: Removed 1 row containing non-finite outside the scale range
+    (`stat_bin()`).
+
+![](1_Npools_import_tidy_transform_files/figure-commonmark/unnamed-chunk-204-1.png)
+
+Same here, there are still quite a few samples with a high coefficient
+of variation, but with only 3 to 4 wells and sometimes very low values,
+this is unavoidable, so we move on
+
+Now, we can add the data on wc to get a full dataset
+
+``` r
+conc_PMN_export_ready_pot <- conc_mean_PMN_pot |> left_join(pmn_wc_pot)
+```
+
+    Joining with `by = join_by(biol_unit_nb)`
+
 ## 6.4 - Export clean Npool data
 
 ``` r
-conc_Nmin_export_ready |> write_rds("output/data/1_field_t2_Nmin_clean.rds")
-conc_PMN_export_ready |> write_rds("output/data/1_field_PMN_clean.rds")
+conc_Nmin_export_ready_field |> write_rds("output/data/1_field_t2_Nmin_clean.rds")
+conc_PMN_export_ready_field |> write_rds("output/data/1_field_PMN_clean.rds")
 conc_TDN_export_ready |> write_rds("output/data/1_field_TDN_clean.rds")
+conc_Nmin_export_ready_pot |> write_rds("output/data/1_greenhouse_t2_Nmin_clean.rds")
+conc_PMN_export_ready_pot |> write_rds("output/data/1_greenhouse_PMN_clean.rds")
 ```
 
 [^1]: TDN stands for Total Dissolved Nitrogen, i.e., NO3- is dosed after

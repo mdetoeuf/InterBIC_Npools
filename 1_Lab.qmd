@@ -24,6 +24,7 @@ output: true
 rm(list = ls())
 
 library(tidyverse)
+library(janitor)
 ```
 
 # 1 - Import raw data
@@ -46,11 +47,14 @@ raw_data_field <- raw_data |> filter(expe == "Field")
 raw_data_pot <- raw_data |> filter(expe == "Pot")
 ```
 
-# 2 - Lab data on a per plot basis
+# 2 - Lab data on a per plot / pot basis
 
-(biological units = plots of t2, with 3 zones per plot)
+Field: biological units = plots of t2, with 3 zones per plot
+
+Greenhouse: biological units = pots
 
 ```{r}
+# Field, t2
 raw_field_t2_lab <- raw_data_field |> 
   filter(sampling_time == "t2") |> 
   arrange(biol_unit_nb, zone) |> 
@@ -62,18 +66,44 @@ raw_field_t2_lab <- raw_data_field |>
    starts_with(c("whc", "run", "flush", "yd_rs", "rt"))
     )
 
-# Check it out
+# Greenhouse, t2
+raw_greenhouse_t2 <- raw_data_pot |> 
+  filter(sampling_time == "t2") |> 
+  # remove bare soil
+  filter_out(cs == "B") |> 
+  # correct biological unit
+  mutate(biol_unit_nb = case_when(
+    biol_unit_nb < 200 ~ biol_unit_nb,
+    biol_unit_nb > 200 ~ biol_unit_nb - 200
+  )) |> 
+  arrange(biol_unit_nb) |> 
+  # remove useless columns
+  select(
+    biol_unit_nb:sampling_time, 
+    sample_name, #useful?
+   starts_with(c("whc", "flush", "yd_rs"))
+    )
+```
+
+Check it out
+
+```{r}
 raw_field_t2_lab
+
+raw_greenhouse_t2
 ```
 
 # 3 - Lab data to get water content needed for PMN.
 
 Unfortunately, WC was not computed separately, but can only be derived from the WHC manip.
 
-! Although WC was computed per bloc (4 blocs per soil), PMN was done on a pooled sample from the 4 blocs. So we compute here only one mean value of wc per soil, that is the mean of the 4 blocs.
+! Field: Although WC was computed per bloc (4 blocs per soil), PMN was done on a pooled sample from the 4 blocs. So we compute here only one mean value of wc per soil, that is the mean of the 4 blocs.
+
+! Pot: there was one pot per soil for PMN
 
 ```{r}
-pmn_wc <- raw_data_field |> 
+# For field
+pmn_wc_field <- raw_data_field |> 
   select(biol_unit_nb, expe, soil, bloc, sampling_time, starts_with("whc")) |> 
   filter(sampling_time == "t0", !is.na(whc_tare_tube_g)) |> 
   #dm = g dry soil / g fresh soil       
@@ -89,6 +119,25 @@ pmn_wc <- raw_data_field |>
     dm = mean(dm),
     wc = mean(wc)
   )
+
+# For greenhouse
+pmn_wc_pot <- raw_data_pot |> 
+  select(biol_unit_nb, expe, soil, sampling_time, starts_with("whc")) |> 
+  filter(sampling_time == "t0", !is.na(whc_tare_tube_g)) |> 
+  #dm = g dry soil / g fresh soil       
+  # wc = 1 - dm
+  mutate(
+    dm = (whc_g_dw_g - whc_tare_dish_g) / (whc_g_fw_g - whc_tare_tube_g),
+    wc = 1-dm,
+    .keep = "unused",
+    .after = sampling_time
+  ) |> 
+  summarize(
+    .by = "soil",
+    dm = mean(dm),
+    wc = mean(wc)
+  ) |> 
+  mutate(biol_unit_nb = paste0("Pot_", soil))
 ```
 
 # 4 - Lab data to get water content and fresh weight for PNR
@@ -96,24 +145,29 @@ pmn_wc <- raw_data_field |>
 # 5 - Correspondence between biol_unit_nb, cs, soil and bloc
 
 ```{r}
-cs_map <- raw_field_t2_lab |> 
+cs_map_field <- raw_field_t2_lab |> 
   select(biol_unit_nb, cs, soil, bloc) |> 
   unique() 
 
-cs_map
+cs_map_pot <- raw_greenhouse_t2 |> select(biol_unit_nb, cs, soil, bloc) |> unique()
+
+cs_map_field; cs_map_pot
 ```
 
 # 6 - Export 
 
 ```{r}
-cs_map |> write_rds("output/data/1_cs_map.rds")
-pmn_wc |> write_rds("output/data/1_pmn_wc.rds")
+cs_map_field |> write_rds("output/data/1_field_cs_map.rds")
+cs_map_pot |> write_rds("output/data/1_greenhouse_cs_map.rds")
+pmn_wc_field |> write_rds("output/data/1_field_pmn_wc.rds")
+pmn_wc_pot |> write_rds("output/data/1_greenhouse_pmn_wc.rds")
 ```
 
-Safekeep from other script. Consider whether this export is needed
+Safekeep from other scripts. Consider whether this export is needed
 
 ```{r}
 #| eval: false
 #| include: false
 raw_field_t2_lab |> write_rds("output/data/3_field_t2_raw_lab.rds")
+raw_greenhouse_t2 |> write_rds("output/data/3_greenhouse_t2_raw_lab.rds")
 ```
