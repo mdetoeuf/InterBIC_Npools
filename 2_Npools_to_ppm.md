@@ -1,0 +1,744 @@
+# 2 - Npools convert mg N /L to ppm
+Morgane de Toeuf
+
+- [To Do](#to-do)
+- [Intro](#intro)
+- [Set up](#set-up)
+- [1 - Nmin (greenhouse & field)](#1---nmin-greenhouse--field)
+  - [TO DO: deal with standard soils (missing
+    here)](#to-do-deal-with-standard-soils-missing-here)
+- [2 - PMN](#2---pmn)
+  - [2.1 - Compute new variables](#21---compute-new-variables)
+  - [2.2 - Plot the curves –\> move this to next
+    script?](#22---plot-the-curves--move-this-to-next-script)
+  - [2.3 - Corrected PMN](#23---corrected-pmn)
+- [3 - Derive MBN from TDN](#3---derive-mbn-from-tdn)
+  - [TO DO: check dilution etc. in the TDN protocol: diluted 2x at hood,
+    but also headspace etc. –\> think it
+    through!](#to-do-check-dilution-etc-in-the-tdn-protocol-diluted-2x-at-hood-but-also-headspace-etc--think-it-through)
+- [4 - Join & complete Npools](#4---join--complete-npools)
+- [5 - Export](#5---export)
+
+# To Do
+
+Greenhouse:
+
+- Move the PMN curve to script nb 5 !
+
+- Deal with standard soils.
+
+  - Problem: they have same biological unit nb. –\> a preliminary
+    outlier removal needs to be ran separately, then average per
+    biol_unit_nb, then it can be rejoined…
+
+Field
+
+- Incorporate
+
+  - PNR
+
+  - Nmin t3?
+
+  - MicroResp
+
+- Deal with standard soils.
+
+  - Problem: they have same biological unit nb. –\> a preliminary
+    outlier removal needs to be ran separately, then average per
+    biol_unit_nb, then it can be rejoined…
+
+- Move the PMN curve to script nb 5 ?
+
+# Intro
+
+What failed:
+
+- yield at t2
+
+  - quadrat: mess in the data - misunderstanding from colleagues at the
+    field
+
+  - plant-level: was interesting to compare to RS measurements, but
+    possibly biased as an absolute measure of yield bc in IC: plants
+    were selected for being close to each other -\> possibly not
+    representative of the field
+
+# Set up
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# clean environment
+#rm(list = ls())
+
+# packages
+library(tidyverse)
+library(janitor)
+```
+
+</details>
+
+Load data
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# Npool concentration data
+conc_Nmin_field <- read_rds("output/data/1_field_t2_Nmin_clean.rds")
+conc_PMN_field <- read_rds("output/data/1_field_PMN_clean.rds")
+conc_TDN <- read_rds("output/data/1_field_TDN_clean.rds")
+conc_Nmin_pot <- read_rds("output/data/1_greenhouse_t2_Nmin_clean.rds")
+conc_PMN_pot <- read_rds("output/data/1_greenhouse_PMN_clean.rds")
+
+# Lab data containing info on wc, soil:solution ratio, ...
+flush_clean <- read_rds("output/data/1_flush_clean.rds")
+
+
+flush_clean_greenhouse <- read_rds("output/data/1_greenhouse_flush_clean.rds")
+flush_clean_field <- read_rds("output/data/1_field_flush_clean.rds")
+
+# raw data
+PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
+```
+
+</details>
+
+    Rows: 140 Columns: 6
+    ── Column specification ────────────────────────────────────────────────────────
+    Delimiter: ","
+    chr (5): Expe, Soil, incub_time, rep_tech, map
+    dbl (1): fw
+
+    ℹ Use `spec()` to retrieve the full column specification for this data.
+    ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+# 1 - Nmin (greenhouse & field)
+
+Join field and greenhouse data to work on them at once
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_Nmin <- conc_Nmin_pot |> bind_rows(conc_Nmin_field)
+```
+
+</details>
+
+Get data, separate samples from std soil data
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# Nmin_sample_greenhouse <- conc_Nmin_pot |> filter(biol_unit_nb < 100)
+# Nmin_std_greenhouse <- conc_Nmin_pot |> filter_out(biol_unit_nb < 100)
+# 
+# flush_sample_greenhouse <- flush_clean_greenhouse |> filter(biol_unit_nb < 100)
+# flush_std_greenhouse <- flush_clean_greenhouse |> filter_out(biol_unit_nb < 100)
+```
+
+</details>
+
+Convert samples to ppm (Deal with std soils later)
+
+First, we
+
+- join absorbance data and flush data,
+
+- Compute the N-sp N concentration in ppm (e.g. mg NO3-N / kg dry soil)
+
+- do some data housecleaning
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+#Nmin_sample_greenhouse |> arrange(biol_unit_nb) 
+
+Nmin_ppm <- conc_Nmin |> 
+  # join both data tables
+  left_join(flush_clean) |> 
+  # compute concentration in ppm
+  mutate(conc_ppm = conc_mgN_L / (ratio_nf * dm)) |> 
+  # remove again the bare soils
+  filter_out(is.na(sample_short)) |> 
+  ungroup() |> 
+  # select relevant columns
+  select(
+    expe, dataset, std_sp, 
+    biol_unit_nb, cs, soil, crop_diversity, bloc, zone,
+    dm, wc, conc_ppm) |> 
+  arrange(biol_unit_nb)
+```
+
+</details>
+
+    Joining with `by = join_by(biol_unit_nb, zone, sampling_time, expe, cs, soil)`
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# Nmin_ppm_sample_greenhouse <- Nmin_sample_greenhouse |> 
+#   # join both data tables
+#   left_join(flush_sample_greenhouse) |> 
+#   # compute concentration in ppm
+#   mutate(conc_ppm = conc_mgN_L / (ratio_nf * dm)) |> 
+#   # remove again the bare soils
+#   filter_out(is.na(sample_short)) |> 
+#   ungroup() |> 
+#   # select relevant columns
+#   select(
+#     expe, dataset, std_sp, 
+#     biol_unit_nb, cs, soil, crop_diversity, bloc, zone,
+#     dm, wc, conc_ppm) |> 
+#     # 
+#     # !c(
+#     # #dataset, 
+#     # #expe, 
+#     # target_sp:lm_p, 
+#     # starts_with("sampl"), starts_with("ratio"),
+#     # map, plate_id, conc_mgN_L,
+#     # st_dev, coef_var)) 
+#   arrange(biol_unit_nb)
+# 
+# # Check it out
+# Nmin_ppm_sample_greenhouse
+```
+
+</details>
+
+Now, we pivot the data so that each N-sp receives its own column
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+Nmin_ppm_wider <- Nmin_ppm |>
+  ungroup() |>  
+  pivot_wider(
+    names_from = std_sp,
+    values_from = conc_ppm,
+    names_prefix = "ppm_"
+  ) |> 
+  # to make obvious that NO3 is still uncorrected
+  rename(ppm_NO3_uncorrected = ppm_NO3)
+
+# Nmin_ppm_wider <- Nmin_ppm_sample |>
+#   ungroup() |>  
+#   select(!c(plate_id, map, st_dev, coef_var)) |> 
+#   pivot_wider(
+#     names_from = std_sp,
+#     values_from = conc_ppm,
+#     names_prefix = "ppm_"
+#   ) |> 
+#   # to make obvious that NO3 is still uncorrected
+#   rename(ppm_NO3_uncorrected = ppm_NO3)
+```
+
+</details>
+
+Then we can compute final Nmin variables:
+
+- correct NO3 value (what is measured is the sum of NO3 and NO2, bc we
+  measure NO2 after reduction of NO3 to NO2)
+
+- Compute Nmin (= NO3 + NO2 + NH4)
+
+- Compute ratio, e.g., NO3/Nmin, NH4/Nmin, NO3/NH4
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+Nmin_all_variables <- Nmin_ppm_wider |> 
+  mutate(
+    ppm_NO3 = ppm_NO3_uncorrected - ppm_NO2,
+    ppm_Nmin = ppm_NO3_uncorrected + ppm_NH4,
+    NO3_Nmin = ppm_NO3 / ppm_Nmin,
+    NH4_Nmin = ppm_NH4 / ppm_Nmin,
+    NO3_NH4 = ppm_NO3 / ppm_NH4
+  ) |> 
+  # remove uncorrected NO3
+  select(!ppm_NO3_uncorrected)
+
+Nmin_all_variables |> select(biol_unit_nb) |> unique()
+```
+
+</details>
+
+    # A tibble: 78 × 1
+       biol_unit_nb
+              <dbl>
+     1            1
+     2            2
+     3            3
+     4            5
+     5            6
+     6            7
+     7            9
+     8           10
+     9           11
+    10           13
+    # ℹ 68 more rows
+
+### TO DO: deal with standard soils (missing here)
+
+# 2 - PMN
+
+The PMN data is missing 1 key information: weight of fresh soil in the
+sub-sample that undergoes the KCl extraction. That is why we imported
+`PMN_fw` in the set up section.
+
+First, we join field and greenhouse data
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+conc_PMN <- conc_PMN_pot |> 
+  # tweak it to get same structure as conc_PMN_field
+  select(!c(expe, soil)) |> 
+  separate_wider_delim(
+    map, delim = "_", 
+    names = c("expe", "soil", "incubation_time", "tech_rep"), 
+    cols_remove = FALSE
+  ) |> 
+  mutate(dataset = "PMN") |> 
+  bind_rows(conc_PMN_field)
+```
+
+</details>
+
+## 2.1 - Compute new variables
+
+Here, we
+
+- join PMN_fw (data set containing fresh weight of the subsample that
+  underwent the incubation) with the absorbance derived concentration
+  data in mg N / L
+- compute the ratio between weight of fresh soil and volume of
+  extractant (150ml) –\> ~30g/150ml
+- Derive the concentration in ppm from mg N/L, ratio and dry matter
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+volume_kcl <- 150
+
+PMN_ppm <- conc_PMN |> 
+  left_join(PMN_fw) |> 
+  mutate(
+    ratio = fw / volume_kcl,
+    conc_ppm = conc_mgN_L / (ratio * dm)
+  )
+```
+
+</details>
+
+    Joining with `by = join_by(expe, soil, map)`
+
+Now, we want the concentration in separate columns as above for Nmin,
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_wider <- PMN_ppm |> 
+  pivot_wider(
+  names_from = std_sp,
+  names_prefix = "ppm_",
+  values_from = conc_ppm,
+  id_cols = c(map, biol_unit_nb, soil, dm, wc, expe, incub_time, tech_rep, fw, ratio)
+) |> 
+  rename(ppm_NO3_uncorrected = ppm_NO3)
+```
+
+</details>
+
+Then, we can do the NO3 correction and other computation of variables
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# We need to quantify the timeline with nb of days
+dates_field <- c("2023-12-12", "2023-12-17", "2023-12-26", "2024-01-02", "2024-01-09") |> as.Date()
+dates_pot <- c("2023-12-5", "2023-12-12", "2023-12-17", "2023-12-26", "2024-01-02") |> as.Date()
+
+incub_days_field <- dates_field - dates_field[1]
+incub_days_pot <- dates_pot - dates_pot[1]
+names(incub_days_field) <- PMN_wider$incub_time |> unique() |> sort()
+names(incub_days_pot) <- PMN_wider$incub_time |> unique() |> sort()
+
+# Compute all variables
+PMN_all_variables <- PMN_wider |> 
+  mutate(
+    ppm_NO3 = ppm_NO3_uncorrected - ppm_NO2,
+    ppm_Nmin = ppm_NO3_uncorrected + ppm_NH4,
+    NO3_Nmin = ppm_NO3 / ppm_Nmin,
+    NH4_Nmin = ppm_NH4 / ppm_Nmin,
+    NO3_NH4 = ppm_NO3 / ppm_NH4,
+    incub_day = case_when(
+      expe == "Field" ~ incub_days_field[incub_time],
+      expe == "Pot" ~ incub_days_pot[incub_time]
+    ),
+    soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC"))
+  ) |> 
+  # remove uncorrected NO3
+  select(!ppm_NO3_uncorrected) #|> 
+  # test with only last 3 incub times
+  #filter(incub_time %in% c("i2", "i3", "i4"))
+
+#check correspondence incubation vs dates
+#PMN_all_variables |> ungroup() |> select(incub_time, incub_day) |> unique()
+```
+
+</details>
+
+## 2.2 - Plot the curves –\> move this to next script?
+
+Finally, we can plot the curve of the potential mineralisation of
+Nitrogen (PMN)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+soil = c("#F8766D", "#7CAE00", "#00BFC4", "#C77CFF")
+
+PMN_plot <- PMN_all_variables |> 
+  ggplot(aes(x = incub_day, y = ppm_Nmin, group = soil, colour = soil, fill = soil)) +
+  theme_minimal() + 
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("Time since incubation at 28°C [days]") +
+  ylab("Mineral Nitrogen in the soil [ppm]") +
+  facet_wrap(~expe) +
+  scale_color_discrete(soil) +
+  scale_fill_discrete(soil) +
+  labs(
+    title = "Potential Mineralisation of Nitrogen (PMN)",
+    subtitle = "Nmin as sum of NO2-, NO3-, NH4+")
+
+PMN_plot
+```
+
+</details>
+
+    Don't know how to automatically pick scale for object of type <difftime>.
+    Defaulting to continuous.
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](2_Npools_to_ppm_files/figure-commonmark/unnamed-chunk-12-1.png)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# PMN_plot <- PMN_all_variables |> 
+#   ggplot(aes(x = incub_day, y = ppm_Nmin, group = soil, colour = soil, fill = soil)) +
+#   theme_minimal() +
+#   geom_point() +
+#   geom_smooth(method = "lm") +
+#   labs(
+#     title = "Potential Mineralization of Nitrogen (PMN)",
+#     subtitle = "Nmin as sum of NO2-, NO3-, NH4+") +
+#   xlab("Time since incubation at 28°C [days]") +
+#   ylab("Mineral Nitrogen in the soil [ppm]")
+
+# for annotation: extract data from smooth curve
+smooth_data <- ggplot_build(PMN_plot)$data[[2]]
+```
+
+</details>
+
+    Don't know how to automatically pick scale for object of type <difftime>.
+    Defaulting to continuous.
+    `geom_smooth()` using formula = 'y ~ x'
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+smooth_data |> str()
+```
+
+</details>
+
+    'data.frame':   560 obs. of  14 variables:
+     $ x          : num  0 0.354 0.709 1.063 1.418 ...
+     $ y          : num  1.23 1.29 1.35 1.4 1.46 ...
+     $ ymin       : num  0.222 0.295 0.368 0.441 0.514 ...
+     $ ymax       : num  2.24 2.28 2.32 2.36 2.4 ...
+     $ se         : num  0.481 0.473 0.465 0.457 0.449 ...
+     $ flipped_aes: logi  FALSE FALSE FALSE FALSE FALSE FALSE ...
+     $ group      : int  2 2 2 2 2 2 2 2 2 2 ...
+     $ colour     : chr  "#7CAE00" "#7CAE00" "#7CAE00" "#7CAE00" ...
+     $ fill       : chr  "#7CAE00" "#7CAE00" "#7CAE00" "#7CAE00" ...
+     $ PANEL      : Factor w/ 2 levels "1","2": 1 1 1 1 1 1 1 1 1 1 ...
+     $ linewidth  : num  1 1 1 1 1 1 1 1 1 1 ...
+     $ linetype   : int  1 1 1 1 1 1 1 1 1 1 ...
+     $ weight     : num  1 1 1 1 1 1 1 1 1 1 ...
+     $ alpha      : num  0.4 0.4 0.4 0.4 0.4 0.4 0.4 0.4 0.4 0.4 ...
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# get its maximum value to anker the annotation
+annotations <- smooth_data |> 
+  slice_max(x, by = c(PANEL,group)) |> 
+  mutate(
+    soil = c(
+      levels(PMN_all_variables$soil)[2:4], 
+      levels(PMN_all_variables$soil)),
+    expe = c(rep("Field", 3), rep("Pot", 4))) 
+#c("#F8766D", "#7CAE00", "#00BFC4", "#C77CFF") 
+
+# Also annotate date of humidification
+day_water <- as.Date("2023-12-20")
+  
+PMN_plot_all <- PMN_plot + 
+  geom_text(
+    data = annotations,
+    aes(x = x+0.5, y = y, colour = soil, label = soil), 
+    hjust = 0, size = 5) +
+  xlim(c(0,30)) +
+  theme(legend.position = "none") 
+
+PMN_plot_all
+```
+
+</details>
+
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](2_Npools_to_ppm_files/figure-commonmark/unnamed-chunk-12-2.png)
+
+Looks nice, but if we facet… The curves… are not linear at all. Probably
+due to re-humidification in-between:
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+PMN_plot_all + facet_grid(expe~soil)
+```
+
+</details>
+
+    `geom_smooth()` using formula = 'y ~ x'
+
+![](2_Npools_to_ppm_files/figure-commonmark/unnamed-chunk-13-1.png)
+
+## 2.3 - Corrected PMN
+
+After discussion with PI: keep only points that we trust: 1st one and
+post-humidification –\> i0, i3, i4
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# subset data
+PMN_trusted <- PMN_all_variables |> 
+  filter(incub_time %in% c("i0", "i3", "i4"))
+```
+
+</details>
+
+<u>**Plot upcoming in later section?**</u>
+
+# 3 - Derive MBN from TDN
+
+First, as for the other data sets, we need to derive N concentration in
+ppm, using `conc_mgN_L`, `ratio` and `dm`. For this, we can re-use the
+flush data
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# no ratio nor dm in TDN data set
+conc_TDN
+```
+
+</details>
+
+    # A tibble: 160 × 11
+    # Groups:   std_sp, fumigation, biol_unit_nb [50]
+       std_sp fumigation biol_unit_nb map         conc_mgN_L st_dev coef_var dataset
+       <chr>  <chr>             <dbl> <chr>            <dbl>  <dbl>    <dbl> <chr>  
+     1 NO3    CFE                  81 81_t2_z1_C…       11.3 0.132     1.17  TDN    
+     2 NO3    CFE                  81 81_t2_z2_C…       11.8 0.0299    0.255 TDN    
+     3 NO3    CFE                  81 81_t2_z3_C…       11.3 0.190     1.67  TDN    
+     4 NO3    CFE                  82 82_t2_z1_C…       12.0 0.139     1.16  TDN    
+     5 NO3    CFE                  82 82_t2_z2_C…       11.8 0.137     1.16  TDN    
+     6 NO3    CFE                  82 82_t2_z3_C…       10.9 0.0897    0.820 TDN    
+     7 NO3    CFE                  83 83_t2_z1_C…       11.7 0.0527    0.452 TDN    
+     8 NO3    CFE                  83 83_t2_z2_C…       11.2 0.0409    0.366 TDN    
+     9 NO3    CFE                  83 83_t2_z3_C…       11.4 0.0325    0.285 TDN    
+    10 NO3    CFE                  84 84_t2_z1_C…       10.8 0.0621    0.576 TDN    
+    # ℹ 150 more rows
+    # ℹ 3 more variables: sampling_time <chr>, zone <chr>, dilution <chr>
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# ratio and dm in flush data
+flush_clean
+```
+
+</details>
+
+    # A tibble: 150 × 14
+       biol_unit_nb expe  sample_short soil  crop_diversity cs    bloc 
+              <dbl> <chr> <chr>        <fct> <fct>          <fct> <fct>
+     1            1 Pot   t2_201_F     Conv  SC             F     B1   
+     2            2 Pot   t2_202_W     Conv  SC             W     B1   
+     3            3 Pot   t2_203_IC    Conv  IC             IC    B1   
+     4            5 Pot   t2_205_F     Ref   SC             F     B1   
+     5            6 Pot   t2_206_W     Ref   SC             W     B1   
+     6            7 Pot   t2_207_IC    Ref   IC             IC    B1   
+     7            9 Pot   t2_209_F     Auto  SC             F     B1   
+     8           10 Pot   t2_210_W     Auto  SC             W     B1   
+     9           11 Pot   t2_211_IC    Auto  IC             IC    B1   
+    10           13 Pot   t2_213_F     ABC   SC             F     B1   
+    # ℹ 140 more rows
+    # ℹ 7 more variables: sampling_time <chr>, zone <chr>, sample_name <chr>,
+    #   dm <dbl>, wc <dbl>, ratio_nf <dbl>, ratio_cfe <dbl>
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# make it a field-sample vs field-std version
+```
+
+</details>
+
+Because samples work by zone, but standard soils do not, we have to
+“trick” a zone (=bloc) for standard data.
+
+### TO DO: check dilution etc. in the TDN protocol: diluted 2x at hood, but also headspace etc. –\> think it through!
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+TDN <- conc_TDN |> 
+  # take only sample data
+  #filter(biol_unit_nb < 112) |> 
+  # join to flush data to add dm and ratios
+  #left_join(flush_sample) |> 
+  left_join(
+    flush_clean |> 
+      mutate(zone = case_when(
+        biol_unit_nb == 112 ~ bloc,
+        .default = zone))) |> #view()
+  # remove bloc 1 again
+  filter_out(is.na(bloc)) |> #view()
+  # declutter, keep only relevant columns
+  select(!c(map, st_dev, coef_var, sample_name)) |> 
+  ungroup() |> 
+  # translate concentration to ppm
+  # here NO3 was dosed, after oxidation of all N-compounds to NO3, so TDN is indeed measured
+  # multiply by 2 because samples were diluted 2x before dosage
+  mutate(
+    conc_ppm = case_when(
+      fumigation == "CFE" ~ 2 * conc_mgN_L / (ratio_cfe * dm),
+      fumigation == "NF" ~ 2 * conc_mgN_L / (ratio_nf * dm),
+      .default = NA)
+    ) |> 
+  # drop useless columns
+  select(!c(conc_mgN_L, dm, starts_with("ratio"), wc)) |> 
+  # pivot to get ppm of CFE and ppm of NF in separate columns
+  pivot_wider(
+    values_from = conc_ppm,
+    names_from = fumigation,
+    names_prefix = "ppm_"
+  ) |> 
+  # compute MBN
+  mutate(
+    MBN_ppm = ppm_CFE - ppm_NF,
+    TDN_ppm = ppm_CFE,
+    .keep = "unused")
+```
+
+</details>
+
+    Joining with `by = join_by(biol_unit_nb, sampling_time, zone)`
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# Check it out
+TDN
+```
+
+</details>
+
+    # A tibble: 62 × 14
+       std_sp biol_unit_nb dataset sampling_time zone  dilution expe  sample_short
+       <chr>         <dbl> <chr>   <chr>         <chr> <chr>    <chr> <chr>       
+     1 NO3              81 TDN     t2            z1    2x       Field t2_81_z1    
+     2 NO3              81 TDN     t2            z2    2x       Field t2_81_z2    
+     3 NO3              81 TDN     t2            z3    2x       Field t2_81_z3    
+     4 NO3              82 TDN     t2            z1    2x       Field t2_82_z1    
+     5 NO3              82 TDN     t2            z2    2x       Field t2_82_z2    
+     6 NO3              82 TDN     t2            z3    2x       Field t2_82_z3    
+     7 NO3              83 TDN     t2            z1    2x       Field t2_83_z1    
+     8 NO3              83 TDN     t2            z2    2x       Field t2_83_z2    
+     9 NO3              83 TDN     t2            z3    2x       Field t2_83_z3    
+    10 NO3              84 TDN     t2            z1    2x       Field t2_84_z1    
+    # ℹ 52 more rows
+    # ℹ 6 more variables: soil <fct>, crop_diversity <fct>, cs <fct>, bloc <fct>,
+    #   MBN_ppm <dbl>, TDN_ppm <dbl>
+
+# 4 - Join & complete Npools
+
+Now we
+
+- join both datasets: TDN and Nmin (FYI: no TDN for greenhouse data –\>
+  lots of NA, not to worry)
+
+- Compute new Npool variables
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+Npools_t2 <- TDN |> 
+  # remove dataset info because both tables have different info stored
+  select(!dataset) |> 
+  full_join(
+  Nmin_all_variables |> select(!c(dataset, expe)), 
+  by = join_by(biol_unit_nb, zone, soil, crop_diversity, cs, bloc)) |> 
+  mutate(
+    expe = case_when(biol_unit_nb < 80 ~ "Pot", .default = expe),
+    Norg_tot = TDN_ppm - ppm_Nmin,
+    Norg_non_micro = Norg_tot - MBN_ppm)
+```
+
+</details>
+
+# 5 - Export
+
+<u>**!! Check if complete !!**</u>
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+Npools_t2 |> write_rds("output/data/2_Npools.rds")
+PMN_trusted |> write_rds("output/data/2_PMN.rds")
+```
+
+</details>

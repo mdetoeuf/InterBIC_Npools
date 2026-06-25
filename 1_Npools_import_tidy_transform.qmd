@@ -3216,7 +3216,37 @@ Visually, I am satisfied with this outlier removal, so I save this cleaned table
 greenhouse_t2_PMN_clean <- PMN_wash3
 ```
 
+### 6.2.7 - Export clean data
+
+```{r}
+# clean_conc_all <- list(
+#   "greenhouse_t2_Nmin_clean" = greenhouse_t2_Nmin_clean,
+#   "greenhouse_t2_PMN_clean" = greenhouse_t2_PMN_clean,
+#   "Field_t2_Nmin_clean" = Field_t2_Nmin_clean,
+#   "field_t2_TDN_clean" = field_t2_TDN_clean,
+#   "field_t2_PMN_clean" = field_t2_PMN_clean,
+#   "raw_greenhouse_t2_Nmin" = raw_greenhouse_t2_Nmin,
+#   "raw_field_t2_Nmin" = raw_field_t2_Nmin
+# )
+# 
+# clean_conc_all |> write_rds("output/data/1_Npools_temp_clean_conc_all.rds")
+```
+
 ## 6.3 - Per-sample mean
+
+Empty environment and import data
+
+```{r}
+# rm(list = ls())
+# 
+# clean_conc_all <- read_rds("output/data/1_Npools_temp_clean_conc_all.rds")
+# 
+# greenhouse_t2_Nmin_clean <-   clean_conc_all$greenhouse_t2_Nmin_clean
+# greenhouse_t2_PMN_clean <- clean_conc_all$greenhouse_t2_PMN_clean
+# Field_t2_Nmin_clean <- clean_conc_all$Field_t2_Nmin_clean
+# field_t2_TDN_clean <- clean_conc_all$field_t2_TDN_clean
+# field_t2_PMN_clean <- clean_conc_all$field_t2_PMN_clean
+```
 
 We are going to need dry matter content information for the PMN, which was stored in `pmn_wc` from script `1_Lab`.
 
@@ -3339,8 +3369,10 @@ conc_mean_Nmin_pot <- greenhouse_t2_Nmin_clean |>
   summarise(
     mean = mean(conc_mgN_L),
     st_dev = sd(conc_mgN_L)) |> 
-  mutate(coef_var = 100*st_dev / mean) |> 
-  rename(conc_mgN_L = mean)
+  mutate(
+    coef_var = 100*st_dev / mean,
+    zone = NA) |> 
+  rename(conc_mgN_L = mean) 
 
 conc_mean_Nmin_pot |> arrange(desc(std_sp), desc(coef_var))
 
@@ -3354,9 +3386,10 @@ Now, finally, we re-join this mean value to the rest of the relevant information
 
 ```{r}
 conc_Nmin_export_ready_pot <- conc_mean_Nmin_pot |> 
+  select(!st_dev:coef_var) |> 
   inner_join(
     raw_greenhouse_t2_Nmin |> 
-      select(!c(well_id:abs_corrected, starts_with("conc"))) |> 
+      select(!c(well_id:abs_corrected, starts_with("conc"), slope:lm_p, target_sp)) |> 
       unique())
 ```
 

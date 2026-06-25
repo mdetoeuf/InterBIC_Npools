@@ -78,7 +78,7 @@ pmn_wc_field <- pmn_wc |>  filter(expe == "Field")
 # For greenhouse
 pmn_wc_pot <- pmn_wc |> 
   filter(expe == "Pot") |> 
-  mutate(biol_unit_nb = paste0(expe, soil))
+  mutate(biol_unit_nb = paste0(expe, "_", soil))
 ```
 
 ## 2.2 - Field data vs greenhouse data
@@ -511,6 +511,7 @@ pmn_wc_pot |> write_rds("output/data/1_greenhouse_pmn_wc.rds")
 
 flush_clean_field <- flush_clean |> filter(expe == "Field")
 flush_clean_greenhouse <- flush_clean |> filter(expe == "Pot")
+flush_clean |> write_rds("output/data/1_flush_clean.rds")
 flush_clean_greenhouse |>  write_rds("output/data/1_greenhouse_flush_clean.rds")
 flush_clean_field |>  write_rds("output/data/1_field_flush_clean.rds")
  # or flush_sample_greenhouse # and flush_std_greenhouse 
