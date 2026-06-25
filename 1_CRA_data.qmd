@@ -1,15 +1,9 @@
 ---
-title: "3.1 Field, t2 - Import and tidy data"
+title: "1 - CRA-W data"
 format: 
   gfm:
     toc: true
     code-fold: true
-# format: 
-#   html:
-#     embed-resources: true
-#     toc: true
-#     toc_float: true
-#     code-fold: true
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -20,10 +14,6 @@ output: true
 ---
 
 # To Do
-
-!!! DISPATCH THIS DOC INTO
-
-- CRA yield data –\> join Lab script? Or a different one?
 
 Still missing:
 
@@ -49,11 +39,9 @@ library(patchwork) # for the "+" layout and plot_layout()
 source("functions/plot_qc_sample_conc.R")
 ```
 
-# 1 - Import data
+# 1 - Import & tidy data from the CRA-W
 
-## 1.4 - Data from the CRA-W
-
-### 1.4.1 - Yield data
+## 1.1 - Yield data
 
 In the row data, there is a column under the headers containing units. So we skip this in the import, re-adding column names
 
@@ -141,7 +129,11 @@ yield_tidy <- yield_full |>
     grain_yield_t_per_ha, water_content_percent, test_weight_kg_per_hl)
 ```
 
-# 4 - Export
+## 1.2 - Soil data: TO DO
+
+## 1.3 - Technical itinerary: TO DO
+
+# 2 - Export
 
 ```{r}
 yield_tidy |> write_rds("output/data/3_field_yield_clean.rds")
