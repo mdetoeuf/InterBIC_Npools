@@ -64,25 +64,16 @@ library(patchwork)
 library(janitor)
 
 # data
-lab <- read_rds("output/data/3_field_t2_raw_lab.rds")
+#lab <- read_rds("output/data/3_field_t2_raw_lab.rds")
 Nmin <- read_rds("output/data/3_field_t2_Nmin_clean.rds") 
 PMN <- read_rds("output/data/3_field_PMN_clean.rds")
 TDN <- read_rds("output/data/3_field_TDN_clean.rds")
-yield <- read_rds("output/data/3_field_yield_clean.rds")
+#yield <- read_rds("output/data/3_field_yield_clean.rds")
 PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
 #lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
 # 1 - Subset data
-
-## 1.1 - Flush data (from K2SO4 extraction)
-
-```{r}
-raw_flush <- lab |> 
-  select(!starts_with(c("yd", "whc", "rt")) & !run_id_mr) |> 
-  # remove bloc 1
-  filter_out(bloc == "B1")
-```
 
 ## 1.2 - Nmin data (from absorbance pipeline)
 
@@ -102,116 +93,6 @@ PMN_fw_field <- PMN_fw |> filter(expe == "Field")
 ```
 
 # 2 - Compute new variables
-
-## 2.1 - dry matter content (t2 samples)
-
-### 2.1.1 - Principle and equations
-
-In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is encoded, in separate columns starting with `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
-
-- FW~neat~ = FW~gross~ - tare ; DW~neat~ = DW~gross~ - tare
-
-- average (FW, then DW) = sum(3 technical replicates) / 3
-
-- DM = avg~DW~ / avg~FW~
-
-- WC = 1 - DM
-
-- With
-
-  - FW = fresh weight \[g\]
-
-  - DW = dry weight \[g\],
-
-  - DM = dry matter content \[g~dry soil~ / g~fresh soil~\],
-
-  - WC = water content \[g~water~ / g~fresh soil~\] [**!! UNIT: per g fresh soil !!**]{.underline}
-
-- ratio = fresh weight of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
-
-Then, we can finally convert concentrations in mg/L into concentrations in ppm (mg/kg dry soil)
-
-- see <https://mycloud.ulb.be/index.php/s/9ZKaJg9rXJg4iB7> for equation
-
-### 2.1.2 - Pivot data so that technical replicates are above each other, not next to each other
-
-First, we select relevant columns and pivot to get
-
-- one column respectively for tare, gross fresh weight (g_fw) and gross dry weight (g_dw)
-
-- 1 row per technical replicate
-
-```{r}
-raw_subset_wc <- raw_flush |> 
-  select(sample_short, flush_dm_tare_tr1:flush_dm_g_dw_tr3) |> 
-  pivot_longer(
-    cols = !sample_short,
-    names_pattern = "flush_dm_(g_fw|g_dw|tare)_tr(\\d)",
-    names_to = c(".value", "tech_rep"),
-    values_to = "weight") 
-
-# check it out
-raw_subset_wc 
-```
-
-Then, we
-
-- compute the neat fresh weight and dry weight for each row, and the dry matter content and water content
-
-- Compute the average per sample (over the technical triplicate)
-
-```{r}
-wc <- raw_subset_wc |> 
-  # compute neat values
-  mutate(
-    n_fw = g_fw - tare,
-    n_dw = g_dw - tare,
-    dm = n_dw / n_fw,
-    wc = 1 - dm,
-    .keep = "unused"
-  ) |> 
-  # compute mean per sample
-  summarize(
-    .by = sample_short,
-    dm = mean(dm),
-    wc = mean(wc)
-  ) 
-
-# check it out
-wc 
-```
-
-Now that we have that clean data, we can
-
-- remove useless columns (raw data used above)
-
-- rejoin it to the complete greenhouse data (with all columns)
-
-- compute each sample's individual "ratio" (\~10g/20ml)
-
-```{r}
-# Volume of extractant used in the K2SO4 extraction
-vol_extr <- 20 
-
-flush_clean <- raw_flush |> 
-  select(
-    !flush_dm_tare_tr1:flush_dm_g_dw_tr3 & 
-      !ends_with("comment")) |> 
-  left_join(wc) |> 
-  mutate(
-    ratio_nf = flush_fw_nf_g / vol_extr,
-    ratio_cfe = flush_fw_cfe_g / vol_extr,
-    .keep = "unused") 
-  
-flush_clean
-```
-
-Now, we divide the data in 2 subsets: sample data and standard soil data (several reps, messes up the analysis (for now))
-
-```{r}
-flush_sample <- flush_clean |> filter(biol_unit_nb < 112)
-flush_std <- flush_clean |> filter_out(biol_unit_nb < 112)
-```
 
 ## 2.2 - Nmin concentrations in ppm (t2 samples)
 
@@ -481,7 +362,7 @@ Compute per plant clean yield data: Only if we are interested in the per-plant y
 Overview of all generated data
 
 ```{r}
-flush_clean
+
 
 Nmin_all_variables
 
@@ -489,7 +370,7 @@ PMN_all_variables
 
 TDN_sample
 
-yield
+
 ```
 
 We only need to export Nmin and TDN for now.

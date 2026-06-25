@@ -44,7 +44,7 @@ library(patchwork)
 library(janitor)
 
 # data
-lab <- read_rds("output/data/3_greenhouse_t2_raw_lab.rds")
+#lab <- read_rds("output/data/3_greenhouse_t2_raw_lab.rds")
 Nmin <- read_rds("output/data/3_greenhouse_t2_Nmin_clean.rds") 
 PMN <- read_rds("output/data/3_greenhouse_PMN_clean.rds")
 PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
@@ -56,17 +56,17 @@ PMN_fw <- read_csv("raw_data/PMN/PMN_fw.csv") |> clean_names()
 ## 1.1 - Yield data
 
 ```{r}
-yield_data <- lab |> 
-  select(biol_unit_nb:sampling_time, starts_with("yd")) 
+# yield_data <- lab |> 
+#   select(biol_unit_nb:sampling_time, starts_with("yd")) 
 ```
 
 ## 1.2 - Flush data (from K2SO4 extraction)
 
 ```{r}
-raw_flush <- lab |> 
-  select(
-    !starts_with(c("yd", "whc")) &
-      !cra_trial:sd_c)
+# raw_flush <- lab |> 
+#   select(
+#     !starts_with(c("yd", "whc")) &
+#       !cra_trial:sd_c)
 ```
 
 ## 1.3 - Nmin data (from absorbance pipeline)
@@ -90,112 +90,8 @@ PMN_fw_greenhouse <- PMN_fw |> filter_out(expe == "Field")
 
 ## 2.1 - dry matter content (t2 samples)
 
-### 2.1.1 - Principle and equations
-
-In this data set, dry matter and water content have not yet been computed. The raw data with 3 technical replicates is encoded, in separate columns starting with `flush_dm...`\`. In this section, we compute average dry matter and water content for the sample (across technical replicates). We add additional columns with intermediary results:
-
-- FW~neat~ = FW~gross~ - tare ; DW~neat~ = DW~gross~ - tare
-
-- average (FW, then DW) = sum(3 technical replicates) / 3
-
-- DM = avg~DW~ / avg~FW~
-
-- WC = 1 - DM
-
-- With
-
-  - FW = fresh weight \[g\]
-
-  - DW = dry weight \[g\],
-
-  - DM = dry matter content \[g~dry soil~ / g~fresh soil~\],
-
-  - WC = water content \[g~water~ / g~fresh soil~\] [**!! UNIT: per g fresh soil !!**]{.underline}
-
-- ratio = fresh weight of soil added into tubes for extraction (\~10g) / volume of extractant added (=20ml)
-
-Then, we can finally convert concentrations in mg/L into concentrations in ppm (mg/kg dry soil)
-
-- see <https://mycloud.ulb.be/index.php/s/9ZKaJg9rXJg4iB7> for equation
-
-### 2.1.2 - Pivot data so that technical replicates are above each other, not next to each other
-
-First, we select relevant columns and pivot to get
-
-- one column respectively for tare, gross fresh weight (g_fw) and gross dry weight (g_dw)
-
-- 1 row per technical replicate
-
 ```{r}
-raw_subset_wc <- raw_flush |> 
-  select(sample_short, flush_dm_tare_tr1:flush_dm_g_dw_tr3) |> 
-  pivot_longer(
-    cols = !sample_short,
-    names_pattern = "flush_dm_(g_fw|g_dw|tare)_tr(\\d)",
-    names_to = c(".value", "tech_rep"),
-    values_to = "weight") 
-
-# check it out
-raw_subset_wc 
-```
-
-Then, we
-
-- compute the neat fresh weight and dry weight for each row, and the dry matter content and water content
-
-- Compute the average per sample (over the technical triplicate)
-
-```{r}
-wc <- raw_subset_wc |> 
-  # compute neat values
-  mutate(
-    n_fw = g_fw - tare,
-    n_dw = g_dw - tare,
-    dm = n_dw / n_fw,
-    wc = 1 - dm,
-    .keep = "unused"
-  ) |> 
-  # compute mean per sample
-  summarize(
-    .by = sample_short,
-    dm = mean(dm),
-    wc = mean(wc)
-  ) 
-
-# check it out
-wc 
-```
-
-Now that we have that clean data, we can
-
-- remove useless columns (raw data used above)
-
-- rejoin it to the complete greenhouse data (with all columns)
-
-- compute each sample's individual "ratio" (\~10g/20ml)
-
-```{r}
-# Volume of extractant used in the K2SO4 extraction
-vol_extr <- 20 
-
-flush_clean <- raw_flush |> 
-  select(
-    !flush_dm_tare_tr1:flush_dm_g_dw_tr3 & 
-      !ends_with("comment")) |> 
-  left_join(wc) |> 
-  mutate(
-    ratio_nf = flush_fw_nf_g / vol_extr,
-    ratio_cfe = flush_fw_cfe_g / vol_extr,
-    .keep = "unused") 
-  
-flush_clean
-```
-
-Now, we divide the data in 2 subsets: sample data and standard soil data (several reps, messes up the analysis (for now))
-
-```{r}
-flush_sample <- flush_clean |> filter(biol_unit_nb < 100)
-flush_std <- flush_clean |> filter_out(biol_unit_nb < 100)
+ 
 ```
 
 ## 2.2 - Nmin concentrations in ppm (t2 samples)
@@ -401,108 +297,6 @@ PMN_trusted <- PMN_all_variables |>
 ```
 
 ## 2.4 - Yield variables
-
-### 2.4.1 - Human error check
-
-First, we compute the number of plants of each species in each pot
-
-```{r}
-nb_plant <- yield_data |> 
-  rowwise() |> 
-  relocate(starts_with(c("yd_rs_f_h", "yd_rs_f_s", "yd_rs_w_h", "yd_rs_w_ti"))) |> 
-  mutate(
-    # compute nb of plants of each sp
-    nb_fb = case_when(
-      !is.na(yd_rs_f_stem1) & !is.na(yd_rs_f_stem2) ~ 2,
-      !is.na(yd_rs_f_stem1) & is.na(yd_rs_f_stem2) ~ 1
-    ),
-    nb_w = case_when(
-      !is.na(yd_rs_w_till1) & !is.na(yd_rs_w_till2) ~ 2,
-      !is.na(yd_rs_w_till1) & is.na(yd_rs_w_till2) ~ 1
-    ))
-```
-
-First, we check the comments written during experimentation
-
-```{r}
-nb_plant |> 
-  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
-  filter(!is.na(yd_rs_comment)) |> print(width = 110)
-```
-
-And we correct the data accordingly
-
-- pot #14: change nb of wheat plants to 1
-
-- pot #19: on n'en fait rien de cette info...?
-
-- Pot #27: Changer IC en W pour cs, et IC en SC pour crop_diversity
-
-- Pot #30: on ne fait rien de cette info, mais si nb est outlier, on sait pourquoi...
-
-- Pot #55: changer IC en F (cs) et en SC (crop_diversity)
-
-```{r}
-nb_plant_clean <- nb_plant |> 
-  mutate(
-    nb_w = case_when(biol_unit_nb == 14 ~ 1, .default = nb_w),
-    cs = case_when(
-      biol_unit_nb == 27 ~ "W",
-      biol_unit_nb == 55 ~ "F",
-      .default = cs
-    ),
-    crop_diversity = case_when(
-      biol_unit_nb %in% c(27, 55) ~ "SC",
-      .default = crop_diversity
-    )
-  )
-```
-
-Check the modifications
-
-```{r}
-nb_plant_clean |> 
-  select(biol_unit_nb, soil, cs, crop_diversity, nb_w, nb_fb, yd_rs_comment) |> 
-  filter(!is.na(yd_rs_comment)) |> print(width = 110)
-```
-
-All good.
-
-### 2.4.2 - Compute per plant clean yield data
-
-Compute per plant versions of weight, plant height and stem/till number
-
-```{r}
-yield_per_plant <- nb_plant_clean |> 
-  rowwise() |> 
-  mutate(
-    height_per_fb = mean(c_across(starts_with("yd_rs_f_h")), na.rm = TRUE),
-    stem_per_fb = mean(c_across(starts_with("yd_rs_f_s")), na.rm = TRUE),
-    height_per_w = mean(c_across(starts_with("yd_rs_w_h")), na.rm = TRUE),
-    till_per_w = mean(c_across(starts_with("yd_rs_w_ti")), na.rm = TRUE),
-    
-    fw_fb_per_pot = yd_rs_f_biom_1_2plants_raw_fw_g - yd_rs_f_tare_g,
-    fw_w_per_pot = yd_rs_w_biom_1_2plants_raw_fw_g - yd_rs_w_tare_g,
-    dw_fb_per_pot = yd_rs_f_biom_1_2plants_raw_dw_g - yd_rs_f_tare_g,
-    dw_w_per_pot = yd_rs_w_biom_1_2plants_raw_dw_g - yd_rs_w_tare_g,
-    
-    fw_fb_per_plant = fw_fb_per_pot / nb_fb,
-    fw_w_per_plant = fw_w_per_pot / nb_w,
-    dw_fb_per_plant = dw_fb_per_pot / nb_fb,
-    dw_w_per_plant = dw_w_per_pot / nb_w,
-    
-    .keep = "unused"
-    ) 
-
-# check it out
-yield_per_plant
-```
-
-Save it in clean data set to join and export
-
-```{r}
-yield_clean <- yield_per_plant
-```
 
 ## 2.5 - Join all data (except PMN)
 
