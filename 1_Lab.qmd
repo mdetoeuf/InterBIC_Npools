@@ -30,7 +30,7 @@ library(tidyverse)
 
 ```{r}
 # import other "wet lab" raw data
-raw_data_field <- read_csv(
+raw_data <- read_csv(
   "../raw_data/2024_raw.csv", show_col_types = TRUE,
   col_types = list(
     Soil = col_factor(),
@@ -40,8 +40,10 @@ raw_data_field <- read_csv(
   ),
   na = c("", "NA", "Na")
   ) |> clean_names() |> 
-  rename(sample_short = short) |> 
-  filter(expe == "Field")
+  rename(sample_short = short) 
+
+raw_data_field <- raw_data |> filter(expe == "Field")
+raw_data_pot <- raw_data |> filter(expe == "Pot")
 ```
 
 # 2 - Lab data on a per plot basis
@@ -99,4 +101,19 @@ cs_map <- raw_field_t2_lab |>
   unique() 
 
 cs_map
+```
+
+# 6 - Export 
+
+```{r}
+cs_map |> write_rds("output/data/1_cs_map.rds")
+pmn_wc |> write_rds("output/data/1_pmn_wc.rds")
+```
+
+Safekeep from other script. Consider whether this export is needed
+
+```{r}
+#| eval: false
+#| include: false
+raw_field_t2_lab |> write_rds("output/data/3_field_t2_raw_lab.rds")
 ```

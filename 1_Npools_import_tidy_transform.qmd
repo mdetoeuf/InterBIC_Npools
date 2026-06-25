@@ -30,6 +30,8 @@ output: true
     - not important wells, but if it is due to a failure in raw data, there may be other consequences
   - Consider adding a function to plate2N to question the best std model
   - Make a function to plot residuals of linear vs polynomial model: copy code already there, put it in a loop and save plots in a list –\> return list and use multiplot approach
+- Import PNR
+- Nmin t3?
 
 # Set up
 
@@ -48,8 +50,13 @@ library(roperators) # for %ni%
 library(RColorBrewer)
 library(patchwork)
 
-
+# functions
+source("functions/plot_qc_sample_conc.R")
 ```
+
+# Introduction
+
+This is a very long pipeline. To avoid having to run the whole thing to work on single sections, I placed at key moments the possibility to export relevant data, remove anything from the environment, and re-load the relevant data. Those moments are marked with sections called "Export"...
 
 # 1 - Import data
 
@@ -384,7 +391,7 @@ Then we join them in one big metadata file. ! this only works because the 3 meta
 Keep only relevant columns.
 
 ```{r}
-all_plate_metadata_keep <- all_plate_metadata |> 
+Npools_metadata <- all_plate_metadata |> 
   select(dataset, plate_id, std_sp, std_conc, std_unit, sample_dilution, date) 
 ```
 
@@ -392,27 +399,20 @@ Now, we can join metadata and plate data
 
 ```{r}
 raw_meta <- all_raw_abs_tidy_Npools |> 
-  left_join(all_plate_metadata_keep, by = join_by(dataset, plate_id))
+  left_join(Npools_metadata, by = join_by(dataset, plate_id))
 ```
+
+## 4.1 - Export (optional)
 
 Optionally: export
 
 ```{r}
 raw_meta |> write_rds("output/data/1_Npools_raw_meta.rds")
+Npools_metadata |> write_rds("output/data/1_Npools_metadata.rds")
+slurry_samples |> write_rds("output/data/1_slurry_sample_PNR.rds")
 ```
 
-# 5 - Separate TDN
-
-Some steps will be specific of TDN (because we work with much higher concentrations), so we separate the raw data according to TDN or not TDN[^1].
-
-[^1]: TDN stands for Total Dissolved Nitrogen, i.e., NO3- is dosed after an oxidation of all N compounds to NO3-
-
-First, prepare those subsets
-
-```{r}
-raw_meta_TDN <- raw_meta |> filter(dataset == "TDN")
-raw_meta_noTDN <- raw_meta |> filter_out(dataset == "TDN")
-```
+# 5 - Abs-to-conc (Separate TDN)
 
 ```{r}
 # all_raw_abs_TDN <- all_raw_abs_tidy_Npools |> filter(dataset == "TDN")
@@ -446,14 +446,36 @@ all_plate_metadata_noTDN |> write_rds("output/data/1_all_plate_metadata_noTDN.rd
 
 #*** SAFEKEEP *
 
-slurry_samples |> write_rds("output/data/1_slurry_sample_PNR.rds")
+
 ```
 
-# 6 - noTDN data, linear model: Nmin, PMN
+## 5.1 - noTDN data, linear model: Nmin, PMN
 
-## 6.1 - Suspicious wells removal
+Option: remove anything from environment and import data
 
-### 6.1.1 - Manual records, from the lab
+```{r}
+#| eval: true
+#| include: true
+rm(list = ls())
+
+raw_meta <- read_rds("output/data/1_Npools_raw_meta.rds")
+Npools_metadata <- read_rds("output/data/1_Npools_metadata.rds")
+slurry_samples <- read_rds("output/data/1_slurry_sample_PNR.rds")
+```
+
+Some steps will be specific of TDN (because we work with much higher concentrations), so we separate the raw data according to TDN or not TDN[^1].
+
+[^1]: TDN stands for Total Dissolved Nitrogen, i.e., NO3- is dosed after an oxidation of all N compounds to NO3-
+
+First, prepare noTDN subsets
+
+```{r}
+raw_meta_noTDN <- raw_meta |> filter_out(dataset == "TDN")
+```
+
+### 5.1.1 - Suspicious wells removal
+
+#### 5.1.1.1 - Manual records, from the lab
 
 wells that "we know" are failed wells, imported
 
@@ -464,7 +486,7 @@ wells that "we know" are failed wells, imported
 raw_abs_tidy <- raw_meta_noTDN |> remove_wells(failed_wells)
 ```
 
-### 6.1.2 - Suspicious absorbance values (automated)
+#### 5.1.1.2 - Suspicious absorbance values (automated)
 
 Observe values for absorbance (iteratively)
 
@@ -495,14 +517,14 @@ suspicious_wells |> slice_max(abs, n = 10)
 raw_abs_clean <- raw_abs_tidy
 ```
 
-## 6.2 - Correction for blank
+### 5.1.2 - Correction for blank
 
-### 6.2.1 - Standard curve
+#### 5.1.2.1 - Standard curve
 
 Obtain curve concentrations from metadata
 
 ```{r}
-(curve_concentration <- extract_curve(all_plate_metadata_keep |> filter_out(dataset == "TDN")))
+(curve_concentration <- extract_curve(Npools_metadata |> filter_out(dataset == "TDN")))
 ```
 
 Extract Std wells, add unique curve ID, then add curve_concentration
@@ -593,7 +615,7 @@ We are here removing wells with the blank for the standard curve. This works bec
 Now that we have all the trusted wells with blank values, we can finally correct absorbance values for the standard curves
 
 ```{r}
-#| include: false
+#| output: false
 std_corrected <- 
   blank_correct_abs(
     raw_wells_data = std_data|> 
@@ -605,11 +627,11 @@ std_corrected <-
 
 Because the logic is similar, we will first go into blank-correction of sample data before finalizing work on the standard curves (applying linear regression model)
 
-### 6.2.2 - Sample wells
+#### 5.1.2.2 - Sample wells
 
 We will work separately for PNR because it has quite a few subtleties.
 
-#### 6.2.2.1 - non-PNR data (Nmin, PMN)
+##### 5.1.2.2.1 - non-PNR data (Nmin, PMN)
 
 Take a subset
 
@@ -715,7 +737,7 @@ blank_avg_clean |> arrange(desc(blank_coeff_var_percent)) |> head()
 Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
 
 ```{r}
-#| include: false
+#| output: false
 samples_corrected_noPNR <- 
   blank_correct_abs(
     raw_wells_data = raw_abs_clean_noPNR, 
@@ -723,7 +745,7 @@ samples_corrected_noPNR <-
     map_to_exclude = c("empty","Std","extr")) 
 ```
 
-#### 6.2.2.2 - PNR data
+##### 5.1.2.2.2 - PNR data
 
 Take a subset
 
@@ -841,7 +863,7 @@ clean_PNR_extr_id <- raw_abs_clean_PNR |>
 ```
 
 ```{r}
-#| include: false
+#| output: false
 samples_corrected_PNR <- 
   blank_correct_abs(
     raw_wells_data = clean_PNR_extr_id, 
@@ -850,7 +872,7 @@ samples_corrected_PNR <-
     map_to_exclude = c("empty","Std","extr", "blank_ctrl")) 
 ```
 
-### 6.2.3 - All corrected data
+#### 5.1.2.3 - All corrected data
 
 Let's just recall all corrected data. We have 2 separate tibbles (because the experimental design was arranged to have separate blanks for the curve and the samples)
 
@@ -871,9 +893,9 @@ samples_corrected <- bind_rows(
 )
 ```
 
-## 6.3 - Compute regression equation (per plate)
+### 5.1.3 - Compute regression equation (per plate)
 
-### 6.3.1 - QC standard curves - round 1
+#### 5.1.3.1 - QC standard curves - round 1
 
 Assumptions of a linear model: (taken [here](https://towardsdatascience.com/all-the-statistical-tests-you-must-do-for-a-good-linear-regression-6ec1ac15e5d4/), apparently from [Spanish book](https://periodicos.ufpe.br/revistas/politicahoje/article/download/3808/31622))
 
@@ -1122,7 +1144,7 @@ std_corrected_wash2 <- std_corrected_wash1 |> remove_wells(to_remove)
 
 Let's compute the means per dilution and see...
 
-### 6.3.2 - Compute per-dilution averages
+#### 5.1.3.2 - Compute per-dilution averages
 
 Most plates in our dataset have 2 columns with the standard curves. It seems that the \~1min delay between the 2 (column 1 and column 12 of the plate) are responsible for a slight shift (example in plot below)
 
@@ -1147,7 +1169,7 @@ std_dilution_avg <- std_dilution_average(std_corrected_wash2)
 
 ```
 
-### 6.3.3 - QC standard curves - round 2
+#### 5.1.3.3 - QC standard curves - round 2
 
 We repeat same steps as above: computation of linear model, identification of suspicious curves and plotting. We only have 5 curves left that are suspicious.
 
@@ -1199,18 +1221,15 @@ std_data_clean <- std_corrected_wash3
 lm_table_clean <- lm_wash3
 lm_plots_clean <- plot_list_lm(lm_table_clean, std_data_clean)
 
-lm_output <- list(
+lm_output_noTDN <- list(
   "std_data_clean" = std_data_clean,
   "lm_table_clean" = lm_table_clean,
   "lm_plots_clean" = lm_plots_clean,
   "samples_corrected" = samples_corrected
 )
-
-# export optional
-lm_output |> write_rds("output/data/1_lm_output_noTDN.rds")
 ```
 
-### 6.3.4 - Multiple curve QC
+#### 5.1.3.4 - Multiple curve QC
 
 First, let's look at the distribution of p-values of the std curve regressions
 
@@ -1240,7 +1259,7 @@ Now we plot all curves on same plot
 colors <- brewer.pal(n = 6, name = "Accent")[c(1,2,3,5)]
 #"#7FC97F" "#BEAED4" "#FDC086" "#386CB0"
 
-multi_curve_plot <- lm_output$std_data_clean |> 
+multi_curve_plot <- lm_output_noTDN$std_data_clean |> 
   ggplot(aes(x = as.numeric(std_conc), y = abs_corrected, groups = plate_id, colour = dataset, fill = dataset)) +
   theme_minimal() + 
   theme(legend.position = "bottom") +
@@ -1264,28 +1283,33 @@ multi_curve_plot +
 
 Now, finally, I decide that I am happy with my standard curves, so I can move on to apply the equations on my data
 
-## 6.4 - From absorbance to concentration
+#### 5.1.3.5 - Export lm data
 
-### 6.4.1 - clean up environment
+```{r}
+# export optional
+lm_output_noTDN |> write_rds("output/data/1_lm_output_noTDN.rds")
+```
+
+### 5.1.4 - From absorbance to concentration
+
+#### 5.1.4.1 - clean up environment
 
 To make sure that we don't get confused on variable names and take old versions from the QC pipeline
 
 ```{r}
-#rm(list = ls())
+rm(list = ls())
+
+lm_output_noTDN <- read_rds("output/data/2_lm_output_noTDN.rds")
 ```
 
-```{r}
-#lm_output <- read_rds("output/data/2_lm_output_noTDN.rds")
-```
-
-### 6.4.2 - Apply regression equation
+#### 5.1.4.2 - Apply regression equation
 
 Check that we are now left with only one curve per plate
 
 ```{r}
 if (
-  (lm_output$std_data_clean |> group_by(plate_id) |>  n_groups()) == 
-  (lm_output$std_data_clean |> group_by(unique_curve_id) |>  n_groups())
+  (lm_output_noTDN$std_data_clean |> group_by(plate_id) |>  n_groups()) == 
+  (lm_output_noTDN$std_data_clean |> group_by(unique_curve_id) |>  n_groups())
 ) {message("All good: there is exactly one curve per plate")} else {
   warning("Warning: there is at least one plate with several curves")
 }
@@ -1302,28 +1326,44 @@ Here, we
 - convert unit to mg N per L
 
 ```{r}
-data_mg_N_L <- 
+noTDN_mg_N_L <- 
   # add slope + info regression (p-val and R2) to absorbance data
   reg_join_abs(
-    lm_output$lm_table_clean, 
-    lm_output$samples_corrected, 
+    lm_output_noTDN$lm_table_clean, 
+    lm_output_noTDN$samples_corrected, 
     target_sp = "N") |> 
   # compute concentration from absorbance
   mutate(conc_mgNsp_L = abs_corrected / slope) |> 
   convert_molec(masses = molar_masses)
 
 # check it out
-data_mg_N_L
+noTDN_mg_N_L
 ```
 
-## 6.5 - Export noTDN
+### 5.1.5 - Export noTDN
 
 ```{r}
-
-data_mg_N_L |> write_rds("output/data/1_mgNL_noTDN.rds")
+noTDN_mg_N_L |> write_rds("output/data/1_mgNL_noTDN.rds")
 ```
 
-# 7 - TDN data, polynomial model
+## 5.2 - TDN data, polynomial model
+
+Option: remove anything from environment and import data
+
+```{r}
+#| eval: true
+#| include: true
+rm(list = ls())
+
+raw_meta <- read_rds("output/data/1_Npools_raw_meta.rds")
+Npools_metadata <- read_rds("output/data/1_Npools_metadata.rds")
+```
+
+Take subset for TDN
+
+```{r}
+raw_meta_TDN <- raw_meta |> filter(dataset == "TDN")
+```
 
 Correct format of Date
 
@@ -1332,9 +1372,9 @@ raw_meta_TDN <- raw_meta_TDN |>
   mutate(date = as.Date(date, tryFormats = c("%d/%m/%Y")))
 ```
 
-## 7.1 - Suspicious wells removal
+### 5.2.1 - Suspicious wells removal
 
-### 7.1.1 - Manual records
+#### 5.2.1.1 - Manual records
 
 This section allows the removal of wells that "we know" are failed wells (e.g., something went wrong during pipetting...).
 
@@ -1355,7 +1395,7 @@ To keep consistent with object names, we create a new tidy table
 raw_abs_tidy <- raw_meta_TDN
 ```
 
-### 7.1.2 - Suspicious absorbance values (automated)
+#### 5.2.1.2 - Suspicious absorbance values (automated)
 
 Observe values for absorbance (iteratively)
 
@@ -1390,14 +1430,14 @@ raw_abs_clean <- raw_abs_ok
 
 It appears that only the most concentrated wells in the standard curve for TDN (well H1) show absorbance levels above 3. We can later look at those curves and see whether those points are outside of the linear range. Not to worry now, though
 
-## 7.2 - Correction for blank
+### 5.2.2 - Correction for blank
 
-### 7.2.1 - Standard curve
+#### 5.2.2.1 - Standard curve
 
 Obtain curve concentrations from metadata
 
 ```{r}
-curve_concentration <- extract_curve(all_plate_metadata_keep |> filter(dataset == "TDN"))
+curve_concentration <- extract_curve(Npools_metadata |> filter(dataset == "TDN"))
 ```
 
 Extract Std wells, add unique curve ID, then add curve_concentration
@@ -1445,7 +1485,7 @@ There are no untrusted wells, yay :-)
 There is no need per se in computing the average, as there is only one well per blank. We directly correct the data and give as "average" the data from the single well containing absorbance of the blank of the std curve. Because some formatting occurs in the background, we still use the computation of the average (on a single point)
 
 ```{r}
-#| include: false
+#| output: false
 # First, compute a clean std_data, as would be with the average
 std_blank_avg <- std_blank$all |> 
   mutate(abs = as.double(abs)) |> 
@@ -1466,7 +1506,7 @@ std_corrected <- blank_correct_abs(
 
 Because the logic is similar, we will first go into blank-correction of sample data before finalizing work on the standard curves (applying linear regression model)
 
-### 7.2.2 - Sample wells
+#### 5.2.2.2 - Sample wells
 
 First, extract data for wells containing extractant and have a look at its variation
 
@@ -1570,7 +1610,7 @@ blank_avg_clean |> arrange(desc(blank_coeff_var_percent)) |> head()
 Now that we are confident in the per-plate average value of raw absorbance of extractant wells, we can finally blank-correct all sample data
 
 ```{r}
-#| include: false
+#| output: false
 
 samples_corrected <- 
   blank_correct_abs(
@@ -1580,7 +1620,7 @@ samples_corrected <-
 
 ```
 
-### 7.2.3 - All corrected data
+#### 5.2.2.3 - All corrected data
 
 Let's just recall all corrected data. We have 2 separate tibbles (because the experimental design was arranged to have separate blanks for the curve and the samples)
 
@@ -1592,7 +1632,7 @@ std_corrected
 samples_corrected 
 ```
 
-## 7.3 - Compute regression equation (per plate)
+### 5.2.3 - Compute regression equation (per plate)
 
 ::: callout-tip
 ## Polynomial model for high concentrations
@@ -1657,7 +1697,7 @@ text(x = 6, y = -0.15, labels = "polynomial\nmodel", col = "magenta", adj = 0)
 
 So, we will adopt the polynomial model for the TDN dataset
 
-### 7.3.1 - QC standard curves - round 1
+#### 5.2.3.1 - QC standard curves - round 1
 
 First, we perform a polynomial model on each NO3 curve individually
 
@@ -1732,7 +1772,7 @@ Interestingly, the models are all good, but we are in an upward-facing parabole 
 
 Still, extrapolation well past those concentrations seem unlikely. Let's see the overplotting later, but probably we have to ignore those plates
 
-### 7.3.2 - Multiple curve QC
+#### 5.2.3.2 - Multiple curve QC
 
 First, let's look at the distribution of p-values and adjusted R\^2 of the std curve regressions
 
@@ -1835,12 +1875,12 @@ There is some batch effect, which can be due to several things:
 
 For now I don't see reasons to worry about those curves, we can proceed to apply the regression equations
 
-### 7.3.3 - Confirm data and export
+#### 5.2.3.3 - Confirm data and export
 
 Let's store all necessary data into a clean variable name to reduce possible confusion, and let's compute all the plots in a big list, for storage purposes. We then export this as one output data in a single list
 
 ```{r}
-#| include: false
+#| output: false
 
 # remove latest plates with wrong std curves
 std_data_clean <- std_corrected |> filter_out(nb > 32)
@@ -1863,7 +1903,7 @@ lm_NO2_clean <- lm_std_curve(grouped_data_NO2, model = "linear")
 lm_plots_NO3_clean <- plot_list_lm(lm_NO3_clean, std_data_clean, model = "poly")
 lm_plots_NO2_clean <- plot_list_lm(lm_NO2_clean, std_data_clean, model = "linear")
 
-lm_output <- list(
+lm_output_TDN <- list(
   "std_data_clean" = std_data_clean,
   "lm_NO3_clean" = lm_NO3_clean,
   "lm_NO2_clean" = lm_NO2_clean,
@@ -1871,24 +1911,31 @@ lm_output <- list(
   "lm_plots_NO2_clean" = lm_plots_NO2_clean,
   "samples_corrected" = samples_corrected
 )
-
-
 ```
+
+#### 5.2.3.4 - Export lm data for TDN
 
 Now, we save this into an rds file, clean up the environment and re-import the clean data, so no mistake is possible
 
 ```{r}
 #| eval: true
 #| include: true
-lm_output |> write_rds("output/data/1_lm_output_TDN.rds")
+lm_output_TDN |> write_rds("output/data/1_lm_output_TDN.rds")
 
-#rm(list = ls())
-#lm_output <- read_rds("output/data/1_lm_output_TDN.rds")
+
 ```
 
-## 7.4 - From absorbance to concentration
+### 5.2.4 - From absorbance to concentration
 
-### 7.4.1 - Theoretical considerations - polynomial model
+Clean up environment and re-import
+
+```{r}
+rm(list = ls())
+
+lm_output_TDN <- read_rds("output/data/1_lm_output_TDN.rds")
+```
+
+#### 5.2.4.1 - Theoretical considerations - polynomial model
 
 Regression equation is `Abs = poly_a * Concentration^2 + poly_b * Concentration`. There is no additional term because we constrained the model to be fitted through the origin. This equation can be transformed into `poly_a * Concentration^2 + poly_b * Concentration - Abs = 0`.
 
@@ -1904,7 +1951,7 @@ A second degree equation, by definition, accepts 2 solutions for most values of 
 
 !!! This applies because we have a downward facing parable. We are anyway in an ascending part. Should the parable, in another dataset, have an upward-facing shape (e.g., very small concentrations), then the reasoning is reverse: we would be in the right-hand half of the parable, thus the highest solution from x1 and x2.
 
-### 7.4.2 - Application of the model
+#### 5.2.4.2 - Application of the model
 
 Polyroot is difficult to apply rowwise for now... Until I find a more elegant way, let's just input the standard definition of the solution to a second degree equation for the polynomial model:
 
@@ -1920,21 +1967,21 @@ Here, we
 
 ```{r}
 # For NO3
-data_NO3 <- lm_output$lm_NO3_clean |> 
+data_NO3 <- lm_output_TDN$lm_NO3_clean |> 
   filter(std_sp == "NO3") |> 
   reg_join_abs(
-    lm_output$samples_corrected |> filter(std_sp == "NO3"), 
+    lm_output_TDN$samples_corrected |> filter(std_sp == "NO3"), 
     target_sp = "N") 
 
-data_NO2 <- lm_output$lm_NO2_clean |> 
+data_NO2 <- lm_output_TDN$lm_NO2_clean |> 
   filter(std_sp == "NO2") |> 
   reg_join_abs(
-    lm_output$samples_corrected |> filter(std_sp == "NO2"), 
+    lm_output_TDN$samples_corrected |> filter(std_sp == "NO2"), 
     target_sp = "N") 
 
 #data_all <- 
 
-data_mg_N_L <- full_join(data_NO3, data_NO2) |> 
+TDN_mg_N_L <- full_join(data_NO3, data_NO2) |> 
   rowwise() |> 
   mutate(
     conc_mgNsp_L = case_when(
@@ -1948,12 +1995,826 @@ data_mg_N_L <- full_join(data_NO3, data_NO2) |>
   convert_molec(masses = molar_masses)
   
 # Check it out
-data_mg_N_L
+TDN_mg_N_L
 ```
 
-## 7.5 - Export TDN
+### 5.2.5 - Export TDN
 
 ```{r}
 
-data_mg_N_L |> write_rds("output/data/1_mgNL_TDN.rds")
+TDN_mg_N_L |> write_rds("output/data/1_mgNL_TDN.rds")
+```
+
+# 6 - Per sample outlier removal
+
+Empty environment and import relevant data
+
+```{r}
+#| eval: true
+#| include: true
+rm(list = ls())
+
+noTDN_mg_N_L <- read_rds("output/data/1_mgNL_noTDN.rds")
+TDN_mg_N_L <- read_rds("output/data/1_mgNL_TDN.rds")
+
+# for plots as help to ID outliers
+source("functions/plot_qc_sample_conc.R")
+```
+
+The data needs tidying, because we still have 4 values per sample (corresponding to the 4 wells given to each sample for analytical replicates on the absorbance plate.
+
+We will go through a long outlier removal process where, before averaging for the 4 analytical replicates of each sample (4 wells), we need to identify outliers. Because 4 points is definitely too little to reduce the number of observation to make based on some "objective" criterion (like the coefficient of variation, see above), there is no way around having to look at each individual sample.
+
+## 6.1 - Subset into chewable chunks
+
+To make this process as smooth as possible, it is helpful to be able to cut the dataset into chewable chunks, e.g., based on field vs greenhouse, N-species, etc. So a first step is to add this information to the data. For most plates, this information is embedded into plate_ids, but it needs some level of translation.
+
+To complement this information hidden in plate ids, we will also require for the field a table of correspondence between biological unit nb, crop stand, soil and bloc. That table was created in the script `1_Lab`\` and can be imported here.
+
+```{r}
+cs_map <- read_rds("output/data/1_cs_map.rds")
+```
+
+### 6.1.1 - Field data, Nmin
+
+Take a subset (t2 only, field only).
+
+This complex pipeline is only necessary because I was not very consistent in plate-naming structure.
+
+```{r}
+raw_field_t2_Nmin <- noTDN_mg_N_L |> 
+  filter(dataset == "Nmint1t2") |> #select(plate_id) |> unique() |> print(n = 40)
+  # create sampling_time and expe variables from plate_ids (first number and first letter after N species)
+  mutate(
+    # paste "t" and the sampling time as number: for t1 and t2: is stored in plate data (--> str_extract)
+    sampling_time = paste0(
+      "t", 
+      str_extract(plate_id, "^\\w\\w\\d_(\\d)(\\w).*", group = 1)
+      ),
+    # for expe: will work for t1 and t2, 
+    expe = str_extract(plate_id, "^\\w\\w\\d_(\\d)(\\w).*", group = 2),
+    # rephrase "F" into "Field" 
+    expe = case_when(expe %in% c("F") ~ "Field", .default = expe),
+    .before = plate_id,
+    zone = str_extract(map, ".*_(\\w\\d)$", group = 1)
+      ) |> 
+  # filter based on sampling_time
+  filter(sampling_time == "t2", expe == "Field") |> #view()
+  separate_wider_delim(
+    cols = map,
+    names = c("biol_unit_nb"),
+    delim = "_",
+    too_many = "drop", 
+    cols_remove = FALSE
+  ) |> 
+  mutate(
+    biol_unit_nb = as.double(biol_unit_nb),
+    # for some reason, biol_unit_nb of Std soil is 112 in lab data vs 110 in abs data
+    biol_unit_nb = case_when(biol_unit_nb == 110 ~ 112, .default = biol_unit_nb)) |> 
+  # add info on crop stand and soil
+  left_join(cs_map |> select(!bloc) |> unique()) |> 
+  relocate(cs, soil, .before = sampling_time)
+
+# Check it out
+raw_field_t2_Nmin
+```
+
+### 6.1.2 - Field data, PMN
+
+```{r}
+raw_field_PMN <- noTDN_mg_N_L |> 
+  filter(dataset == "PMN") |> 
+  separate_wider_delim(
+    cols = map,
+    names = c("expe", "soil", "incubation_time", "tech_rep"),
+    delim = "_",
+    cols_remove = FALSE
+  ) |> 
+  mutate(
+    sampling_time = rep("t0"),
+    biol_unit_nb = paste0(expe, "_", soil),
+    .before = well_id) |> 
+  filter_out(expe == "Pot")
+```
+
+Check it out
+
+```{r}
+raw_field_PMN
+```
+
+### 6.1.3 - Field data, TDN
+
+First, keep only field data
+
+```{r}
+field_TDN <- TDN_mg_N_L |> 
+  # get only field data
+  mutate(
+    plate_nb = str_extract(plate_id, ".*_TDN_(\\d\\d).*", group = 1) |> as.double(),
+    .before = map) |> 
+  filter((std_sp == "NO3" & plate_nb < 17) | (std_sp == "NO2" & plate_nb < 9)) |> 
+  mutate(expe = rep("Field")) |> 
+  # make a separation btw Standard soils and samples bc different mapping logic
+  mutate(
+    sample_std = case_when(
+      str_extract(map, "(Field)_.*", group = 1) == "Field" ~ "std_soil",
+      .default = "sample"),
+    .before = map
+  ) 
+```
+
+Then, separate between sample and standard soil:
+
+```{r}
+TDN_sample <- field_TDN |> filter(sample_std == "sample")
+TDN_std <- field_TDN |> filter(sample_std == "std_soil")
+```
+
+For those 2 subsets, different logic to extract biol_unit_nb, sampling_time, zone, CFE/NF, dilution
+
+```{r}
+# First, samples
+TDN_sample_separated <- TDN_sample |> 
+  separate_wider_delim(
+    map, delim = c("_"), cols_remove = FALSE ,
+    names = c("biol_unit_nb", "sampling_time", "zone", "fumigation_dilution")
+  ) |> 
+  mutate(biol_unit_nb = as.double(biol_unit_nb))
+
+# Then, Std soil
+TDN_std_separated <- TDN_std |> 
+  separate_wider_delim(
+    map, delim = "_", cols_remove = FALSE,
+    names = c("field", "sampling_time", "std", "zone", "fumigation_dilution")
+  ) |> 
+  select(!c(field, std)) |> 
+  mutate(biol_unit_nb = 112, .before = sampling_time)
+```
+
+Then we rejoin them, separate fumigation_dilution and fetch the categorical data on crop stand (cs) and soil from cs_map
+
+```{r}
+
+TDN_clean <- TDN_sample_separated |> 
+  bind_rows(TDN_std_separated) |> 
+  separate_wider_delim(
+    fumigation_dilution, delim = ".", 
+    names = c("fumigation", "dilution")
+  ) |> 
+  left_join(cs_map |> select(!bloc) |> unique()) 
+```
+
+Check it out
+
+```{r}
+# Check it out
+TDN_clean
+```
+
+### 6.1.4 - TODO: Field data, PNR
+
+## 6.2 - per-sample outlier removal
+
+::: callout-note
+## Not all graphs are displayed
+
+Many graphs are created to do this analysis. There is quite some computing needed to display each graph, so I set as "comment" those that are part of the iterative process of outlier removal, and only display "satisfying" graphs
+:::
+
+### 6.2.1 - Nmin
+
+So we will compute the per-sample average, for the field dataset. But first, let's have a look at the distribution of concentrations before taking the average: are there clear outliers?
+
+#### 6.2.1.1 - NO3
+
+```{r}
+boxplot_no3 <- raw_field_t2_Nmin |> 
+  filter(biol_unit_nb != 112, std_sp == "NO3") |> 
+  boxplot_conc(x = "zone") + labs(title = "NO3") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+
+ridges_no3 <- raw_field_t2_Nmin |> 
+  filter(biol_unit_nb != 112, std_sp == "NO3") |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~soil, ncol = 3) + labs(title = "NO3")
+```
+
+Because it is the first one, we show this plot. The combination of the ridgeline plot and the boxplot helps the identificaiton of outliers
+
+```{r}
+boxplot_no3 + ridges_no3
+```
+
+Those are obvious outliers (wave really bimodal, outlier point clear)
+
+- 93_t2_z1: D6
+
+- 89_t2_z3: F11
+
+```{r}
+to_remove <- raw_field_t2_Nmin |> 
+  filter(std_sp == "NO3" &
+    ((map == "93_t2_z1" & well_id == "D6") | (map == "89_t2_z3" & well_id == "F11")))
+
+Nmin_wash1 <- raw_field_t2_Nmin |> remove_wells(to_remove) 
+
+boxplot_no3_outlierfree <- Nmin_wash1 |> 
+  filter(biol_unit_nb != 112, std_sp == "NO3") |> 
+  boxplot_conc(x = "zone") + labs(title = "NO3, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+
+ridges_no3_outlierfree <- Nmin_wash1 |> 
+  filter(biol_unit_nb != 112, std_sp == "NO3") |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~soil, ncol = 3) + labs(title = "NO3, outliers removed")
+```
+
+Again, because it is the first time, we display the plot where we can compare before / after outlier removal, both for boxplot and for ridge display
+
+```{r}
+boxplot_no3 + boxplot_no3_outlierfree
+
+ridges_no3 + ridges_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.2.1.2 - NH4
+
+Now same, for NH4. But we don't show the plots.
+
+```{r}
+boxplot_nh4 <- Nmin_wash1 |> 
+  filter(biol_unit_nb != 112, std_sp == "NH4") |> 
+  boxplot_conc(x = "zone") + labs(title = "NH4") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+  
+ridges_nh4 <- Nmin_wash1 |> 
+  filter(biol_unit_nb != 112, std_sp == "NH4") |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~soil, ncol = 3) + labs(title = "NH4")
+
+#boxplot_nh4 + ridges_nh4
+```
+
+Here are those where I would remove
+
+- 95_t2_z1: F11
+
+- 92_t2_z2: D9
+
+- 89_t2_z3: G11
+
+- 99_t2_z3: E10
+
+- 82_t2_z2: H9
+
+```{r}
+to_remove <- Nmin_wash1 |> 
+  filter(std_sp == "NH4" & (
+           (map == "95_t2_z1" & well_id == "F11") |
+           (map == "92_t2_z2" & well_id == "D9") |
+           (map == "89_t2_z3" & well_id == "G11") |
+           (map == "99_t2_z3" & well_id == "E10") |
+           (map == "82_t2_z2" & well_id == "H9")))
+
+Nmin_wash2 <- Nmin_wash1 |> remove_wells(to_remove) 
+
+boxplot_nh4_outlierfree <- Nmin_wash2 |> 
+  filter(biol_unit_nb != 112, std_sp == "NH4") |> 
+  boxplot_conc(x = "zone") + labs(title = "NH4, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+
+ridges_nh4_outlierfree <- Nmin_wash2 |> 
+  filter(biol_unit_nb != 112, std_sp == "NH4") |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~soil, ncol = 3) + labs(title = "NH4, outliers removed")
+```
+
+To see the plots:
+
+```{r}
+# boxplot_nh4 + boxplot_nh4_outlierfree
+
+# ridges_nh4 + ridges_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.2.1.3 - NO2
+
+Because NO2 readings are virtually zero, there is only little point in removing outliers. Nevertheless, we can have a look at the data
+
+Per sample
+
+```{r}
+boxplot_no2 <- Nmin_wash2 |> 
+  filter(biol_unit_nb != 112, std_sp == "NO2") |> 
+  boxplot_conc(x = "zone") + labs(title = "NO2") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+
+ridges_no2 <- Nmin_wash2 |> 
+  filter(biol_unit_nb != 112, std_sp == "NO2") |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~soil, ncol = 3) + labs(title = "NO2")
+
+#boxplot_no2 + ridges_no2 + plot_layout(guides = "collect")
+```
+
+- 86_t2_z3: H4
+
+```{r}
+to_remove <- Nmin_wash2 |> 
+  filter(std_sp == "NO2" & map == "86_t2_z3" & well_id == "H4")
+
+Nmin_wash3 <- Nmin_wash2 |> remove_wells(to_remove)
+
+boxplot_no2_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb != 112, std_sp == "NO2") |> 
+  boxplot_conc(x = "zone") + labs(title = "NO2, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(soil~biol_unit_nb, nrow = 3, scales = "free_x")
+
+ridges_no2_2 <- Nmin_wash3 |> 
+  filter(biol_unit_nb != 112, std_sp == "NO2") |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~soil, ncol = 3) + labs(title = "NO2, outliers removed")
+```
+
+Plots
+
+```{r}
+# boxplot_no2_2 + ridges_no2_2 + plot_layout(guides = "collect")
+
+# boxplot_no2 + boxplot_no2_2 
+# ridges_no2 + ridges_no2_2 + plot_layout(guides = "collect")
+```
+
+#### 6.2.1.4 - Standard Soils
+
+Here we look at all Nmin species in one go because there are a lot less "samples" to look at.
+
+```{r}
+boxplot_std <- Nmin_wash3 |> 
+  filter(biol_unit_nb == 112) |> 
+  boxplot_conc(x = "zone") + labs(title = "Standard Soil") +
+  facet_wrap(~std_sp, nrow = 3, scales = "free_y")
+
+ridges_std <- Nmin_wash3 |> 
+  filter(biol_unit_nb == 112) |>  # exclude sand and conv soil std
+  plot_ridges_conc(y = "map",colour = "zone", groups = "map") + 
+  facet_wrap(~std_sp, ncol = 3, scales = "free_x") + labs(title = "Standard Soil")
+```
+
+Because the set up is slightly different and there are a lot less samples, we display the plot once more
+
+```{r}
+boxplot_std + ridges_std
+```
+
+Nothing to modify!
+
+#### 6.2.1.5 - All outliers removed Nmin
+
+Visually, I am satisfied with this outlier removal, so I save this cleaned table
+
+```{r}
+Field_t2_Nmin_clean <- Nmin_wash3
+```
+
+### 6.2.2 - PMN
+
+#### 6.2.2.1 - NO3
+
+```{r}
+boxplot_pmn_no3 <- raw_field_PMN |> 
+  filter(std_sp == "NO3") |> 
+  boxplot_conc(x = "tech_rep") + labs(title = "NO3") +
+  facet_wrap(soil~incubation_time, scales = "free_y", ncol = 5)  
+
+ridges_pmn_no3 <- raw_field_PMN |> 
+  filter(std_sp == "NO3") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3")
+
+#boxplot_pmn_no3 + ridges_pmn_no3 
+```
+
+- Field_Ref_i3_rt2: E2
+
+- Field_Ref_i2_rt4: B9
+
+- Field_Auto_i2_rt2: A10
+
+- Field_Auto_i2_rt1: A10
+
+- Field_ABC_i3_rt3: E4
+
+```{r}
+to_remove <- raw_field_PMN |> 
+  filter((std_sp == "NO3") & 
+    ((map == "Field_Ref_i3_rt2" & well_id == "E2") | 
+       (map == "Field_Ref_i2_rt4" & well_id == "B9") |
+       (map == "Field_Auto_i2_rt2" & well_id == "A10") |
+       (map == "Field_Auto_i2_rt1" & well_id == "A10") |
+       (map == "Field_ABC_i3_rt3" & well_id == "E4")) 
+  )
+
+PMN_wash1 <- raw_field_PMN |> remove_wells(to_remove)
+
+# check it out again
+boxplot_pmn_no3_outlierfree <- PMN_wash1 |> 
+  filter(std_sp == "NO3") |> 
+  boxplot_conc(x = "tech_rep") + 
+  labs(title = "NO3, outlier removed") +
+  facet_wrap(soil~incubation_time, scales = "free_y", ncol = 5) 
+
+ridges_pmn_no3_outlierfree <- PMN_wash1 |> 
+  filter(std_sp == "NO3") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO3, outlier removed")
+
+#boxplot_pmn_no3_outlierfree + ridges_pmn_no3_outlierfree
+```
+
+Compare before/after
+
+```{r}
+boxplot_pmn_no3 + boxplot_pmn_no3_outlierfree 
+
+ridges_pmn_no3 + ridges_pmn_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.2.2.2 - NH4
+
+```{r}
+boxplot_pmn_nh4 <- PMN_wash1 |> 
+  filter(std_sp == "NH4") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, ncol = 5) + 
+  labs(title = "NH4")
+
+ridges_pmn_nh4 <- PMN_wash1 |> 
+  filter(std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4")
+
+
+#boxplot_pmn_nh4 + ridges_pmn_nh4 
+```
+
+- Field_Auto_i0_rt3: B3
+
+```{r}
+to_remove <- PMN_wash1 |> filter(
+  std_sp == "NH4"& map == "Field_Auto_i0_rt3" & well_id == "B3")
+
+PMN_wash2 <- PMN_wash1 |> remove_wells(to_remove)
+
+boxplot_pmn_nh4_outlierfree <- PMN_wash2 |> 
+  filter(std_sp == "NH4") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, ncol = 5) + 
+  labs(title = "NH4, outliers removed")
+
+ridges_pmn_nh4_outlierfree <- PMN_wash2 |> 
+  filter(std_sp == "NH4") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NH4, outliers removed")
+
+#boxplot_pmn_nh4_outlierfree + ridges_pmn_nh4_outlierfree
+```
+
+Compare before/after
+
+```{r}
+# boxplot_pmn_nh4 + boxplot_pmn_nh4_outlierfree 
+
+# ridges_pmn_nh4 + ridges_pmn_nh4_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.2.2.3 - NO2
+
+```{r}
+boxplot_pmn_no2 <- PMN_wash2 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, ncol = 5) + 
+  labs(title = "NO2")
+
+ridges_pmn_no2 <- PMN_wash2 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2")
+
+#boxplot_pmn_no2 + ridges_pmn_no2 
+```
+
+Possibly masking other outliers, so maybe a second round is needed
+
+- Field_Auto_i0_rt2: A3
+
+```{r}
+to_remove <- PMN_wash2 |> filter(
+  std_sp == "NO2" & map == "Field_Auto_i0_rt2" & well_id == "A3")
+
+PMN_wash3 <- PMN_wash2 |> remove_wells(to_remove)
+```
+
+Run it once more
+
+```{r}
+boxplot_pmn_no2 <- PMN_wash3 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, ncol = 5) + 
+  labs(title = "NO2")
+
+ridges_pmn_no2 <- PMN_wash3 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2")
+
+#boxplot_pmn_no2 + ridges_pmn_no2 
+```
+
+- Field_Ref_i4_rt3: H5
+
+- Field_Auto_i1_rt4: B6
+
+```{r}
+to_remove <- PMN_wash3 |> filter(
+  (std_sp == "NO2") &
+    ((map == "Field_Ref_i4_rt3" & well_id == "H5") |
+    (map == "Field_Auto_i1_rt4" & well_id == "B6")))
+
+PMN_wash4 <- PMN_wash3 |> remove_wells(to_remove)
+
+boxplot_pmn_no2_outlierfree <- PMN_wash4 |> 
+  filter(std_sp == "NO2") |> 
+  boxplot_conc(x = "tech_rep") + facet_wrap(soil~incubation_time, ncol = 5) + 
+  labs(title = "NO2, outliers removed")
+
+ridges_pmn_no2_outlierfree <- PMN_wash4 |> 
+  filter(std_sp == "NO2") |> 
+  plot_ridges_conc(groups = "soil", colour = "tech_rep", y = "map") + 
+  facet_wrap(~incubation_time, nrow = 1) + labs(title = "NO2, outliers removed")
+
+#boxplot_pmn_no2_outlierfree + ridges_pmn_no2_outlierfree 
+```
+
+Compare before / after
+
+```{r}
+# boxplot_pmn_no2 + boxplot_pmn_no2_outlierfree 
+# 
+# ridges_pmn_no2 + ridges_pmn_no2_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.2.2.4 - All outliers removed PMN
+
+Visually, I am satisfied with this outlier removal, so I save this cleaned table
+
+```{r}
+field_t2_PMN_clean <- PMN_wash4
+```
+
+### 6.2.3 - TDN
+
+Tiny correction to the dataframe to help readibility of graphs
+
+```{r}
+tdn_simpler <- TDN_clean |> 
+  filter(dilution == "2x", std_sp == "NO3") |> 
+  mutate(sample = paste0(biol_unit_nb, "_", zone))
+```
+
+#### 6.2.3.1 - NO3
+
+```{r}
+boxplot_tdn_no3 <- tdn_simpler |> 
+  filter(biol_unit_nb != 112) |> 
+  boxplot_conc(x = "sample", colour = "zone") + labs(title = "NO3") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free")
+
+ridges_tdn_no3 <- tdn_simpler |> 
+  filter(biol_unit_nb != 112) |> 
+  plot_ridges_conc(y = "sample",colour = "zone", groups = "map") + 
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free") + labs(title = "NO3")
+```
+
+Here the plot set up is organized slighty differently, so we display it once more
+
+```{r}
+boxplot_tdn_no3 + ridges_tdn_no3 + plot_layout(guides = "collect")
+```
+
+- 95_t2_z2_CFE.2x: D11,
+
+- 100_t2_z1_CFE.2x: C5
+
+- 83_t2_z2_CFE.2x: C10
+
+- 82_t2_z3_CFE.2x: C5
+
+- 96_t2_z3_NF.2x: C10
+
+- 94_t2_z3_NF.2x: B4
+
+- 90_t2_z3_NF.2x: D2
+
+- 99_t2_z2_NF.2x: D2
+
+- 86_t2_z3_NF.2x: B7
+
+- 82_t2_z1_NF.2x: B4
+
+```{r}
+to_remove <- tdn_simpler |> 
+  filter((std_sp == "NO3") &(
+    (map == "95_t2_z2_CFE.2x" & well_id == "D11") | 
+      (map == "100_t2_z1_CFE.2x" & well_id == "C5") | 
+      (map == "83_t2_z2_CFE.2x" & well_id == "C10") | 
+      (map == "82_t2_z3_CFE.2x" & well_id == "C5") | 
+      (map == "96_t2_z3_NF.2x" & well_id == "C10") | 
+      (map == "94_t2_z3_NF.2x" & well_id == "B4") | 
+      (map == "90_t2_z3_NF.2x" & well_id == "D2") | 
+      (map == "99_t2_z2_NF.2x" & well_id == "D2") | 
+      (map == "86_t2_z3_NF.2x" & well_id == "B7") | 
+      (map == "82_t2_z1_NF.2x" & well_id == "B4")))
+
+TDN_wash1 <- tdn_simpler |> remove_wells(to_remove)
+
+boxplot_tdn_no3_outlierfree <- TDN_wash1 |> 
+  filter(biol_unit_nb != 112) |> 
+  boxplot_conc(x = "sample", colour = "zone") + labs(title = "NO3, outliers removed") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free")
+
+ridges_tdn_no3_outlierfree <- TDN_wash1 |> 
+  filter(biol_unit_nb != 112) |> 
+  plot_ridges_conc(y = "sample",colour = "zone", groups = "map") + 
+  facet_wrap(fumigation~soil, ncol = 3, scales = "free") + labs(title = "NO3, outliers removed")
+
+# boxplot_tdn_no3 + boxplot_tdn_no3_outlierfree + plot_layout(guides = "collect")
+# ridges_tdn_no3 + ridges_tdn_no3_outlierfree + plot_layout(guides = "collect")
+```
+
+#### 6.2.3.2 - NO2
+
+We skip this for now as I don't think that NO2 is relevant!
+
+#### 6.2.3.3 - Standard soil
+
+```{r}
+boxplot_tdn_std <- TDN_wash1 |> 
+  filter(biol_unit_nb == 112) |> 
+  boxplot_conc(x = "sample") + labs(title = "Standard soil") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~fumigation, scales = "free")
+
+ridges_tdn_std <- TDN_wash1 |> 
+  filter(biol_unit_nb == 112) |> 
+  plot_ridges_conc(y = "sample",colour = "zone", groups = "map") + 
+  facet_wrap(~fumigation, ncol = 3, scales = "free") + labs(title = "Standard soil")
+
+#boxplot_tdn_std + ridges_tdn_std + plot_layout(guides = "collect")
+```
+
+All good.
+
+#### 6.2.3.3 - All outliers removed TDN
+
+Save the new data
+
+```{r}
+field_t2_TDN_clean <- TDN_wash1
+```
+
+### 6.2.4 - PNR - TO DO
+
+#### 6.2.4.1 - NO3
+
+#### 6.2.4.2 - NO2
+
+#### 6.2.4.3 - All outliers removed PNR
+
+## 6.3 - Per-sample mean
+
+### 6.3.1 - Nmin
+
+```{r}
+conc_mean_Nmin <- Field_t2_Nmin_clean |> 
+  select(map, plate_id, biol_unit_nb, zone, std_sp, conc_mgN_L) |> 
+  group_by(plate_id, map, biol_unit_nb, zone, std_sp) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean) |> ungroup()
+
+#biggest coef var quite high
+conc_mean_Nmin |> arrange(desc(coef_var))
+
+# but not too bad when look only at NO3
+conc_mean_Nmin |> arrange(desc(std_sp), desc(coef_var))
+
+conc_mean_Nmin |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram() + facet_wrap(~std_sp, ncol = 1)
+```
+
+We still have quite a few samples with a high between-wells coefficient of variation, but mostly with NO2 and NH4 (very low values). With only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
+
+Now, finally, we re-join this mean value to the rest of the relevant information from the absorbance dataset
+
+```{r}
+conc_Nmin_export_ready <- conc_mean_Nmin |> 
+  select(!st_dev:coef_var) |> 
+  inner_join(
+    raw_field_t2_Nmin |> 
+      select(!c(well_id:abs_corrected, starts_with("conc"), slope:lm_p, target_sp)) |> 
+      unique())
+```
+
+### 6.3.2 - PMN
+
+We are going to need dry matter content information, which was stored in `pmn_wc` from script `1_Lab`.
+
+```{r}
+pmn_wc <- read_rds("output/data/1_pmn_wc.rds")
+```
+
+```{r}
+conc_mean_PMN <- field_t2_PMN_clean |> 
+  select(map, plate_id, biol_unit_nb, std_sp, conc_mgN_L) |> 
+  group_by(map, biol_unit_nb, std_sp) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(
+    coef_var = 100*st_dev / mean,
+    soil = str_extract(biol_unit_nb, "_(\\w*)", group = 1)) |> 
+  rename(conc_mgN_L = mean)
+
+conc_mean_PMN |> arrange(desc(std_sp), desc(coef_var))
+field_t2_PMN_clean |> filter(map == "Field_ABC_i1_rt4", std_sp == "NO3")
+
+conc_mean_PMN |> filter(coef_var > 10) |> 
+  ggplot(aes(x = coef_var)) + geom_histogram() + xlim(0,100)
+```
+
+Same here, there are still quite a few samples with a high coefficient of variation, but with only 3 to 4 wells and sometimes very low values, this is unavoidable, so we move on
+
+Now, we can add the data on wc to get a full dataset
+
+```{r}
+conc_PMN_export_ready <- conc_mean_PMN |> 
+  # get dm and wc
+  left_join(pmn_wc) |> 
+  # get important categorical variables
+  left_join(
+    field_t2_PMN_clean |> 
+      select(map, dataset, expe, incubation_time, tech_rep, sampling_time) |> 
+      unique())
+```
+
+### 6.3.3 - TDN
+
+```{r}
+conc_mean_TDN <- field_t2_TDN_clean |> 
+  select(map, biol_unit_nb, std_sp, conc_mgN_L, fumigation) |> 
+  group_by(std_sp, fumigation, biol_unit_nb, map) |> 
+  summarise(
+    mean = mean(conc_mgN_L),
+    st_dev = sd(conc_mgN_L)) |> 
+  mutate(
+    coef_var = 100*st_dev / mean) |> 
+  rename(conc_mgN_L = mean)
+
+conc_mean_TDN |> arrange(desc(std_sp), desc(coef_var))
+conc_mean_TDN |> arrange(desc(coef_var))
+
+
+conc_mean_TDN |> 
+  ggplot(aes(x = coef_var)) + geom_histogram() 
+```
+
+For once, it's looking pretty good!
+
+```{r}
+conc_TDN_export_ready <- conc_mean_TDN |> 
+  # get relevant categorical data
+  left_join(
+    field_t2_TDN_clean |> 
+      select(map, dataset, sampling_time, zone, fumigation, dilution) |> 
+      unique())
+```
+
+### 6.3.4 - PNR
+
+## 6.4 - Export clean Npool data
+
+```{r}
+conc_Nmin_export_ready |> write_rds("output/data/1_field_t2_Nmin_clean.rds")
+conc_PMN_export_ready |> write_rds("output/data/1_field_PMN_clean.rds")
+conc_TDN_export_ready |> write_rds("output/data/1_field_TDN_clean.rds")
 ```
