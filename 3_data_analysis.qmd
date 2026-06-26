@@ -1,0 +1,398 @@
+---
+title: "3 Integrated Data Analysis"
+author: "Morgane de Toeuf"
+format: 
+  gfm:
+    toc: true
+    code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+message: true
+warning: true
+echo: true
+output: true
+---
+
+# To Do
+
+# Set up
+
+```{r}
+#| message: false
+#| warning: false
+
+# clean environment
+rm(list = ls())
+
+# packages
+library(tidyverse)
+library(vegan) # for rda()
+library(patchwork)
+library(RColorBrewer)
+library(emmeans) # for post-hoc test (after ANCOVA of PMN)
+
+# function
+source("functions/plot_pca.R")
+
+```
+
+# 1 - Introduction
+
+## 1.1 - Greenhouse
+
+For the greenhouse data sets, many bits and pieces are dropped along the way, so that only few variables are left in the end:
+
+- The whole t1 sampling is problematic due to the scattered sampling over time
+
+- For t2:
+
+  - MicroResp experiment: still needs calibration, but responses were really low, probably due to high sand levels. We'll look into it anyway
+
+  - PMN: samples had to be re-humidified because the container system was not optimal and samples had become basically dry. See script on data wrangling: curves show interesting trends, but incubation times 2 and 3 problematic. After discussion with PI: removed those points, curves are better now. Still a lot of noise, which could come from the added variability of the re-humidification + the missing data.
+
+  - TDN & MBN: never got the protocol from Sang, and did a mistake by not adjusting the serial dilution of the standard curve –\> samples out of range for Greenhouse
+
+  - WHC is not intrinsically interesting, though we have the data as well (was needed for MicroResp)
+
+In the end, what is left here is less than anticipated:
+
+- Yield data is trustworthy (plant biomass, plant height, nb of stems / tillers)
+
+  - LER can be derived from yield data (but = aggregated data –\> no incorporation in raw data PCA possible). But PCA with variables with ratio IC/SC
+
+- Npools are incomplete:
+
+  - Nmin data at t2 (NO2, NO3, NH4 –\> Nmin and ratios)
+
+  - Potential mineralization of N (at sowing time)
+
+  - But [NO]{.underline} Total Dissolved N, Microbial biomass N and organic N
+
+- MicroResp data give an idea of soil biomass, soil metabolism potential, functional diversity
+
+What is still dormant is weed data. Relevant? not sure...
+
+## 1.2 - Field
+
+## 1.3 - Experimental design and questions asked
+
+Whereas the greenhouse had a full design with both sole crops and intercrop, and all modalitites present, this is not the case in the field.
+
+- First, there was no sole Faba Bean, so we cannot approach data with the same ratios IC/SC as in the greenhouse (or then only for wheat, which still bears some interest).
+
+- Second, the Faba Bean did not take in the Reference Soil in the field, so that
+
+  - for all 3 soils, we can compare sole wheat, that is, it is an experimental design with 1 factor (soil) and 3 levels (Ref, Auto, ABC), with factorial block design and a system trial (it's the whole farming system that changes)
+
+  - for only 2 soils (Auto and ABC), we can also compare the response of wheat to IC from one soil to the other. But here, it is no longer a system trial because only ploughing is different (well, and maybe weeding? to be checked). And it is a split plot design, with soil as the main factor (2 levels) and crop diversity as the nested factor (2 levels: sole wheat and intercropped wheat)
+
+## 1.4 - Setting general parameters
+
+```{r}
+p_signif <- tribble(
+  ~ signif_stars, ~ max_p_value,
+  "",    1,
+  ".",   0.1,
+  "*",   0.05,
+  "**",  0.01,
+  "***", 0.001
+)
+```
+
+# 2 - Analysis on Greenhouse Data
+
+## 2.1 - Load and clean data
+
+[**! Data from the standard soils is not in `Npools_t2`. They will need to be addressed separately, if at all.**]{.underline}
+
+```{r}
+
+Npools_t2_greenhouse <- read_rds("output/data/2_Npools.rds") |> 
+  filter(expe == "Pot")
+yield_clean_greenhouse <- read_rds("output/data/1_greenhouse_yield_clean.rds")
+MR_greenhouse <- read_rds("output/data/1_MR_data.rds") |> 
+  filter(expe == "Pot") |> 
+  filter_out(soil %in% c("Std", "Sand") | cs == "B") |> 
+  mutate(biol_unit_nb = as.numeric(sample_id), .keep = "unused") |> 
+  select(!c(dataset, zone))
+
+PMN_greenhouse <- read_rds("output/data/2_PMN.rds") |> filter(expe == "Pot")
+```
+
+First, we join all pot-level data, i.e., Npool data, yield data and MicroResp data. PMN cannot be joined because it is a measure at soil-level.
+
+```{r}
+pot_level_data <- Npools_t2_greenhouse |> 
+  select(
+    biol_unit_nb, expe, soil, crop_diversity, cs, bloc, 
+    dm:last(names(Npools_t2_greenhouse))
+    ) |> 
+  left_join(yield_clean_greenhouse) |> 
+  left_join(MR_greenhouse) |> 
+  select(!starts_with("Norg")) |> 
+  mutate(soil = factor(soil, levels = c("Conv", "Ref", "Auto", "ABC")))
+```
+
+Problem: for now, the statistical unit is the pot (1 row per pot). But some variables cannot be regrouped for both plant species. Consequently, there are some missing data, see here:
+
+```{r}
+pot_level_data |> select(cs, fw_fb_per_pot:dw_w_per_plant)
+```
+
+A PCA cannot be ran with missing data.
+
+A solution is to change the statistical unit to be the plant, and have 2 data sets: dataset fababean (`data_fb`) and dataset wheat (`data_w`). Anyway, it makes little sense to compare the 2 plant species, but it is interesting to see if effects are similar or not. To be considered: bulk soil data of intercrops will appear twice, so that the 2 datasets are not to be combined in downstream analyses.
+
+So we do that subsetting
+
+```{r}
+data_fb_pot <- pot_level_data |> 
+  select(!contains("_w")) |> 
+  filter(cs != "W") |> 
+  arrange(biol_unit_nb)
+
+data_w_pot <- pot_level_data |> 
+  select(!contains("_f")) |> 
+  filter(cs != "F") |> 
+  arrange(biol_unit_nb)
+
+# check it out
+str(data_fb_pot)
+str(data_w_pot)
+```
+
+## 2.2 - Compute LER
+
+This also cannot go into the regular PCA since we get only data that agregates on SC + IC.
+
+So we can have:
+
+- a regular PCA with Npools, MicroResp and yield data on a pot level (one plant at the time)
+
+- A reduced PCA with Npools and microresp expressed as a ratio of value for IC / value for SC, together with LER, also one plant at the time
+
+```{r}
+#| message: false
+ler_fb_pot <- data_fb_pot |> 
+  select(crop_diversity, soil, bloc, dw_fb_per_plant) |> 
+  pivot_wider(
+    names_from = crop_diversity,
+    values_from = dw_fb_per_plant) |> 
+  mutate(
+    ler_fb = IC / SC
+  )
+  
+ler_w_pot <- data_w_pot |> 
+  select(crop_diversity, soil, bloc, dw_w_per_plant) |> 
+  pivot_wider(
+    names_from = crop_diversity,
+    values_from = dw_w_per_plant) |> 
+  mutate(
+    ler_w = IC / SC
+  )
+
+ler_total_pot <- ler_w_pot |> 
+  select(!SC:IC) |> 
+  left_join(ler_fb_pot |> select(!SC:IC)) |> 
+  mutate(ler_total = (ler_w + ler_fb)/2)
+```
+
+Plot it
+
+```{r}
+#| warning: false
+plot_ler_total_pot <- ler_total_pot |> 
+  ggplot(aes(x = soil, y = ler_total)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER total", subtitle = "Pot experiment")
+
+plot_ler_fb_pot <- ler_total_pot |> 
+  ggplot(aes(x = soil, y = ler_fb)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER Faba Bean", subtitle = "Pot experiment")
+
+plot_ler_w_pot <- ler_total_pot |> 
+  ggplot(aes(x = soil, y = ler_w)) +
+  theme_minimal() +
+  geom_boxplot() +
+  labs(title = "LER Wheat", subtitle = "Pot experiment")
+
+plot_ler_total_pot + plot_ler_fb_pot + plot_ler_w_pot
+```
+
+[**!! TO DO: check those outliers: could it be some of those pots where some plants were not as should be? Or anything? Can I remove them?**]{.underline}
+
+## 2.3 - PMN
+
+### 2.3.1 - ANCOVA
+
+With the PMN data, we can compute the slope of the curve.
+
+::: callout-important
+## Statistical issue
+
+We have 4 technical replicates per incubation time, but rep 1 of incubation time 1 has no particular relationship to rep 1 of incubation time 2. It would make little sense to compute 4 different slopes and then take the mean of the 4 slopes to get a boxplot and the option of an anova with comparison of means (of slopes).
+:::
+
+According to AI (see full doc):
+
+- Analysis of CoVariance, ANCOVA, (independant measurements bc subsamples evolve separately) .
+
+  - linear model with interaction term: outcome \~ group \* predictor
+
+  - --\> try with lm(ppm_Nmin \~ soil \* incub_days)
+
+  - Details see doc
+
+```{r}
+PMN_continuous <- PMN_greenhouse |> mutate(incub_day = as.integer(incub_day))
+
+my_lm <- lm(data = PMN_continuous, ppm_Nmin ~ incub_day * soil)
+summary(my_lm)
+
+anova(my_lm)
+```
+
+The Anova (in this case ANCOVA) says:
+
+- Effect of incubation time (duh)
+
+- effect of soil
+
+- interaction effect –\> reject (H0 = slopes are equal)
+
+—\> need of a post-hoc test, with Tukey adjustment
+
+```{r}
+slope_trends <- emtrends(my_lm, pairwise ~ soil, var = "incub_day")
+
+summary(slope_trends)
+
+# see the slopes
+slope_trends$emtrends
+
+# see the pairwise contrasts with adjusted p-values (Tukey method)
+slope_trends$contrasts
+```
+
+- conv ≠ Ref, ABC
+
+- Conv = Auto
+
+- Ref = ABC, Ref = Auto
+
+- Auto ≠ ABC
+
+```{r}
+ancova_signif <- slope_trends$contrasts |> as_tibble() |> 
+  mutate(signif = c("**", "", "***", "", "", "*"))
+
+```
+
+Checking model assumptions
+
+```{r}
+library(performance)
+plot_check_ancova <- check_model(my_lm) 
+plot <- plot(plot_check_ancova) + patchwork::plot_annotation(title = "QC: Checking model assumptions for ANCOVA of PMN - Greenhouse data")
+
+# check it out
+plot
+
+# save it
+ggsave("output/figures/greenhouse/qc_pmn_ancova_greenhouse.pdf", plot,height = 8, width = 13.5)
+```
+
+### 2.3.2 - Plot PMN
+
+```{r}
+dates <- c("2023-12-5", "2023-12-26", "2024-01-02") |> as.Date()
+incub_days <- dates - dates[1]
+names(incub_days) <- PMN$incub_time |> unique() |> sort()
+
+# Plot
+# plot again
+PMN_plot <- PMN_greenhouse |> 
+  ggplot(aes(x = incub_day, y = ppm_Nmin, group = soil, colour = soil, fill = soil)) +
+  theme_minimal() +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Potential Mineralization of Nitrogen (PMN) - Greenhouse",
+    subtitle = "Mineral N as sum of NO2-, NO3-, NH4+\nSlopes are statistically different (Conv ≠ Ref, ABC; Auto ≠ ABC)",
+    caption = "Modelled with lm(ppm_Nmin ~ incub_time * soil)\nPost-Hoc with emtrends() and Tukey correction") +
+  xlab("Time since incubation at 28°C [days]") +
+  ylab("Mineral Nitrogen in the soil [ppm]")
+
+# for annotation: extract data from smooth curve
+smooth_data <- ggplot_build(PMN_plot)$data[[2]]
+
+# get its maximum value to anker the annotation
+annotations <- smooth_data |> 
+  slice_max(x, by = group) |> 
+  mutate(soil = levels(PMN_greenhouse$soil))
+#c("#F8766D", "#7CAE00", "#00BFC4", "#C77CFF") 
+
+PMN_plot_all <- 
+  PMN_plot + 
+  geom_text(
+    data = annotations,
+    aes(x = x+0.5, y = y, colour = soil, label = soil), 
+    hjust = 0, size = 5) +
+  xlim(c(0,45)) +
+  theme(legend.position = "none") #+
+
+signif_annotations <- ancova_signif |> 
+  filter(signif %in% c(".", "*", "**", "***")) |> 
+  select(contrast, p.value, signif) |> 
+  mutate(
+    start = str_extract(contrast, "(\\w*) - (\\w*)", group = 1),
+    end = str_extract(contrast, "(\\w*) - (\\w*)", group = 2)
+  ) |> 
+  left_join(
+    annotations |> select(soil, x, y) |> rename(start = soil)
+  ) |> 
+  left_join(
+    annotations |> select(soil, x, y) |> rename(end = soil, yend = y)
+  ) |> 
+  mutate(
+    x = x + c(11,7,15),
+    y = y - 0.1,
+    yend = yend + 0.1) |> 
+  mutate(soil = start)
+
+plot_signif <- PMN_plot_all +
+  geom_segment(
+    data = signif_annotations,
+    aes(x = x, y = y, yend = yend),
+    colour = "grey30"
+  ) +
+  geom_text(
+    data = signif_annotations,
+    aes(x = x + 1, y = (y + yend)/2, label = signif),
+    colour = "grey30"
+  ) +
+  geom_segment(
+    data = signif_annotations,
+    aes(x = x, xend = x - 1, y = yend, yend = yend),
+    colour = "grey30"
+  ) +
+  geom_segment(
+    data = signif_annotations,
+    aes(x = x, xend = x - 1, y = y, yend = y),
+    colour = "grey30"
+  )
+  
+
+```
+
+Check it out & save
+
+```{r}
+plot_signif  
+
+ggsave("output/figures/greenhouse/plot_pmn_signif_greenhouse.pdf", plot = plot_signif, height = 5, width = 7)
+```
