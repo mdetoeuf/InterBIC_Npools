@@ -290,7 +290,7 @@ yield_tidy <- yield_full |>
 <summary>Code</summary>
 
 ``` r
-yield_tidy |> write_rds("output/data/3_field_yield_clean.rds")
+yield_tidy |> write_rds("output/data/1_field_yield_clean.rds")
 ```
 
 </details>

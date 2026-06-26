@@ -1,6 +1,7 @@
-plot_pca <- function(site_data, variable_data, PC_percent) {
+plot_pca <- function(site_data, variable_data, PC_percent, colour_point = "cs") {
   plot <- site_data |> 
     ggplot(aes(x = PC1, y = PC2)) +
+    geom_point(aes(colour = .data[[colour_point]]), size = 3)+
     theme_minimal() +
     geom_segment(
       data = variable_data,

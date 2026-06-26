@@ -16,6 +16,26 @@ output: true
 
 # To Do
 
+Field:
+
+- Correct LER with seeding rates (now relative values ok, absolute are off)
+
+- Review notes PI meeting validation stat: 2 modèles
+
+  - effet de système sur froment seul (1 facteur = 3 sols)
+
+  - effet du labour sur effet de IC (Auto et ABC uniquement) –\> 2 facteurs 2 niveaux (2 sols, 2 cs)
+
+  - SO: remove all Ref & IC !
+
+Still missing:
+
+- PNR
+
+- MicroResp
+
+- Nmin t3 ?
+
 # Set up
 
 ```{r}
@@ -75,6 +95,34 @@ What is still dormant is weed data. Relevant? not sure...
 
 ## 1.2 - Field
 
+For the field data sets, some bits and pieces are dropped along the way:
+
+- MicroResp experiment: still needs calibration (maybe)
+
+- PMN: samples had to be re-humidified because the container system was not optimal and samples had become basically dry (see script on data wrangling: curves show interesting trends, but don't know what to do with them)
+
+- TDN & MBN: I believe that the blank was not digested
+
+- WHC is not intrinsically interesting, though we have the data as well (was needed for MicroResp)
+
+In the end, what is left here is:
+
+- yield data (harvest: grain, grain protein, PS)
+
+- Nmin data at t2 (NO2, NO3, NH4 –\> Nmin and ratios)
+
+- LER can be derived from yield data (but = aggregated data –\> no incorporation in PCA possible)
+
+- Question mark on:
+
+  - slurry test (upcoming)
+
+  - AMF quantification
+
+  - Leghemoglobin quantification
+
+What is still dormant is weed data. Relevant? not sure...
+
 ## 1.3 - Experimental design and questions asked
 
 Whereas the greenhouse had a full design with both sole crops and intercrop, and all modalitites present, this is not the case in the field.
@@ -89,6 +137,8 @@ Whereas the greenhouse had a full design with both sole crops and intercrop, and
 
 ## 1.4 - Setting general parameters
 
+### 1.4.1 - Significance
+
 ```{r}
 p_signif <- tribble(
   ~ signif_stars, ~ max_p_value,
@@ -98,6 +148,31 @@ p_signif <- tribble(
   "**",  0.01,
   "***", 0.001
 )
+```
+
+### 1.4.2 - Graphical parameters
+
+```{r}
+library(RColorBrewer)
+display.brewer.all(n = 3, type = "qual")
+display.brewer.pal(n = 3, name = "Accent")
+cs_colors <- brewer.pal(n = 3, name = "Accent")
+names(cs_colors) <- c("FB", "IC", "W")
+
+# display.brewer.all(n = 4, type = "qual")
+# display.brewer.pal(n = 4, name = "Set1")
+# soil_colors <- brewer.pal(n = 4, name = "Set1")
+# names(soil_colors) <- c("Conv", "Ref", "Auto", "ABC")
+
+# Palette "Badlands" from package nationalparkcolors
+soil_colors <- c(
+  "Conv" = "#5495CFFF", "Ref" = "#F5AF4DFF", 
+  "Auto" = "#DB4743FF", "ABC" = "#7C873EFF")
+# soil_colors <- c("#5495CFFF", "#F5AF4DFF", "#DB4743FF", "#7C873EFF", "#FEF4D5FF")
+# names(soil_colors) <- c("Conv", "Ref", "Auto", "ABC", "Std")
+# soil_colors <- tibble(
+#   colours = c("#5495CFFF", "#F5AF4DFF", "#DB4743FF", "#7C873EFF", "#FEF4D5FF") ,
+#   soil = c("Conv", "Ref", "Auto", "ABC", "Std"))
 ```
 
 # 2 - Analysis on Greenhouse Data
@@ -311,21 +386,23 @@ ggsave("output/figures/greenhouse/qc_pmn_ancova_greenhouse.pdf", plot,height = 8
 ```{r}
 dates <- c("2023-12-5", "2023-12-26", "2024-01-02") |> as.Date()
 incub_days <- dates - dates[1]
-names(incub_days) <- PMN$incub_time |> unique() |> sort()
+names(incub_days) <- PMN_greenhouse$incub_time |> unique() |> sort()
 
-# Plot
 # plot again
 PMN_plot <- PMN_greenhouse |> 
+ # left_join(soil_colors) |> 
   ggplot(aes(x = incub_day, y = ppm_Nmin, group = soil, colour = soil, fill = soil)) +
   theme_minimal() +
   geom_point() +
   geom_smooth(method = "lm") +
   labs(
     title = "Potential Mineralization of Nitrogen (PMN) - Greenhouse",
-    subtitle = "Mineral N as sum of NO2-, NO3-, NH4+\nSlopes are statistically different (Conv ≠ Ref, ABC; Auto ≠ ABC)",
+    subtitle = "Mineral N as sum of NO2-, NO3-, NH4+\nCurves are statistically different (ANCOVA)",
     caption = "Modelled with lm(ppm_Nmin ~ incub_time * soil)\nPost-Hoc with emtrends() and Tukey correction") +
   xlab("Time since incubation at 28°C [days]") +
-  ylab("Mineral Nitrogen in the soil [ppm]")
+  ylab("Mineral Nitrogen in the soil [ppm]") +
+  scale_color_manual(values = soil_colors) +
+  scale_fill_manual(values = soil_colors)
 
 # for annotation: extract data from smooth curve
 smooth_data <- ggplot_build(PMN_plot)$data[[2]]
@@ -365,28 +442,18 @@ signif_annotations <- ancova_signif |>
   mutate(soil = start)
 
 plot_signif <- PMN_plot_all +
-  geom_segment(
-    data = signif_annotations,
-    aes(x = x, y = y, yend = yend),
-    colour = "grey30"
-  ) +
-  geom_text(
-    data = signif_annotations,
-    aes(x = x + 1, y = (y + yend)/2, label = signif),
-    colour = "grey30"
-  ) +
-  geom_segment(
-    data = signif_annotations,
-    aes(x = x, xend = x - 1, y = yend, yend = yend),
-    colour = "grey30"
-  ) +
-  geom_segment(
-    data = signif_annotations,
-    aes(x = x, xend = x - 1, y = y, yend = y),
-    colour = "grey30"
-  )
-  
-
+  # vertical segments
+  geom_segment(data = signif_annotations,
+    aes(x = x, y = y, yend = yend), colour = "grey30") +
+  # significance stars
+  geom_text(data = signif_annotations,
+    aes(x = x + 1, y = (y + yend)/2, label = signif), colour = "grey30") +
+  # top-horizontal segments
+  geom_segment(data = signif_annotations,
+    aes(x = x, xend = x - 1, y = yend, yend = yend), colour = "grey30") +
+  # bottom-horizontal segments
+  geom_segment(data = signif_annotations,
+    aes(x = x, xend = x - 1, y = y, yend = y), colour = "grey30")
 ```
 
 Check it out & save
@@ -396,3 +463,274 @@ plot_signif
 
 ggsave("output/figures/greenhouse/plot_pmn_signif_greenhouse.pdf", plot = plot_signif, height = 5, width = 7)
 ```
+
+## 2.4 - PCA
+
+### 2.4.1 - Check assumptions
+
+.... UPCOMING?
+
+### 2.4.2 - Subset PCA data
+
+PCA requires only numerical data, so we first get rid on any variable that should not enter the pca
+
+[**!! MISSING SINGLE SIRs, will get them back in**]{.underline}
+
+```{r}
+data_fb_pca <- data_fb_pot |> 
+  select(
+    biol_unit_nb, 
+    ppm_NH4, ppm_NO3, #ppm_Nmin, 
+    stem_per_fb, height_per_fb, dw_fb_per_plant,
+    basal_resp, MBC, qCO2, MSIR, shannon) |> 
+  column_to_rownames("biol_unit_nb") |> 
+  drop_na()
+
+data_w_pca <- data_w_pot |> 
+  select(
+    biol_unit_nb, 
+    ppm_NH4, ppm_NO3, ppm_Nmin, 
+    till_per_w, height_per_w, dw_w_per_plant,
+    basal_resp, MBC, qCO2, MSIR, shannon) |> 
+  column_to_rownames("biol_unit_nb") |> 
+  drop_na()
+```
+
+### 3.2.2 - Faba Bean
+
+```{r}
+
+# rda_matrix_fb <- data_fb_pca |> 
+#   column_to_rownames("biol_unit_nb") |> 
+#   drop_na()
+  
+pca_fb <- pca(data_fb_pca, scale = TRUE)
+
+summary(pca_fb)
+
+screeplot(pca_fb, bstick = TRUE, npcs = length(pca_fb$CA$eig))
+
+#biplot(pca_fb, scaling = 1, main = "PCA - scaling 1 = object relationships preserved")
+biplot(pca_fb, main = "PCA FB - scaling 2 = variable relationships preserved")
+
+
+```
+
+Prepare data for plotting
+
+```{r}
+#non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
+pot_scores <- scores(pca_fb, display = "sites", scaling = 2) 
+biol_unit <- rownames(pot_scores) |> as.double()
+pot_scores <- pot_scores |> 
+  as_tibble() |> 
+  mutate(biol_unit_nb = biol_unit)
+
+var_scores <- scores(pca_fb, display = "species", scaling = 2)
+variables <- rownames(var_scores)
+var_scores <- var_scores |> 
+  as_tibble() |> 
+  mutate(variable = variables)
+
+PC_percent <- pca_fb$CA$eig / sum(pca_fb$CA$eig)
+
+data_fb_pca <- left_join(data_fb_pot, pot_scores, by = join_by(biol_unit_nb))
+```
+
+Plot it
+
+```{r}
+#| warning: false
+#dev.new()
+plot_pca_fb_cs <- plot_pca(data_fb_pca, var_scores, PC_percent, colour_point = "cs") +
+  #geom_point(aes( colour = cs)) +
+  labs(title = "PCA - Faba Bean") +
+  scale_color_discrete(palette = c(cs_colors["FB"], cs_colors["IC"])) 
+
+plot_pca_fb_cs
+
+plot_pca_fb_soil <- plot_pca(data_fb_pca, var_scores, PC_percent, colour_point = "soil") +
+ # geom_point(aes( colour = soil, shape = cs)) +
+  labs(title = "PCA - Faba Bean") +
+  scale_color_discrete(palette = c(soil_colors)) 
+
+plot_pca_fb_soil
+```
+
+### 3.2.3 - Wheat
+
+```{r}
+
+# rda_matrix_w <- data_w |> 
+#   select(
+#     biol_unit_nb,
+#     ppm_NO3, ppm_NH4, 
+#     #till_per_w, 
+#     height_per_w, dw_w_per_plant) |> 
+#   column_to_rownames("biol_unit_nb") |> 
+#   drop_na()
+  
+pca_w <- pca(data_w_pca, scale = TRUE)
+
+summary(pca_w)
+
+screeplot(pca_w, bstick = TRUE, npcs = length(pca_w$CA$eig))
+
+#biplot(pca_fb, scaling = 1, main = "PCA - scaling 1 = object relationships preserved")
+biplot(pca_w, main = "PCA Wheat - scaling 2 = variable relationships preserved")
+```
+
+Prepare data for plotting
+
+```{r}
+#non_pca <- greenhouse |> select(!ppm_NH4:NO3_NH4)
+pot_scores <- scores(pca_w, display = "sites", scaling = 2) 
+biol_unit <- rownames(pot_scores) |> as.double()
+pot_scores <- pot_scores |> 
+  as_tibble() |> 
+  mutate(biol_unit_nb = biol_unit)
+
+var_scores <- scores(pca_w, display = "species", scaling = 2)
+variables <- rownames(var_scores)
+var_scores <- var_scores |> 
+  as_tibble() |> 
+  mutate(variable = variables)
+
+PC_percent <- pca_w$CA$eig / sum(pca_w$CA$eig)
+
+data_w_pca <- left_join(data_w_pot, pot_scores, by = join_by(biol_unit_nb))
+```
+
+Plot it
+
+```{r}
+#dev.new()
+plot_pca_w_cs <- plot_pca(data_w_pca, var_scores, PC_percent, colour_point = "cs") +
+  geom_point(aes( colour = cs)) +
+  scale_color_discrete(palette = c(cs_colors["IC"], cs_colors["W"])) +
+  labs(title = "PCA - Wheat")
+  
+#plot_pca_w_cs
+
+plot_pca_w_soil <- plot_pca(data_w_pca, var_scores, PC_percent, colour_point = "soil") +
+ # geom_point(aes(shape = cs)) +
+  labs(title = "PCA - Wheat") +
+  scale_color_discrete(palette = c(soil_colors)) 
+
+plot_pca_w_soil
+```
+
+### 3.2.4 - All plots
+
+```{r}
+#| warning: false
+plot_pca_fb_cs + plot_pca_w_cs + plot_layout(guides = "collect")
+
+plot_pca_fb_soil + plot_pca_w_soil + plot_layout(guides = "collect")
+```
+
+# What now?
+
+Wait until we include single SIRs
+
+# 3 - Analysis on Field Data
+
+## 3.1 - Load and clean data
+
+[**! Yield data to come: script 1_CRA_Data still needs to be worked on**]{.underline}
+
+```{r}
+Npools_t2_field <- read_rds("output/data/2_Npools.rds") |> 
+  filter(expe == "Field")
+yield_field <- read_rds("output/data/1_field_yield_clean.rds")
+MR_field <- read_rds("output/data/1_MR_data.rds") |> 
+  filter(expe == "Field") |> 
+  filter_out(soil == c("Std")) |> 
+  mutate(biol_unit_nb = as.numeric(str_extract(sample_id, "t2_(\\d*)_z\\d", group = 1))) |> 
+  select(!c(dataset))
+
+PMN_field <- read_rds("output/data/2_PMN.rds") |> filter(expe == "Field")
+
+
+
+
+# field_Npools <- read_rds("output/data/4.1_t2_field_Npools.rds") |> 
+#   select(!c(expe, sampling_time, dilution)) 
+# 
+# field_yield <- read_rds("output/data/3_field_yield_clean.rds")
+# 
+# PMN <- read_rds("output/data/4.1_t2_field_PMN.rds")
+# 
+# MR <- read_rds("output/data/1_MR_data.rds") |> filter(dataset == "MR_field")
+# 
+# #str(field_Npools)
+```
+
+```{r}
+# check out graphically that not too many outliers
+Npools_t2_field |> 
+  ggplot(aes(x = soil, colour = cs, y = NO3_Nmin)) + 
+  facet_wrap(~bloc) +
+  geom_boxplot() +
+  geom_point()
+
+Npools_t2_field |> 
+  ggplot(aes(x = soil, colour = cs, y = NH4_Nmin)) + 
+  facet_wrap(~bloc) +
+  geom_boxplot() +
+  geom_point()
+
+yield_field |>
+  ggplot(aes(x = soil, colour = crop, y = grain_yield_15p_t_per_ha)) +   geom_boxplot() +
+  geom_point()
+
+yield_field |>
+  ggplot(aes(x = soil, colour = crop, y = protein_percent_dw)) +
+  geom_boxplot() +
+  geom_point()
+```
+
+# °°° !!! START HERE !!! °°°
+
+Now we want to get soil and yield data together, per crop (starting with Faba Bean, then Wheat). For that, we need to compute the mean soil values across the 3 zones (bc yield was taken once per plot).
+
+```{r}
+field_Npools_mean <- field_Npools |> 
+  group_by(soil, cs, bloc, biol_unit_nb) |> 
+  summarise(
+    MBN_ppm = mean(MBN_ppm, na.rm = TRUE),
+    TDN_ppm = mean(TDN_ppm, na.rm = TRUE),
+    ppm_NH4 = mean(ppm_NH4, na.rm = TRUE),
+    ppm_NO3 = mean(ppm_NO3, na.rm = TRUE),
+    ppm_NO2 = mean(ppm_NO2, na.rm = TRUE)
+  ) |> 
+  mutate(
+    Nmin_ppm = ppm_NH4 + ppm_NO3 + ppm_NO2,
+    Norg_ppm = TDN_ppm - Nmin_ppm,
+    NO3_NH4 = ppm_NO3 / ppm_NH4,
+    NO3_Nmin = ppm_NO3 / Nmin_ppm,
+    Nmin_TDN = Nmin_ppm / TDN_ppm) |> 
+  ungroup()
+
+#pairs(field_Npools_mean |> select(!c(soil,cs, biol_unit_nb)))
+```
+
+We subset yield per plant and join the corresponding soil data
+
+```{r}
+data_fb <- field_yield |> 
+  filter(crop == "Faba bean") |> 
+  arrange(biol_unit_nb) |> 
+  left_join(field_Npools_mean)
+
+data_w <- field_yield |> 
+  filter(crop == "Wheat") |> 
+  arrange(biol_unit_nb) |> 
+  left_join(field_Npools_mean)
+
+# check it out
+data_fb
+data_w
+```
+
+# 
